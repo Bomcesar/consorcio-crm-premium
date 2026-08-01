@@ -11,6 +11,7 @@ import {
   BookOpen,
   BarChart3,
   Settings,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,6 +25,7 @@ export interface NavItem {
 export const mainNavItems: NavItem[] = [
   { title: "Dashboard", href: "/", icon: LayoutDashboard },
   { title: "Leads", href: "/leads", icon: UserPlus, badge: "12" },
+  { title: "Central de Indicadores", href: "/central-de-indicadores", icon: TrendingUp },
   { title: "Clientes", href: "/clientes", icon: Users },
   { title: "Agenda", href: "/agenda", icon: Calendar },
   { title: "WhatsApp", href: "/whatsapp", icon: MessageCircle, badge: "3" },
