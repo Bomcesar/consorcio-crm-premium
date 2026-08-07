@@ -11,10 +11,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Authenticated users can view own profile" ON public.profiles;
 CREATE POLICY "Authenticated users can view own profile"
   ON public.profiles FOR SELECT
   USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Authenticated users can update own profile" ON public.profiles;
 CREATE POLICY "Authenticated users can update own profile"
   ON public.profiles FOR UPDATE
   USING (auth.uid() = id)
@@ -68,6 +70,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
 CREATE TRIGGER update_profiles_updated_at
 BEFORE UPDATE ON public.profiles
 FOR EACH ROW

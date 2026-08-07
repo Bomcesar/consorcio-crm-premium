@@ -15,10 +15,12 @@ import {
   DEMO_EMAIL,
   DEMO_PASSWORD,
 } from "@/lib/validations/auth";
-import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 export function LoginForm() {
   const router = useRouter();
+  const { signIn } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,35 +40,12 @@ export function LoginForm() {
     setError(null);
 
     try {
-      if (isSupabaseConfigured()) {
-        const supabase = createClient();
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: data.email,
-          password: data.password,
-        });
-
-        if (authError) {
-          setError("E-mail ou senha inválidos. Tente novamente.");
-          return;
-        }
-      } else {
-        const response = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-          const result = (await response.json()) as { error?: string };
-          setError(result.error ?? "Erro ao fazer login.");
-          return;
-        }
-      }
+      await signIn({ email: data.email, password: data.password });
 
       router.push("/");
       router.refresh();
-    } catch {
-      setError("Erro inesperado. Tente novamente.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Erro inesperado. Tente novamente.");
     }
   }
 

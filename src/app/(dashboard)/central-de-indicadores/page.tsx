@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { IndicatorCard } from "@/components/central-de-indicadores/indicator-card";
 import {
   Activity,
   BarChart3,
@@ -40,12 +41,15 @@ type Indicator = {
   updated_at?: string | null;
   nome: string;
   telefone: string;
+  whatsapp?: string | null;
   email: string;
   cidade: string;
   estado: string;
   cpf: string;
   pix: string;
   origem: string;
+  profissao?: string | null;
+  data_entrada?: string | null;
   status: string;
   observacoes: string;
   ativo: boolean;
@@ -55,6 +59,16 @@ type Indicator = {
   link_grupo?: string | null;
   grupo_criado?: boolean;
 };
+
+type IndicatorStats = Record<
+  string,
+  {
+    contatosRecebidos: number;
+    reunioesRealizadas: number;
+    vendasFechadas: number;
+    comissoesPagas: number;
+  }
+>;
 
 type ToastState = {
   type: "success" | "error";
@@ -164,28 +178,19 @@ const emptySummary: DashboardSummary = {
   valorComissoesPendentes: 0,
 };
 
-const tableColumns = [
-  "Nome",
-  "Telefone",
-  "Cidade",
-  "Status",
-  "Grupo",
-  "Contatos",
-  "Conversão",
-  "Última atividade",
-  "Ações",
-];
-
 const emptyForm = {
   nome: "",
   telefone: "",
+  whatsapp: "",
   email: "",
   cidade: "",
   estado: "",
   cpf: "",
   pix: "",
   origem: "",
-  status: "Ativo",
+  profissao: "",
+  data_entrada: new Date().toISOString().slice(0, 10),
+  status: "Novo",
   observacoes: "",
   ativo: true,
 };
@@ -216,6 +221,8 @@ const pipelineStages = [
   "Comissão",
 ] as const;
 
+const statusOptions = ["Novo", "Em contato", "Ativo", "Inativo", "Parceiro Premium"];
+
 export default function CentralDeIndicadoresPage() {
   const [indicators, setIndicators] = useState<Indicator[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -228,6 +235,8 @@ export default function CentralDeIndicadoresPage() {
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
   const [ranking, setRanking] = useState<RankedIndicator[]>([]);
   const [draggedIndicatorId, setDraggedIndicatorId] = useState<string | null>(null);
+  const [indicatorStats, setIndicatorStats] = useState<IndicatorStats>({});
+  const [editingIndicatorId, setEditingIndicatorId] = useState<string | null>(null);
   const [formData, setFormData] = useState(emptyForm);
   const [contactFormData, setContactFormData] = useState(emptyContactForm);
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
@@ -259,6 +268,24 @@ export default function CentralDeIndicadoresPage() {
     setContactFormData((current) => ({ ...current, [field]: value }));
   };
 
+  const logSupabaseError = (context: string, error: unknown) => {
+    console.error(`[central-de-indicadores] ${context}`, error);
+  };
+
+  const getAuthenticatedUserId = async (supabase: ReturnType<typeof createClient>) => {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (!userError && userData.user?.id) {
+      return userData.user.id;
+    }
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      throw sessionError;
+    }
+
+    return sessionData.session?.user?.id ?? null;
+  };
+
   const loadIndicators = async () => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -269,21 +296,28 @@ export default function CentralDeIndicadoresPage() {
       return;
     }
 
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("indicadores")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("indicadores")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      setErrorMessage("Não foi possível carregar os indicadores no momento.");
+      if (error) {
+        logSupabaseError("loadIndicators", error);
+        setErrorMessage("Não foi possível carregar os indicadores no momento.");
+        setIndicators([]);
+        return;
+      }
+
+      setIndicators((data as Indicator[]) ?? []);
+    } catch (error) {
+      logSupabaseError("loadIndicators", error);
+      setErrorMessage("Ocorreu um erro inesperado ao carregar os indicadores.");
       setIndicators([]);
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    setIndicators((data as Indicator[]) ?? []);
-    setIsLoading(false);
   };
 
   const handleMoveIndicatorToStage = async (indicatorId: string, stage: string) => {
@@ -334,7 +368,7 @@ export default function CentralDeIndicadoresPage() {
     const supabase = createClient();
 
     const [{ data: indicatorsData }, { data: contactsData }, { data: commissionsData }] = await Promise.all([
-      supabase.from("indicadores").select("id, nome, ativo, status"),
+      supabase.from("indicadores").select("id, nome, ativo, status").order("created_at", { ascending: false }),
       supabase.from("contatos_indicados").select("indicador_id"),
       supabase.from("comissoes_indicadores").select("indicador_id, status, valor"),
     ]);
@@ -383,6 +417,22 @@ export default function CentralDeIndicadoresPage() {
       })
       .sort((left, right) => right.vendas - left.vendas || right.conversao - left.conversao);
 
+    const nextStats = Object.fromEntries(
+      safeIndicators.map((indicator) => {
+        const commissionsForIndicator = commissionsByIndicator[indicator.id] ?? [];
+        const contactsCount = contactsByIndicator[indicator.id] ?? 0;
+        return [
+          indicator.id,
+          {
+            contatosRecebidos: contactsCount,
+            reunioesRealizadas: 0,
+            vendasFechadas: commissionsForIndicator.filter((commission) => commission.status === "Pago").length,
+            comissoesPagas: commissionsForIndicator.filter((commission) => commission.status === "Pago").length,
+          },
+        ];
+      }),
+    );
+
     setSummary({
       totalIndicadores,
       indicadoresAtivos,
@@ -393,12 +443,14 @@ export default function CentralDeIndicadoresPage() {
       valorComissoesPendentes,
     });
     setRanking(rankingData);
+    setIndicatorStats(nextStats);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!formData.nome.trim()) {
+    if (!formData.nome.trim() || !formData.telefone.trim()) {
+      setToast({ type: "error", title: "Nome e telefone são obrigatórios." });
       return;
     }
 
@@ -411,54 +463,118 @@ export default function CentralDeIndicadoresPage() {
       return;
     }
 
-    const supabase = createClient();
-    const { data: userData, error: userError } = await supabase.auth.getUser();
+    try {
+      const supabase = createClient();
+      const userId = await getAuthenticatedUserId(supabase);
 
-    if (userError || !userData.user) {
-      setToast({ type: "error", title: "Não foi possível identificar o usuário autenticado." });
-      setIsSaving(false);
-      return;
-    }
+      if (!userId) {
+        setToast({ type: "error", title: "Não foi possível identificar o usuário autenticado." });
+        return;
+      }
 
-    const { data, error } = await supabase
-      .from("indicadores")
-      .insert({
+      const payload = {
         nome: formData.nome.trim(),
         telefone: formData.telefone.trim(),
+        whatsapp: formData.whatsapp.trim(),
         email: formData.email.trim(),
         cidade: formData.cidade.trim(),
         estado: formData.estado.trim(),
         cpf: formData.cpf.trim(),
         pix: formData.pix.trim(),
         origem: formData.origem.trim(),
+        profissao: formData.profissao.trim(),
+        data_entrada: formData.data_entrada,
         status: formData.status,
         observacoes: formData.observacoes.trim(),
         ativo: formData.ativo,
-        usuario_id: userData.user.id,
+        usuario_id: userId,
         pipeline_stage: "Novo Indicador",
-      })
-      .select()
-      .single();
+      };
 
-    if (error) {
-      setToast({ type: "error", title: "Não foi possível salvar o indicador. Tente novamente." });
+      const request = editingIndicatorId
+        ? supabase.from("indicadores").update(payload).eq("id", editingIndicatorId).select().single()
+        : supabase.from("indicadores").insert(payload).select().single();
+
+      const { data, error } = await request;
+
+      if (error) {
+        logSupabaseError("handleSubmit", error);
+        setToast({ type: "error", title: editingIndicatorId ? "Não foi possível atualizar o indicador." : "Não foi possível salvar o indicador." });
+        return;
+      }
+
+      if (data) {
+        setIndicators((current) => {
+          const next = editingIndicatorId
+            ? current.map((indicator) => (indicator.id === editingIndicatorId ? ({ ...indicator, ...(data as Indicator) }) : indicator))
+            : [data as Indicator, ...current];
+          return next;
+        });
+      }
+
+      await loadIndicators();
+      await loadDashboardSummary();
+      setFormData({ ...emptyForm });
+      setEditingIndicatorId(null);
+      setIsFormOpen(false);
+      setToast({ type: "success", title: editingIndicatorId ? "Indicador atualizado com sucesso." : "Indicador cadastrado com sucesso." });
+    } catch (error) {
+      logSupabaseError("handleSubmit", error);
+      setToast({ type: "error", title: "Ocorreu um erro inesperado ao salvar o indicador." });
+    } finally {
       setIsSaving(false);
-      return;
     }
-
-    if (data) {
-      setIndicators((current) => [data as Indicator, ...current]);
-    }
-
-    setFormData(emptyForm);
-    setIsFormOpen(false);
-    setToast({ type: "success", title: "Indicador salvo com sucesso." });
-    setIsSaving(false);
   };
 
   const handleCancel = () => {
-    setFormData(emptyForm);
+    setFormData({ ...emptyForm });
+    setEditingIndicatorId(null);
     setIsFormOpen(false);
+  };
+
+  const handleEditIndicator = (indicator: Indicator) => {
+    setEditingIndicatorId(indicator.id);
+    setFormData({
+      nome: indicator.nome || "",
+      telefone: indicator.telefone || "",
+      whatsapp: indicator.whatsapp || "",
+      email: indicator.email || "",
+      cidade: indicator.cidade || "",
+      estado: indicator.estado || "",
+      cpf: indicator.cpf || "",
+      pix: indicator.pix || "",
+      origem: indicator.origem || "",
+      profissao: indicator.profissao || "",
+      data_entrada: indicator.data_entrada || new Date().toISOString().slice(0, 10),
+      status: indicator.status || "Novo",
+      observacoes: indicator.observacoes || "",
+      ativo: indicator.ativo,
+    });
+    setIsFormOpen(true);
+  };
+
+  const handleDeleteIndicator = async (indicatorId: string) => {
+    if (!isSupabaseConfigured()) {
+      setToast({ type: "error", title: "A configuração do Supabase não foi encontrada." });
+      return;
+    }
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("indicadores").delete().eq("id", indicatorId);
+
+      if (error) {
+        logSupabaseError("handleDeleteIndicator", error);
+        setToast({ type: "error", title: "Não foi possível excluir o indicador." });
+        return;
+      }
+
+      setIndicators((current) => current.filter((indicator) => indicator.id !== indicatorId));
+      setToast({ type: "success", title: "Indicador excluído com sucesso." });
+    } catch (error) {
+      logSupabaseError("handleDeleteIndicator", error);
+      setToast({ type: "error", title: "Ocorreu um erro inesperado ao excluir o indicador." });
+    }
   };
 
   const handleContactCancel = () => {
@@ -498,6 +614,8 @@ export default function CentralDeIndicadoresPage() {
     setSelectedIndicatorId(indicatorId);
     await Promise.all([loadContacts(indicatorId), loadCommissions(indicatorId)]);
   };
+
+  const _handleOpenContacts = handleOpenContacts;
 
   const handleSaveContact = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -906,7 +1024,7 @@ export default function CentralDeIndicadoresPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
           <Card className="w-full max-w-3xl border-border/50 bg-card shadow-2xl">
             <CardHeader>
-              <CardTitle>Novo indicador</CardTitle>
+              <CardTitle>{editingIndicatorId ? "Editar indicador" : "Novo indicador"}</CardTitle>
             </CardHeader>
             <CardContent>
               <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
@@ -922,11 +1040,22 @@ export default function CentralDeIndicadoresPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="telefone">Telefone</Label>
+                  <Label htmlFor="telefone">Telefone *</Label>
                   <Input
                     id="telefone"
                     value={formData.telefone}
                     onChange={(event) => handleChange("telefone", event.target.value)}
+                    placeholder="(00) 00000-0000"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="whatsapp">WhatsApp</Label>
+                  <Input
+                    id="whatsapp"
+                    value={formData.whatsapp}
+                    onChange={(event) => handleChange("whatsapp", event.target.value)}
                     placeholder="(00) 00000-0000"
                   />
                 </div>
@@ -993,6 +1122,26 @@ export default function CentralDeIndicadoresPage() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="profissao">Profissão</Label>
+                  <Input
+                    id="profissao"
+                    value={formData.profissao}
+                    onChange={(event) => handleChange("profissao", event.target.value)}
+                    placeholder="Profissão"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="data_entrada">Data de entrada</Label>
+                  <Input
+                    id="data_entrada"
+                    type="date"
+                    value={formData.data_entrada}
+                    onChange={(event) => handleChange("data_entrada", event.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
                   <select
                     id="status"
@@ -1000,9 +1149,11 @@ export default function CentralDeIndicadoresPage() {
                     value={formData.status}
                     onChange={(event) => handleChange("status", event.target.value)}
                   >
-                    <option value="Ativo">Ativo</option>
-                    <option value="Em análise">Em análise</option>
-                    <option value="Inativo">Inativo</option>
+                    {statusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1033,7 +1184,7 @@ export default function CentralDeIndicadoresPage() {
 
                 <div className="flex gap-2 md:col-span-2">
                   <Button type="submit" disabled={isSaving}>
-                    {isSaving ? "Salvando..." : "Salvar"}
+                    {isSaving ? "Salvando..." : editingIndicatorId ? "Salvar alterações" : "Salvar"}
                   </Button>
                   <Button type="button" variant="outline" onClick={handleCancel}>
                     Cancelar
@@ -1047,75 +1198,32 @@ export default function CentralDeIndicadoresPage() {
 
       <Card className="border-border/50 bg-card/70">
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Detalhes operacionais</CardTitle>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Parcerias comerciais</CardTitle>
+            </div>
+            <Button onClick={() => setIsFormOpen(true)}>+ Novo Indicador</Button>
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <p className="px-4 py-10 text-center text-muted-foreground">Carregando indicadores...</p>
+          ) : indicators.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border/50 px-6 py-12 text-center text-sm text-muted-foreground">
+              Nenhum indicador cadastrado ainda.
+            </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-border text-sm">
-                <thead>
-                  <tr>
-                    {tableColumns.map((column) => (
-                      <th
-                        key={column}
-                        className="px-4 py-3 text-left font-medium text-muted-foreground"
-                      >
-                        {column}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {indicators.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
-                        Nenhum registro disponível nesta etapa.
-                      </td>
-                    </tr>
-                  ) : (
-                    indicators.map((indicator) => (
-                      <tr key={indicator.id} className="border-t border-border/50">
-                        <td className="px-4 py-3">{indicator.nome}</td>
-                        <td className="px-4 py-3">{indicator.telefone}</td>
-                        <td className="px-4 py-3">{indicator.cidade}</td>
-                        <td className="px-4 py-3">{indicator.status}</td>
-                        <td className="px-4 py-3">
-                          {indicator.grupo_criado ? "Criado" : "Não criado"}
-                        </td>
-                        <td className="px-4 py-3">0</td>
-                        <td className="px-4 py-3">0%</td>
-                        <td className="px-4 py-3">
-                          {indicator.updated_at ? new Date(indicator.updated_at).toLocaleDateString("pt-BR") : "-"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <Button size="sm" variant="outline" onClick={() => void handleOpenContacts(indicator.id)}>
-                              Contatos
-                            </Button>
-                            <Button size="sm" variant="outline">
-                              Criar Grupo
-                            </Button>
-                            <Button size="sm" variant="outline">
-                              Editar Grupo
-                            </Button>
-                            <Button size="sm" variant="outline">
-                              Copiar Link
-                            </Button>
-                            <Button size="sm" variant="outline">
-                              Abrir Grupo
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+              {indicators.map((indicator) => (
+                <IndicatorCard
+                  key={indicator.id}
+                  indicator={indicator}
+                  stats={indicatorStats[indicator.id] ?? { contatosRecebidos: 0, reunioesRealizadas: 0, vendasFechadas: 0, comissoesPagas: 0 }}
+                  onEdit={() => handleEditIndicator(indicator)}
+                  onDelete={() => void handleDeleteIndicator(indicator.id)}
+                />
+              ))}
             </div>
           )}
         </CardContent>

@@ -11,10 +11,12 @@ CREATE TABLE IF NOT EXISTS public.leads (
 
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow authenticated users to view leads" ON public.leads;
 CREATE POLICY "Allow authenticated users to view leads"
   ON public.leads FOR SELECT
   USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Allow authenticated users to insert leads" ON public.leads;
 CREATE POLICY "Allow authenticated users to insert leads"
   ON public.leads FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
@@ -27,6 +29,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS update_leads_updated_at ON public.leads;
 CREATE TRIGGER update_leads_updated_at
 BEFORE UPDATE ON public.leads
 FOR EACH ROW

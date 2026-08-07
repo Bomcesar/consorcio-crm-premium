@@ -1,9 +1,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { recentActivities } from "@/config/navigation";
-import { Calendar, Clock } from "lucide-react";
+import { Calendar, Clock, Headphones, Users } from "lucide-react";
+import type { DashboardActivity, DashboardScheduleItem, PipelineStage } from "@/types/crm";
 
-export function RecentActivity() {
+type RecentActivityProps = {
+  activities: DashboardActivity[];
+};
+
+export function RecentActivity({ activities }: RecentActivityProps) {
   return (
     <Card className="border-border/50 bg-card/50">
       <CardHeader>
@@ -12,7 +16,7 @@ export function RecentActivity() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {recentActivities.map((activity) => (
+          {activities.map((activity) => (
             <div
               key={activity.id}
               className="flex items-start justify-between gap-4 rounded-lg border border-border/50 p-3 transition-colors hover:bg-accent/30"
@@ -39,13 +43,11 @@ export function RecentActivity() {
   );
 }
 
-export function UpcomingSchedule() {
-  const schedule = [
-    { time: "09:00", title: "Reunião com Maria Silva", type: "Proposta" },
-    { time: "11:30", title: "Follow-up João Santos", type: "WhatsApp" },
-    { time: "14:00", title: "Apresentação consórcio imóvel", type: "Presencial" },
-    { time: "16:30", title: "Assembleia virtual", type: "Online" },
-  ];
+type UpcomingScheduleProps = {
+  schedule: DashboardScheduleItem[];
+};
+
+export function UpcomingSchedule({ schedule }: UpcomingScheduleProps) {
 
   return (
     <Card className="border-border/50 bg-card/50">
@@ -55,20 +57,44 @@ export function UpcomingSchedule() {
           Agenda de Hoje
         </CardTitle>
         <CardDescription>Compromissos programados</CardDescription>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Badge variant="outline" className="gap-1 text-[10px]">
+            <Users className="h-3 w-3" />
+            Indicador
+          </Badge>
+          <Badge variant="success" className="gap-1 text-[10px]">
+            <Headphones className="h-3 w-3" />
+            Pós-venda
+          </Badge>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {schedule.map((item, index) => (
+          {schedule.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum compromisso para hoje.</p>
+          ) : null}
+          {schedule.map((item) => (
             <div
-              key={index}
-              className="flex items-center gap-4 rounded-lg border border-border/50 p-3"
+              key={item.id}
+              className={`flex items-center gap-4 rounded-lg border p-3 ${
+                item.origin === "Pós-venda"
+                  ? "border-emerald-500/20 bg-emerald-500/5"
+                  : "border-border/50"
+              }`}
             >
               <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded-md bg-primary/10 text-sm font-semibold text-primary">
                 {item.time}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{item.title}</p>
-                <p className="text-xs text-muted-foreground">{item.type}</p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <p className="text-xs text-muted-foreground">{item.type}</p>
+                  <Badge variant={item.origin === "Pós-venda" ? "success" : "outline"} className="gap-1 text-[10px]">
+                    {item.origin === "Pós-venda" ? <Headphones className="h-3 w-3" /> : <Users className="h-3 w-3" />}
+                    {item.origin}
+                  </Badge>
+                </div>
+                <p className="pt-1 text-[11px] text-muted-foreground">{item.originLabel}</p>
               </div>
             </div>
           ))}
@@ -78,13 +104,11 @@ export function UpcomingSchedule() {
   );
 }
 
-export function PipelineOverview() {
-  const stages = [
-    { name: "Novos Leads", count: 45, color: "bg-blue-500", width: "75%" },
-    { name: "Qualificados", count: 32, color: "bg-violet-500", width: "55%" },
-    { name: "Proposta", count: 18, color: "bg-amber-500", width: "35%" },
-    { name: "Fechamento", count: 8, color: "bg-emerald-500", width: "20%" },
-  ];
+type PipelineOverviewProps = {
+  stages: PipelineStage[];
+};
+
+export function PipelineOverview({ stages }: PipelineOverviewProps) {
 
   return (
     <Card className="border-border/50 bg-card/50">

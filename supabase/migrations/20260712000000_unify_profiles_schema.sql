@@ -24,15 +24,26 @@ ALTER TABLE public.profiles
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS ultimo_login TIMESTAMPTZ;
 
-UPDATE public.profiles
-SET perfil = CASE
-  WHEN role = 'admin' THEN 'Administrador'
-  WHEN role = 'vendedor' THEN 'Consultor'
-  WHEN role = 'backoffice' THEN 'Secretaria'
-  ELSE 'Indicador'
-END
-WHERE perfil IS NULL
-  AND role IS NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'profiles'
+      AND column_name = 'role'
+  ) THEN
+    UPDATE public.profiles
+    SET perfil = CASE
+      WHEN role = 'admin' THEN 'Administrador'
+      WHEN role = 'vendedor' THEN 'Consultor'
+      WHEN role = 'backoffice' THEN 'Secretaria'
+      ELSE 'Indicador'
+    END
+    WHERE perfil IS NULL
+      AND role IS NOT NULL;
+  END IF;
+END $$;
 
 ALTER TABLE public.profiles
   ALTER COLUMN perfil SET DEFAULT 'Indicador';
@@ -86,6 +97,8 @@ DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Admins can update all profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Authenticated users can view own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Authenticated users can update own profile" ON public.profiles;
 
 CREATE POLICY "Authenticated users can view own profile"
   ON public.profiles

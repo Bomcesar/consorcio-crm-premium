@@ -1,15 +1,19 @@
 import { ArrowDownRight, ArrowUpRight, TrendingUp, Users, Handshake, DollarSign } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { dashboardStats } from "@/config/navigation";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import type { DashboardStat } from "@/types/crm";
 
 const iconMap = [Users, Users, Handshake, DollarSign];
 
-export function StatsCards() {
+type StatsCardsProps = {
+  stats: DashboardStat[];
+};
+
+export function StatsCards({ stats }: StatsCardsProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {dashboardStats.map((stat, index) => {
+      {stats.map((stat, index) => {
         const Icon = iconMap[index] ?? TrendingUp;
         const displayValue = stat.isCurrency
           ? formatCurrency(stat.value)

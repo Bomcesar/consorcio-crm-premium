@@ -18,12 +18,22 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "@/components/layout/sidebar";
-import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 export function Header() {
   const router = useRouter();
+  const { signOut, profile, user } = useAuth();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const displayName = profile?.nome || user?.email?.split("@")[0] || "Usuário";
+  const displayRole = profile?.perfil || "Sem perfil";
+  const initials = displayName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("") || "US";
 
   const currentNav = mainNavItems.find((item) =>
     item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),
@@ -31,12 +41,7 @@ export function Header() {
   const title = currentNav?.title ?? "Dashboard";
 
   async function handleLogout() {
-    if (isSupabaseConfigured()) {
-      const supabase = createClient();
-      await supabase.auth.signOut();
-    } else {
-      await fetch("/api/auth/logout", { method: "POST" });
-    }
+    await signOut();
     router.push("/login");
     router.refresh();
   }
@@ -79,13 +84,13 @@ export function Header() {
             <Button variant="ghost" className="relative h-9 gap-2 px-2">
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="bg-primary/20 text-primary text-xs font-semibold">
-                  PC
+                  {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden flex-col items-start text-left md:flex">
-                <span className="text-sm font-medium leading-none">Paulo Cesar</span>
+                <span className="text-sm font-medium leading-none">{displayName}</span>
                 <Badge variant="success" className="mt-1 h-4 px-1 text-[10px]">
-                  Admin
+                  {displayRole}
                 </Badge>
               </div>
             </Button>
