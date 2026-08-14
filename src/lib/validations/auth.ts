@@ -13,5 +13,8 @@ export const loginSchema = z.object({
 
 export type LoginFormData = z.infer<typeof loginSchema>;
 
-export const DEMO_EMAIL = "admin@crm.com";
-export const DEMO_PASSWORD = "123456";
+export const DEMO_EMAIL = process.env.NEXT_PUBLIC_DEMO_EMAIL ?? "";
+export const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? "";
+
+export const isDemoEnabled =
+  (process.env.NEXT_PUBLIC_DEMO_MODE ?? "false").toLowerCase() === "true";

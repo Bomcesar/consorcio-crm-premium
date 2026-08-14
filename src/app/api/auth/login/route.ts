@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
-import { loginSchema, DEMO_EMAIL, DEMO_PASSWORD } from "@/lib/validations/auth";
+import { loginSchema, isDemoEnabled } from "@/lib/validations/auth";
+import { isRateLimited, getRateLimitKey } from "@/lib/rate-limit";
 import { DEMO_SESSION_COOKIE } from "@/lib/supabase/middleware";
 
 export async function POST(request: Request) {
+  if (isRateLimited(getRateLimitKey(request))) {
+    return NextResponse.json({ error: "Muitas tentativas. Tente novamente mais tarde." }, { status: 429 });
+  }
+
   try {
+    if (!isDemoEnabled) {
+      return NextResponse.json({ error: "Modo demo desativado." }, { status: 404 });
+    }
+
     const body = await request.json();
     const parsed = loginSchema.safeParse(body);
 
@@ -13,7 +22,7 @@ export async function POST(request: Request) {
 
     const { email, password } = parsed.data;
 
-    if (email !== DEMO_EMAIL || password !== DEMO_PASSWORD) {
+    if (email !== process.env.NEXT_PUBLIC_DEMO_EMAIL || password !== process.env.NEXT_PUBLIC_DEMO_PASSWORD) {
       return NextResponse.json({ error: "E-mail ou senha inválidos." }, { status: 401 });
     }
 

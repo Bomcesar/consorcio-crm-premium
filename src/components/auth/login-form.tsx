@@ -9,12 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  loginSchema,
-  type LoginFormData,
-  DEMO_EMAIL,
-  DEMO_PASSWORD,
-} from "@/lib/validations/auth";
+import { loginSchema, type LoginFormData } from "@/lib/validations/auth";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 export function LoginForm() {
@@ -29,8 +24,8 @@ export function LoginForm() {
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: DEMO_EMAIL,
-      password: DEMO_PASSWORD,
+      email: "",
+      password: "",
     },
   });
 
@@ -137,14 +132,6 @@ export function LoginForm() {
               "Entrar"
             )}
           </Button>
-
-          {!isSupabaseConfigured() && (
-            <p className="text-center text-xs text-muted-foreground">
-              Modo demo: use{" "}
-              <span className="font-medium text-foreground">{DEMO_EMAIL}</span> /{" "}
-              <span className="font-medium text-foreground">{DEMO_PASSWORD}</span>
-            </p>
-          )}
         </form>
       </CardContent>
     </Card>

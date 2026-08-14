@@ -1,23 +1,73 @@
-import { ArrowDownRight, ArrowUpRight, TrendingUp, Users, Handshake, DollarSign } from "lucide-react";
+"use client";
+
+import {
+  ArrowUpRight,
+  TrendingUp,
+  Users,
+  Handshake,
+  DollarSign,
+  Calendar,
+  Receipt,
+  Clock,
+  RefreshCw,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { dashboardStats } from "@/config/navigation";
 import { formatCurrency, formatNumber } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import type { DashboardStats, DashboardAtividadeRecente } from "@/repositories/client/dashboard.repository";
 
-const iconMap = [Users, Users, Handshake, DollarSign];
+const iconMap: Record<string, typeof Users> = {
+  totalLeads: Users,
+  totalIndicadores: Users,
+  totalClientes: Users,
+  totalReunioes: Calendar,
+  totalNegociacoes: Handshake,
+  totalVendas: TrendingUp,
+  totalComissoes: DollarSign,
+  totalCobrancas: Receipt,
+  totalPendencias: Clock,
+  totalPosVenda: RefreshCw,
+};
 
-export function StatsCards() {
+const statsConfig = [
+  { key: "totalLeads", title: "Leads", isCurrency: false },
+  { key: "totalIndicadores", title: "Indicadores", isCurrency: false },
+  { key: "totalClientes", title: "Clientes", isCurrency: false },
+  { key: "totalReunioes", title: "Reuniões", isCurrency: false },
+  { key: "totalNegociacoes", title: "Negociações", isCurrency: false },
+  { key: "totalVendas", title: "Vendas", isCurrency: false },
+  { key: "totalComissoes", title: "Comissões", isCurrency: false },
+  { key: "totalCobrancas", title: "Cobranças", isCurrency: false },
+  { key: "totalPendencias", title: "Pendências", isCurrency: false },
+  { key: "totalPosVenda", title: "Pós-venda", isCurrency: false },
+] as const;
+
+export function StatsCards({
+  stats,
+  atividades,
+}: {
+  stats: DashboardStats;
+  atividades: DashboardAtividadeRecente[];
+}) {
+  const isEmpty = stats && Object.values(stats).every((v) => v === 0);
+
+  if (isEmpty) {
+    return (
+      <div className="rounded-lg border border-dashed border-muted-foreground/30 p-6 text-center">
+        <p className="text-sm text-muted-foreground">Nenhum dado cadastrado ainda.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {dashboardStats.map((stat, index) => {
-        const Icon = iconMap[index] ?? TrendingUp;
-        const displayValue = stat.isCurrency
-          ? formatCurrency(stat.value)
-          : formatNumber(stat.value);
+      {statsConfig.map((stat) => {
+        const Icon = iconMap[stat.key] ?? TrendingUp;
+        const value = stats[stat.key as keyof DashboardStats] as number;
+        const displayValue = stat.isCurrency ? formatCurrency(value) : formatNumber(value);
 
         return (
           <Card
-            key={stat.title}
+            key={stat.key}
             className="border-border/50 bg-card/50 backdrop-blur transition-colors hover:border-primary/30"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -30,21 +80,11 @@ export function StatsCards() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold tracking-tight">{displayValue}</div>
-              <div className="mt-1 flex items-center gap-1 text-xs">
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-0.5 font-medium",
-                    stat.trend === "up" ? "text-emerald-400" : "text-red-400",
-                  )}
-                >
-                  {stat.trend === "up" ? (
-                    <ArrowUpRight className="h-3 w-3" />
-                  ) : (
-                    <ArrowDownRight className="h-3 w-3" />
-                  )}
-                  {stat.change}
+              <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                <ArrowUpRight className="h-3 w-3 text-emerald-400" />
+                <span className="font-medium text-emerald-400">
+                  {atividades.length} atividades recentes
                 </span>
-                <span className="text-muted-foreground">{stat.description}</span>
               </div>
             </CardContent>
           </Card>

@@ -4,6 +4,7 @@ import {
   Users,
   Calendar,
   MessageCircle,
+  Phone,
   Handshake,
   Headphones,
   Building2,
@@ -12,6 +13,8 @@ import {
   BarChart3,
   Settings,
   TrendingUp,
+  FileText,
+  Link2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,11 +32,15 @@ export const mainNavItems: NavItem[] = [
   { title: "Clientes", href: "/clientes", icon: Users },
   { title: "Agenda", href: "/agenda", icon: Calendar },
   { title: "WhatsApp", href: "/whatsapp", icon: MessageCircle, badge: "3" },
+  { title: "Comunicação", href: "/comunicacao", icon: Phone },
   { title: "Negociações", href: "/negociacoes", icon: Handshake },
   { title: "Pós-venda", href: "/pos-venda", icon: Headphones },
   { title: "Parceiros", href: "/parceiros", icon: Building2 },
   { title: "Recrutamento", href: "/recrutamento", icon: UserSearch },
   { title: "Biblioteca", href: "/biblioteca", icon: BookOpen },
+  { title: "Treinamentos", href: "/treinamentos", icon: BookOpen },
+  { title: "Materiais para Consultores", href: "/materiais-consultores", icon: FileText },
+  { title: "Links úteis", href: "/links-uteis", icon: Link2 },
   { title: "Relatórios", href: "/relatorios", icon: BarChart3 },
   { title: "Configurações", href: "/configuracoes", icon: Settings },
 ];
