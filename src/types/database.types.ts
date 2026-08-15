@@ -1481,6 +1481,88 @@ export interface Database {
           updated_at?: string;
         };
       };
+      parceiros: {
+        Row: {
+          id: string;
+          nome: string;
+          cnpj: string;
+          contato: string;
+          email: string;
+          telefone: string;
+          tipo: string;
+          status: string;
+          observacoes: string;
+          usuario_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          nome?: string;
+          cnpj?: string;
+          contato?: string;
+          email?: string;
+          telefone?: string;
+          tipo?: string;
+          status?: string;
+          observacoes?: string;
+          usuario_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          nome?: string;
+          cnpj?: string;
+          contato?: string;
+          email?: string;
+          telefone?: string;
+          tipo?: string;
+          status?: string;
+          observacoes?: string;
+          usuario_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      recrutamento: {
+        Row: {
+          id: string;
+          nome: string;
+          email: string;
+          telefone: string;
+          origem: string;
+          status: string;
+          observacoes: string;
+          usuario_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          nome?: string;
+          email?: string;
+          telefone?: string;
+          origem?: string;
+          status?: string;
+          observacoes?: string;
+          usuario_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          nome?: string;
+          email?: string;
+          telefone?: string;
+          origem?: string;
+          status?: string;
+          observacoes?: string;
+          usuario_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

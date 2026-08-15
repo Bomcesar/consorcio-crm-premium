@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useRecrutamento } from "@/hooks/use-recrutamento";
 import { useToast } from "@/hooks/use-toast";
+import type { RecrutamentoInsert } from "@/repositories/client/recrutamento.repository";
 import {
   Plus,
   Pencil,
@@ -32,6 +33,16 @@ import {
   Loader2,
   Search,
 } from "lucide-react";
+
+const emptyForm: RecrutamentoInsert = {
+  nome: "",
+  email: "",
+  telefone: "",
+  origem: "",
+  status: "Novo",
+  observacoes: "",
+  usuario_id: "",
+};
 
 export default function RecrutamentoPage() {
   const { success, error } = useToast();
@@ -58,7 +69,7 @@ export default function RecrutamentoPage() {
   } = useRecrutamento();
 
   const handleChange = (field: "nome" | "email" | "telefone" | "origem" | "status" | "observacoes", value: string) => {
-    setFormData((current) => ({ ...current, [field]: value }));
+    setFormData((current: RecrutamentoInsert) => ({ ...current, [field]: value }));
   };
 
   const filtered = candidatos.filter((c) => {

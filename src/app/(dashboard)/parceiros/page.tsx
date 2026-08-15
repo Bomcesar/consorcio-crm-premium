@@ -33,6 +33,20 @@ import {
   Search,
 } from "lucide-react";
 
+import type { ParceiroInsert } from "@/repositories/client/parceiros.repository";
+
+const emptyForm: ParceiroInsert = {
+  nome: "",
+  cnpj: "",
+  contato: "",
+  email: "",
+  telefone: "",
+  tipo: "Administradora",
+  status: "Ativo",
+  observacoes: "",
+  usuario_id: "",
+};
+
 export default function ParceirosPage() {
   const { success, error } = useToast();
   const {
@@ -58,7 +72,7 @@ export default function ParceirosPage() {
   } = useParceiros();
 
   const handleChange = (field: "nome" | "cnpj" | "contato" | "email" | "telefone" | "tipo" | "status" | "observacoes", value: string) => {
-    setFormData((current) => ({ ...current, [field]: value }));
+    setFormData((current: ParceiroInsert) => ({ ...current, [field]: value }));
   };
 
   const filtered = parceiros.filter((p) => {
