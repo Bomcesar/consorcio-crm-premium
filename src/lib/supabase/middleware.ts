@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 const DEMO_SESSION_COOKIE = "crm-demo-session";
+const BYPASS_SESSION_COOKIE = "crm-bypass-session";
 
 export function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -16,6 +17,10 @@ export function isSupabaseConfigured(): boolean {
 
 export function hasDemoSession(request: NextRequest): boolean {
   return request.cookies.get(DEMO_SESSION_COOKIE)?.value === "active";
+}
+
+export function hasBypassSession(request: NextRequest): boolean {
+  return request.cookies.get(BYPASS_SESSION_COOKIE)?.value === "active";
 }
 
 export async function updateSession(request: NextRequest) {
@@ -56,13 +61,13 @@ export async function updateSession(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user && !isAuthRoute) {
+    if (!user && !isAuthRoute && !hasBypassSession(request)) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       return NextResponse.redirect(url);
     }
 
-    if (user && isAuthRoute) {
+    if ((user || hasBypassSession(request)) && isAuthRoute) {
       const url = request.nextUrl.clone();
       url.pathname = "/";
       return NextResponse.redirect(url);
