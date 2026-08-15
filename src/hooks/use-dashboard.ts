@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type {
   DashboardStats,
@@ -17,7 +17,12 @@ export function useDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const successRef = useRef(success);
+  const errorRef = useRef(error);
+  successRef.current = success;
+  errorRef.current = error;
+
+  const load = async () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
@@ -38,20 +43,20 @@ export function useDashboard() {
       setAtividades(atividadesData);
       setEventos(eventosData);
       setPipeline(pipelineData);
-      success("Dashboard atualizado.");
+      successRef.current("Dashboard atualizado.");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Não foi possível carregar o dashboard.";
       setErrorMessage(message);
-      error(message);
+      errorRef.current(message);
     } finally {
       setIsLoading(false);
     }
-  }, [success, error]);
+  };
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, []);
 
   return {
     stats,

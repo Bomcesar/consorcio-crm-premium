@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { Treinamento, TreinamentoInsert } from "@/repositories/client/treinamentos.repository";
 
@@ -24,7 +24,10 @@ export function useTreinamentos() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategoria, setFilterCategoria] = useState("");
 
-  const loadTreinamentos = useCallback(async () => {
+  const errorRef = useRef(error);
+  errorRef.current = error;
+
+  const loadTreinamentos = async () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
@@ -33,11 +36,15 @@ export function useTreinamentos() {
       setTreinamentos(data);
     } catch {
       setErrorMessage("Não foi possível carregar os treinamentos.");
-      error("Não foi possível carregar os treinamentos.");
+      errorRef.current("Não foi possível carregar os treinamentos.");
     } finally {
       setIsLoading(false);
     }
-  }, [error]);
+  };
+
+  useEffect(() => {
+    void loadTreinamentos();
+  }, []);
 
   const openCreate = () => {
     setSelectedTreinamento(null);
@@ -81,21 +88,27 @@ export function useTreinamentos() {
         usuario_id: formData.usuario_id,
       };
 
+      console.log("[Treinamento] submit payload", payload);
+
       const { createTreinamento, updateTreinamento } = await import("@/repositories/client/treinamentos.repository");
 
       if (selectedTreinamento) {
         const updated = await updateTreinamento(selectedTreinamento.id, payload);
+        console.log("[Treinamento] updated", updated);
         setTreinamentos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
         success("Treinamento atualizado com sucesso.");
       } else {
         const created = await createTreinamento(payload);
+        console.log("[Treinamento] created", created);
         setTreinamentos((prev) => [created, ...prev]);
         success("Treinamento cadastrado com sucesso.");
       }
+      await loadTreinamentos();
       setIsFormOpen(false);
       setFormData(emptyForm);
       setSelectedTreinamento(null);
-    } catch {
+    } catch (e) {
+      console.error("[Treinamento] submit error", e);
       error("Não foi possível salvar o treinamento.");
     } finally {
       setIsSaving(false);
@@ -107,11 +120,13 @@ export function useTreinamentos() {
     try {
       const { deleteTreinamento } = await import("@/repositories/client/treinamentos.repository");
       await deleteTreinamento(selectedTreinamento.id);
-      setTreinamentos((prev) => prev.filter((t) => t.id !== selectedTreinamento.id));
+      console.log("[Treinamento] deleted", selectedTreinamento.id);
+      await loadTreinamentos();
       success("Treinamento excluído com sucesso.");
       setIsDeleteOpen(false);
       setSelectedTreinamento(null);
-    } catch {
+    } catch (e) {
+      console.error("[Treinamento] delete error", e);
       error("Não foi possível excluir o treinamento.");
     }
   };
@@ -124,14 +139,6 @@ export function useTreinamentos() {
   });
 
   const categorias = Array.from(new Set(treinamentos.map((t) => t.categoria)));
-
-  const refresh = async () => {
-    await loadTreinamentos();
-  };
-
-  useEffect(() => {
-    void loadTreinamentos();
-  }, [loadTreinamentos]);
 
   return {
     treinamentos: filteredTreinamentos,
@@ -157,6 +164,6 @@ export function useTreinamentos() {
     openDelete,
     handleSubmit,
     handleDelete,
-    refresh,
+    refresh: loadTreinamentos,
   };
 }

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { getAuthenticatedUser } from "@/lib/auth-user";
 import type { EventoAgenda } from "@/repositories/agenda.repository";
 import type { Database } from "@/types/database.types";
 
@@ -24,6 +25,7 @@ export type DashboardAtividadeRecente = {
 };
 
 export async function getDashboardStats(): Promise<DashboardStats> {
+  const user = await getAuthenticatedUser();
   const supabase = createClient();
 
   const [
@@ -38,16 +40,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     pendenciasResult,
     posVendaResult,
   ] = await Promise.all([
-    supabase.from("leads").select("*", { count: "exact", head: true }),
-    supabase.from("indicadores").select("*", { count: "exact", head: true }),
-    supabase.from("clientes").select("*", { count: "exact", head: true }),
-    supabase.from("agenda_eventos").select("*", { count: "exact", head: true }),
-    supabase.from("negociacoes").select("*", { count: "exact", head: true }),
-    supabase.from("negociacoes").select("*", { count: "exact", head: true }).eq("etapa", "Venda"),
-    supabase.from("comissoes_indicadores").select("*", { count: "exact", head: true }),
-    supabase.from("cobrancas").select("*", { count: "exact", head: true }),
-    supabase.from("cobrancas").select("*", { count: "exact", head: true }).eq("status", "Pendente"),
-    supabase.from("pos_venda").select("*", { count: "exact", head: true }),
+    supabase.from("leads").select("*", { count: "exact", head: true }).eq("usuario_id", user.id),
+    supabase.from("indicadores").select("*", { count: "exact", head: true }).eq("usuario_id", user.id),
+    supabase.from("clientes").select("*", { count: "exact", head: true }).eq("usuario_id", user.id),
+    supabase.from("agenda_eventos").select("*", { count: "exact", head: true }).eq("usuario_id", user.id),
+    supabase.from("negociacoes").select("*", { count: "exact", head: true }).eq("usuario_id", user.id),
+    supabase.from("negociacoes").select("*", { count: "exact", head: true }).eq("usuario_id", user.id).eq("etapa", "Venda"),
+    supabase.from("comissoes_indicadores").select("*", { count: "exact", head: true }).eq("usuario_id", user.id),
+    supabase.from("cobrancas").select("*", { count: "exact", head: true }).eq("usuario_id", user.id),
+    supabase.from("cobrancas").select("*", { count: "exact", head: true }).eq("usuario_id", user.id).eq("status", "Pendente"),
+    supabase.from("pos_venda").select("*", { count: "exact", head: true }).eq("usuario_id", user.id),
   ]);
 
   if (leadsResult.error) throw new Error("Não foi possível carregar estatísticas de leads.");
@@ -76,6 +78,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 export async function getAtividadesRecentes(limite = 10): Promise<DashboardAtividadeRecente[]> {
+  const user = await getAuthenticatedUser();
   const supabase = createClient();
 
   const atividades: DashboardAtividadeRecente[] = [];
@@ -84,21 +87,25 @@ export async function getAtividadesRecentes(limite = 10): Promise<DashboardAtivi
     supabase
       .from("leads")
       .select("id, nome, created_at")
+      .eq("usuario_id", user.id)
       .order("created_at", { ascending: false })
       .limit(limite),
     supabase
       .from("clientes")
       .select("id, nome, created_at")
+      .eq("usuario_id", user.id)
       .order("created_at", { ascending: false })
       .limit(limite),
     supabase
       .from("negociacoes")
       .select("id, titulo, created_at")
+      .eq("usuario_id", user.id)
       .order("created_at", { ascending: false })
       .limit(limite),
     supabase
       .from("agenda_eventos")
       .select("id, titulo, data_inicio, created_at")
+      .eq("usuario_id", user.id)
       .order("created_at", { ascending: false })
       .limit(limite),
   ]);
@@ -155,11 +162,13 @@ export async function getAtividadesRecentes(limite = 10): Promise<DashboardAtivi
 }
 
 export async function getEventosAgenda(): Promise<EventoAgenda[]> {
+  const user = await getAuthenticatedUser();
   const supabase = createClient();
 
   const { data, error } = await supabase
     .from("agenda_eventos")
     .select("*")
+    .eq("usuario_id", user.id)
     .order("data_inicio", { ascending: true });
 
   if (error) {
@@ -170,11 +179,13 @@ export async function getEventosAgenda(): Promise<EventoAgenda[]> {
 }
 
 export async function getPipelineStats(): Promise<{ name: string; count: number; color: string; width: string }[]> {
+  const user = await getAuthenticatedUser();
   const supabase = createClient();
 
   const { data, error } = await supabase
     .from("negociacoes")
-    .select("etapa");
+    .select("etapa")
+    .eq("usuario_id", user.id);
 
   if (error) throw new Error("Não foi possível carregar o pipeline.");
 
@@ -202,4 +213,3 @@ export async function getPipelineStats(): Promise<{ name: string; count: number;
     width: `${Math.round((stage.count / maxCount) * 100)}%`,
   }));
 }
-

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { MaterialConsultor, MaterialConsultorInsert } from "@/repositories/client/materiais-consultores.repository";
 
@@ -29,7 +29,10 @@ export function useMateriaisConsultores() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategoria, setFilterCategoria] = useState("");
 
-  const loadMateriais = useCallback(async () => {
+  const errorRef = useRef(error);
+  errorRef.current = error;
+
+  const loadMateriais = async () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
@@ -38,11 +41,15 @@ export function useMateriaisConsultores() {
       setMateriais(data);
     } catch {
       setErrorMessage("Não foi possível carregar os materiais.");
-      error("Não foi possível carregar os materiais.");
+      errorRef.current("Não foi possível carregar os materiais.");
     } finally {
       setIsLoading(false);
     }
-  }, [error]);
+  };
+
+  useEffect(() => {
+    void loadMateriais();
+  }, []);
 
   const openCreate = () => {
     setSelectedMaterial(null);
@@ -96,21 +103,27 @@ export function useMateriaisConsultores() {
         usuario_id: formData.usuario_id,
       };
 
+      console.log("[MaterialConsultor] submit payload", payload);
+
       const { createMaterialConsultor, updateMaterialConsultor } = await import("@/repositories/client/materiais-consultores.repository");
 
       if (selectedMaterial) {
         const updated = await updateMaterialConsultor(selectedMaterial.id, payload);
+        console.log("[MaterialConsultor] updated", updated);
         setMateriais((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
         success("Material atualizado com sucesso.");
       } else {
         const created = await createMaterialConsultor(payload);
+        console.log("[MaterialConsultor] created", created);
         setMateriais((prev) => [created, ...prev]);
         success("Material cadastrado com sucesso.");
       }
+      await loadMateriais();
       setIsFormOpen(false);
       setFormData(emptyForm);
       setSelectedMaterial(null);
-    } catch {
+    } catch (e) {
+      console.error("[MaterialConsultor] submit error", e);
       error("Não foi possível salvar o material.");
     } finally {
       setIsSaving(false);
@@ -122,11 +135,13 @@ export function useMateriaisConsultores() {
     try {
       const { deleteMaterialConsultor } = await import("@/repositories/client/materiais-consultores.repository");
       await deleteMaterialConsultor(selectedMaterial.id);
-      setMateriais((prev) => prev.filter((m) => m.id !== selectedMaterial.id));
+      console.log("[MaterialConsultor] deleted", selectedMaterial.id);
+      await loadMateriais();
       success("Material excluído com sucesso.");
       setIsDeleteOpen(false);
       setSelectedMaterial(null);
-    } catch {
+    } catch (e) {
+      console.error("[MaterialConsultor] delete error", e);
       error("Não foi possível excluir o material.");
     }
   };
@@ -139,14 +154,6 @@ export function useMateriaisConsultores() {
   });
 
   const categorias = Array.from(new Set(materiais.filter((m) => m.status === "Ativo").map((m) => m.categoria)));
-
-  const refresh = async () => {
-    await loadMateriais();
-  };
-
-  useEffect(() => {
-    void loadMateriais();
-  }, [loadMateriais]);
 
   return {
     materiais: filteredMateriais,
@@ -172,6 +179,6 @@ export function useMateriaisConsultores() {
     openDelete,
     handleSubmit,
     handleDelete,
-    refresh,
+    refresh: loadMateriais,
   };
 }
