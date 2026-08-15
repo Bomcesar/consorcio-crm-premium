@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { loginSchema, isDemoEnabled } from "@/lib/validations/auth";
+import { loginSchema } from "@/lib/validations/auth";
 import { isRateLimited, getRateLimitKey } from "@/lib/rate-limit";
-import { DEMO_SESSION_COOKIE } from "@/lib/supabase/middleware";
 
 export async function POST(request: Request) {
   if (isRateLimited(getRateLimitKey(request))) {
@@ -9,10 +8,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    if (!isDemoEnabled) {
-      return NextResponse.json({ error: "Modo demo desativado." }, { status: 404 });
-    }
-
     const body = await request.json();
     const parsed = loginSchema.safeParse(body);
 
@@ -27,7 +22,7 @@ export async function POST(request: Request) {
     }
 
     const response = NextResponse.json({ success: true });
-    response.cookies.set(DEMO_SESSION_COOKIE, "active", {
+    response.cookies.set("crm-demo-session", "active", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
