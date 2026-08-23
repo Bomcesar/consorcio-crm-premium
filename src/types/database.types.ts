@@ -11,7 +11,29 @@ export type TipoMensagemWhatsApp = "texto" | "imagem" | "audio" | "documento";
 export type StatusMensagemWhatsApp = "pendente" | "enviada" | "entregue" | "lida" | "erro";
 export type EtapaNegociacao = "Prospecção" | "Qualificação" | "Proposta" | "Negociação" | "Fechamento" | "Venda" | "Perdido";
 export type TipoPosVenda = "Follow-up" | "Assembleia" | "Contemplação" | "Retenção" | "Treinamento" | "Envio de boleto" | "Lembrete de vencimento" | "Acompanhamento";
-export type StatusPosVenda = "Pendente" | "Agendado" | "Realizado" | "Cancelado";
+export type StatusPosVenda = string;
+
+export interface PosVendaWithRelations {
+  id: string;
+  usuario_id: string;
+  cliente_id: string;
+  agenda_id: string | null;
+  status: StatusPosVenda;
+  priority: string;
+  satisfaction: number;
+  next_contact_at: string | null;
+  last_contact_at: string | null;
+  channel: string;
+  needs_attention: boolean;
+  observacoes: string;
+  created_at: string;
+  updated_at: string;
+  boleto_url: string;
+  lembrete_em: string | null;
+  retencao_motivo: string;
+  retencao_data: string | null;
+  cliente?: { id: string; nome: string; telefone: string; email: string };
+}
 export type StatusTarefaPosVenda = "Pendente" | "Concluída" | "Cancelada";
 export type StatusCobranca = "Pendente" | "Enviado" | "Pago" | "Atrasado" | "Renegociação" | "Cancelado";
 export type TipoComunicacao = "WhatsApp" | "Ligação";
@@ -41,6 +63,7 @@ export interface Database {
           updated_at: string;
           ativo: boolean;
           ultimo_login: string | null;
+          gestor_id: string | null;
         };
         Insert: {
           id?: string;
@@ -52,6 +75,7 @@ export interface Database {
           updated_at?: string;
           ativo?: boolean;
           ultimo_login?: string | null;
+          gestor_id?: string | null;
         };
         Update: {
           id?: string;
@@ -63,6 +87,7 @@ export interface Database {
           updated_at?: string;
           ativo?: boolean;
           ultimo_login?: string | null;
+          gestor_id?: string | null;
         };
       };
       leads: {
@@ -346,53 +371,50 @@ export interface Database {
           updated_at?: string;
         };
       };
-      clientes: {
-        Row: {
-          id: string;
-          nome: string;
-          email: string;
-          telefone: string;
-          cpf_cnpj: string;
-          cidade: string;
-          estado: string;
-          status: StatusCliente;
-          origem: string;
-          observacoes: string;
-          usuario_id: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          nome?: string;
-          email?: string;
-          telefone?: string;
-          cpf_cnpj?: string;
-          cidade?: string;
-          estado?: string;
-          status?: StatusCliente;
-          origem?: string;
-          observacoes?: string;
-          usuario_id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          nome?: string;
-          email?: string;
-          telefone?: string;
-          cpf_cnpj?: string;
-          cidade?: string;
-          estado?: string;
-          status?: StatusCliente;
-          origem?: string;
-          observacoes?: string;
-          usuario_id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
+       clientes: {
+         Row: {
+           id: string;
+           nome: string;
+           telefone: string;
+           cpf_cnpj: string;
+           cidade: string;
+           estado: string;
+           status: StatusCliente;
+           origem: string;
+           observacoes: string;
+           usuario_id: string;
+           created_at: string;
+           updated_at: string;
+         };
+         Insert: {
+           id?: string;
+           nome?: string;
+           telefone?: string;
+           cpf_cnpj?: string;
+           cidade?: string;
+           estado?: string;
+           status?: StatusCliente;
+           origem?: string;
+           observacoes?: string;
+           usuario_id?: string;
+           created_at?: string;
+           updated_at?: string;
+         };
+         Update: {
+           id?: string;
+           nome?: string;
+           telefone?: string;
+           cpf_cnpj?: string;
+           cidade?: string;
+           estado?: string;
+           status?: StatusCliente;
+           origem?: string;
+           observacoes?: string;
+           usuario_id?: string;
+           created_at?: string;
+           updated_at?: string;
+         };
+       };
       cliente_historico: {
         Row: {
           id: string;
@@ -759,59 +781,68 @@ export interface Database {
           created_at?: string;
         };
       };
-      pos_venda: {
-        Row: {
-          id: string;
-          tipo: TipoPosVenda;
-          descricao: string;
-          data_prevista: string;
-          data_realizada: string | null;
-          status: StatusPosVenda;
-          cliente_id: string | null;
-          lead_id: string | null;
-          usuario_id: string;
-          boleto_url: string;
-          lembrete_em: string | null;
-          retencao_motivo: string;
-          retencao_data: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          tipo?: TipoPosVenda;
-          descricao?: string;
-          data_prevista?: string;
-          data_realizada?: string | null;
-          status?: StatusPosVenda;
-          cliente_id?: string | null;
-          lead_id?: string | null;
-          usuario_id?: string;
-          boleto_url?: string;
-          lembrete_em?: string | null;
-          retencao_motivo?: string;
-          retencao_data?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          tipo?: TipoPosVenda;
-          descricao?: string;
-          data_prevista?: string;
-          data_realizada?: string | null;
-          status?: StatusPosVenda;
-          cliente_id?: string | null;
-          lead_id?: string | null;
-          usuario_id?: string;
-          boleto_url?: string;
-          lembrete_em?: string | null;
-          retencao_motivo?: string;
-          retencao_data?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
+       pos_venda: {
+         Row: {
+           id: string;
+           usuario_id: string;
+           cliente_id: string;
+           agenda_id: string | null;
+           status: string;
+           priority: string;
+           satisfaction: number;
+           next_contact_at: string | null;
+           last_contact_at: string | null;
+           channel: string;
+           needs_attention: boolean;
+           observacoes: string;
+           created_at: string;
+           updated_at: string;
+           boleto_url: string;
+           lembrete_em: string | null;
+           retencao_motivo: string;
+           retencao_data: string | null;
+         };
+         Insert: {
+           id?: string;
+           usuario_id?: string;
+           cliente_id?: string;
+           agenda_id?: string | null;
+           status?: string;
+           priority?: string;
+           satisfaction?: number;
+           next_contact_at?: string | null;
+           last_contact_at?: string | null;
+           channel?: string;
+           needs_attention?: boolean;
+           observacoes?: string;
+           boleto_url?: string;
+           lembrete_em?: string | null;
+           retencao_motivo?: string;
+           retencao_data?: string | null;
+           created_at?: string;
+           updated_at?: string;
+         };
+         Update: {
+           id?: string;
+           usuario_id?: string;
+           cliente_id?: string;
+           agenda_id?: string | null;
+           status?: string;
+           priority?: string;
+           satisfaction?: number;
+           next_contact_at?: string | null;
+           last_contact_at?: string | null;
+           channel?: string;
+           needs_attention?: boolean;
+           observacoes?: string;
+           boleto_url?: string;
+           lembrete_em?: string | null;
+           retencao_motivo?: string;
+           retencao_data?: string | null;
+           created_at?: string;
+           updated_at?: string;
+         };
+       };
       pos_venda_historico: {
         Row: {
           id: string;
@@ -1561,6 +1592,180 @@ export interface Database {
           usuario_id?: string;
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      user_permissions: {
+        Row: {
+          id: string;
+          codigo: string;
+          nome: string;
+          categoria: string;
+          descricao: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          codigo?: string;
+          nome?: string;
+          categoria?: string;
+          descricao?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          codigo?: string;
+          nome?: string;
+          categoria?: string;
+          descricao?: string;
+          created_at?: string;
+        };
+      };
+      user_permission_grants: {
+        Row: {
+          id: string;
+          usuario_id: string;
+          permissao_id: string;
+          concedido_em: string;
+          concedido_por: string | null;
+        };
+        Insert: {
+          id?: string;
+          usuario_id?: string;
+          permissao_id?: string;
+          concedido_em?: string;
+          concedido_por?: string | null;
+        };
+        Update: {
+          id?: string;
+          usuario_id?: string;
+          permissao_id?: string;
+          concedido_em?: string;
+          concedido_por?: string | null;
+        };
+      };
+      metas: {
+        Row: {
+          id: string;
+          titulo: string;
+          descricao: string;
+          tipo: string;
+          valor_alvo: number;
+          valor_realizado: number;
+          periodo_inicio: string;
+          periodo_fim: string;
+          usuario_id: string | null;
+          perfil_aplicavel: string;
+          ativo: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          titulo?: string;
+          descricao?: string;
+          tipo?: string;
+          valor_alvo?: number;
+          valor_realizado?: number;
+          periodo_inicio?: string;
+          periodo_fim?: string;
+          usuario_id?: string | null;
+          perfil_aplicavel?: string;
+          ativo?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          titulo?: string;
+          descricao?: string;
+          tipo?: string;
+          valor_alvo?: number;
+          valor_realizado?: number;
+          periodo_inicio?: string;
+          periodo_fim?: string;
+          usuario_id?: string | null;
+          perfil_aplicavel?: string;
+          ativo?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      user_evolution_history: {
+        Row: {
+          id: string;
+          usuario_id: string;
+          perfil_anterior: string | null;
+          perfil_novo: string;
+          gestor_anterior: string | null;
+          gestor_novo: string | null;
+          motivo: string;
+          alterado_por: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          usuario_id?: string;
+          perfil_anterior?: string | null;
+          perfil_novo?: string;
+          gestor_anterior?: string | null;
+          gestor_novo?: string | null;
+          motivo?: string;
+          alterado_por?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          usuario_id?: string;
+          perfil_anterior?: string | null;
+          perfil_novo?: string;
+          gestor_anterior?: string | null;
+          gestor_novo?: string | null;
+          motivo?: string;
+          alterado_por?: string | null;
+          created_at?: string;
+        };
+      };
+      permission_presets: {
+        Row: {
+          id: string;
+          nome: string;
+          descricao: string;
+          categoria: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          nome?: string;
+          descricao?: string;
+          categoria?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          nome?: string;
+          descricao?: string;
+          categoria?: string;
+          created_at?: string;
+        };
+      };
+      permission_preset_items: {
+        Row: {
+          id: string;
+          preset_id: string;
+          permissao_id: string;
+          ordem: number;
+        };
+        Insert: {
+          id?: string;
+          preset_id?: string;
+          permissao_id?: string;
+          ordem?: number;
+        };
+        Update: {
+          id?: string;
+          preset_id?: string;
+          permissao_id?: string;
+          ordem?: number;
         };
       };
     };

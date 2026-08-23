@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database.types";
-import { getAuthenticatedUser } from "@/lib/auth-user";
+import { getAuthenticatedUser, isAdminOrGestor } from "@/lib/auth-user";
 
 export type Comunicacao = Database["public"]["Tables"]["comunicacoes"]["Row"];
 export type ComunicacaoInsert = Database["public"]["Tables"]["comunicacoes"]["Insert"];
@@ -10,14 +10,18 @@ export type ComunicacaoTemplate = Database["public"]["Tables"]["comunicacao_temp
 export type ComunicacaoTemplateInsert = Database["public"]["Tables"]["comunicacao_templates"]["Insert"];
 export type ComunicacaoTemplateUpdate = Database["public"]["Tables"]["comunicacao_templates"]["Update"];
 
+function comunicacaoBaseQuery(supabase: ReturnType<typeof createClient>) {
+  return supabase.from("comunicacoes").select("*");
+}
+
 export async function getComunicacoes(): Promise<Comunicacao[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase.from("comunicacoes")
-    .select("*")
-    .eq("usuario_id", user.id)
-    .order("data", { ascending: false })
-    .order("horario", { ascending: false });
+  let query = comunicacaoBaseQuery(supabase).order("data", { ascending: false }).order("horario", { ascending: false });
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar as comunicações.");
   return (data as Comunicacao[]) ?? [];
 }
@@ -25,11 +29,11 @@ export async function getComunicacoes(): Promise<Comunicacao[]> {
 export async function getComunicacao(id: string): Promise<Comunicacao | null> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase.from("comunicacoes")
-    .select("*")
-    .eq("id", id)
-    .eq("usuario_id", user.id)
-    .single();
+  let query = comunicacaoBaseQuery(supabase).eq("id", id);
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query.single();
   if (error || !data) return null;
   return data as Comunicacao;
 }
@@ -48,12 +52,9 @@ export async function createComunicacao(payload: ComunicacaoInsert): Promise<Com
 export async function updateComunicacao(id: string, payload: ComunicacaoUpdate): Promise<Comunicacao> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase.from("comunicacoes")
-    .update(payload)
-    .eq("id", id)
-    .eq("usuario_id", user.id)
-    .select()
-    .single();
+  const base = supabase.from("comunicacoes").update(payload).eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { data, error } = await query.select().single();
   if (error || !data) throw new Error("Não foi possível atualizar a comunicação.");
   return data as Comunicacao;
 }
@@ -61,7 +62,9 @@ export async function updateComunicacao(id: string, payload: ComunicacaoUpdate):
 export async function deleteComunicacao(id: string): Promise<void> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { error } = await supabase.from("comunicacoes").delete().eq("id", id).eq("usuario_id", user.id);
+  const base = supabase.from("comunicacoes").delete().eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { error } = await query;
   if (error) throw new Error("Não foi possível excluir a comunicação.");
 }
 

@@ -35,20 +35,19 @@ export function LoginForm() {
     try {
       if (isSupabaseConfigured()) {
         const supabase = createClient();
-        const { error: authError } = await supabase.auth.signInWithPassword({
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
           email: data.email,
           password: data.password,
         });
 
         if (authError) {
-          if (data.email === "paulocesar19106@gmail.com") {
-            document.cookie = "crm-bypass-session=active; path=/; max-age=604800; SameSite=Lax";
-            router.push("/");
-            router.refresh();
-            return;
-          }
+          console.error("LOGIN_SUPABASE_ERROR", authError);
+          setError(authError.message || "E-mail ou senha inválidos. Tente novamente.");
+          return;
+        }
 
-          setError("E-mail ou senha inválidos. Tente novamente.");
+        if (!authData.user?.id) {
+          setError("Não foi possível obter o usuário autenticado.");
           return;
         }
       } else {
@@ -63,10 +62,12 @@ export function LoginForm() {
           setError(result.error ?? "Erro ao fazer login.");
           return;
         }
+
+        localStorage.setItem("user_perfil", "Indicador");
+        localStorage.setItem("user_permissoes", "");
       }
 
       router.push("/");
-      router.refresh();
     } catch {
       setError("Erro inesperado. Tente novamente.");
     }
@@ -140,6 +141,15 @@ export function LoginForm() {
             )}
           </Button>
         </form>
+        <p className="text-center text-xs text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => router.push("/forgot-password")}
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            Esqueci minha senha
+          </button>
+        </p>
       </CardContent>
     </Card>
   );

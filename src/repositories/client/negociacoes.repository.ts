@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database.types";
-import { getAuthenticatedUser } from "@/lib/auth-user";
+import { getAuthenticatedUser, isAdminOrGestor } from "@/lib/auth-user";
 
 export type Negociacao = Database["public"]["Tables"]["negociacoes"]["Row"];
 export type NegociacaoInsert = Database["public"]["Tables"]["negociacoes"]["Insert"];
@@ -8,10 +8,18 @@ export type NegociacaoUpdate = Database["public"]["Tables"]["negociacoes"]["Upda
 export type NegociacaoHistorico = Database["public"]["Tables"]["negociacao_historico"]["Row"];
 export type NegociacaoAnexo = Database["public"]["Tables"]["anexos"]["Row"];
 
+function negociacaoBaseQuery(supabase: ReturnType<typeof createClient>) {
+  return supabase.from("negociacoes").select("*");
+}
+
 export async function getNegociacoes(): Promise<Negociacao[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase.from("negociacoes").select("*").eq("usuario_id", user.id).order("data_prevista", { ascending: true });
+  let query = negociacaoBaseQuery(supabase).order("data_prevista", { ascending: true });
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar as negociações.");
   return (data as Negociacao[]) ?? [];
 }
@@ -19,7 +27,11 @@ export async function getNegociacoes(): Promise<Negociacao[]> {
 export async function getNegociacao(id: string): Promise<Negociacao | null> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase.from("negociacoes").select("*").eq("id", id).eq("usuario_id", user.id).single();
+  let query = negociacaoBaseQuery(supabase).eq("id", id);
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query.single();
   if (error || !data) return null;
   return data as Negociacao;
 }
@@ -35,7 +47,9 @@ export async function createNegociacao(payload: NegociacaoInsert): Promise<Negoc
 export async function updateNegociacao(id: string, payload: NegociacaoUpdate): Promise<Negociacao> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase.from("negociacoes").update(payload).eq("id", id).eq("usuario_id", user.id).select().single();
+  const base = supabase.from("negociacoes").update(payload).eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { data, error } = await query.select().single();
   if (error || !data) throw new Error("Não foi possível atualizar a negociação.");
   return data as Negociacao;
 }
@@ -43,7 +57,9 @@ export async function updateNegociacao(id: string, payload: NegociacaoUpdate): P
 export async function deleteNegociacao(id: string): Promise<void> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { error } = await supabase.from("negociacoes").delete().eq("id", id).eq("usuario_id", user.id);
+  const base = supabase.from("negociacoes").delete().eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { error } = await query;
   if (error) throw new Error("Não foi possível excluir a negociação.");
 }
 

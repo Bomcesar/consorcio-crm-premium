@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useCentralIndicadores } from "@/hooks/use-central-indicadores";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -146,6 +146,14 @@ export default function CentralDeIndicadoresPage() {
     }
     return result;
   }, [indicators, searchQuery, statusFilter, ativoFilter]);
+
+  useEffect(() => {
+    void loadIndicators();
+  }, []);
+
+  useEffect(() => {
+    console.log("[CentralIndicadores] indicators carregados:", indicators.length);
+  }, [indicators]);
 
   const openCreate = () => {
     setSelectedIndicator(null);

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database.types";
-import { getAuthenticatedUser } from "@/lib/auth-user";
+import { getAuthenticatedUser, isAdminOrGestor } from "@/lib/auth-user";
 
 export type Lead = Database["public"]["Tables"]["leads"]["Row"];
 export type LeadInsert = Database["public"]["Tables"]["leads"]["Insert"];
@@ -8,27 +8,30 @@ export type LeadUpdate = Database["public"]["Tables"]["leads"]["Update"];
 export type LeadHistorico = Database["public"]["Tables"]["lead_historico"]["Row"];
 export type LeadAnexo = Database["public"]["Tables"]["anexos"]["Row"];
 
+function leadBaseQuery(supabase: ReturnType<typeof createClient>) {
+  return supabase.from("leads").select("*");
+}
+
 export async function getLeads(): Promise<Lead[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("leads")
-    .select("*")
-    .eq("usuario_id", user.id)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error("Não foi possível carregar os leads.");
+  let query = leadBaseQuery(supabase).order("created_at", { ascending: false });
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query;
+  if (error) throw new Error(`Não foi possível carregar os leads: ${error.message}`);
   return (data as Lead[]) ?? [];
 }
 
 export async function getLead(id: string): Promise<Lead | null> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("leads")
-    .select("*")
-    .eq("id", id)
-    .eq("usuario_id", user.id)
-    .single();
+  let query = leadBaseQuery(supabase).eq("id", id);
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query.single();
   if (error || !data) return null;
   return data as Lead;
 }
@@ -41,59 +44,53 @@ export async function createLead(payload: LeadInsert): Promise<Lead> {
     .insert({ ...payload, usuario_id: user.id })
     .select()
     .single();
-  if (error || !data) throw new Error("Não foi possível salvar o lead.");
+  if (error) throw new Error(`Não foi possível salvar o lead: ${error.message}`);
   return data as Lead;
 }
 
 export async function updateLead(id: string, payload: LeadUpdate): Promise<Lead> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("leads")
-    .update(payload)
-    .eq("id", id)
-    .eq("usuario_id", user.id)
-    .select()
-    .single();
-  if (error || !data) throw new Error("Não foi possível atualizar o lead.");
+  const base = supabase.from("leads").update(payload).eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { data, error } = await query.select().single();
+  if (error || !data) throw new Error(`Não foi possível atualizar o lead: ${error?.message ?? "erro desconhecido"}`);
   return data as Lead;
 }
 
 export async function deleteLead(id: string): Promise<void> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { error } = await supabase
-    .from("leads")
-    .delete()
-    .eq("id", id)
-    .eq("usuario_id", user.id);
-  if (error) throw new Error("Não foi possível excluir o lead.");
+  const base = supabase.from("leads").delete().eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { error } = await query;
+  if (error) throw new Error(`Não foi possível excluir o lead: ${error.message}`);
 }
 
 export async function searchLeads(query: string): Promise<Lead[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
   const pattern = `%${query}%`;
-  const { data, error } = await supabase
-    .from("leads")
-    .select("*")
-    .eq("usuario_id", user.id)
+  let q = leadBaseQuery(supabase)
     .or(`nome.ilike.${pattern},telefone.ilike.${pattern},cidade.ilike.${pattern},email.ilike.${pattern},observacoes.ilike.${pattern}`)
     .order("created_at", { ascending: false });
-  if (error) throw new Error("Não foi possível pesquisar leads.");
+  if (!isAdminOrGestor(user)) {
+    q = q.eq("usuario_id", user.id);
+  }
+  const { data, error } = await q;
+  if (error) throw new Error(`Não foi possível pesquisar leads: ${error.message}`);
   return (data as Lead[]) ?? [];
 }
 
 export async function filterLeadsByStatus(status: string): Promise<Lead[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("leads")
-    .select("*")
-    .eq("usuario_id", user.id)
-    .eq("status", status)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error("Não foi possível filtrar leads.");
+  let query = leadBaseQuery(supabase).eq("status", status).order("created_at", { ascending: false });
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query;
+  if (error) throw new Error(`Não foi possível filtrar leads: ${error.message}`);
   return (data as Lead[]) ?? [];
 }
 
@@ -106,7 +103,7 @@ export async function getLeadHistorico(leadId: string): Promise<LeadHistorico[]>
     .eq("lead_id", leadId)
     .eq("usuario_id", user.id)
     .order("created_at", { ascending: false });
-  if (error) throw new Error("Não foi possível carregar o histórico.");
+  if (error) throw new Error(`Não foi possível carregar o histórico: ${error.message}`);
   return (data as LeadHistorico[]) ?? [];
 }
 
@@ -118,7 +115,7 @@ export async function addLeadHistorico(leadId: string, payload: { tipo?: string;
     .insert({ lead_id: leadId, usuario_id: user.id, ...payload })
     .select()
     .single();
-  if (error) throw new Error("Não foi possível adicionar histórico.");
+  if (error) throw new Error(`Não foi possível adicionar histórico: ${error.message}`);
   return data as LeadHistorico;
 }
 
@@ -132,7 +129,7 @@ export async function getLeadAnexos(leadId: string): Promise<LeadAnexo[]> {
     .eq("entity_id", leadId)
     .eq("usuario_id", user.id)
     .order("created_at", { ascending: false });
-  if (error) throw new Error("Não foi possível carregar os anexos.");
+  if (error) throw new Error(`Não foi possível carregar os anexos: ${error.message}`);
   return (data as LeadAnexo[]) ?? [];
 }
 
@@ -169,7 +166,7 @@ export async function addLeadAnexo(leadId: string, file: File) {
 
   if (error || !data) {
     await supabase.storage.from("anexos").remove([filePath]);
-    throw new Error("Não foi possível registrar o anexo.");
+    throw new Error(`Não foi possível registrar o anexo: ${error?.message ?? "erro desconhecido"}`);
   }
 
   return data as LeadAnexo;
@@ -197,7 +194,7 @@ export async function removeLeadAnexo(id: string): Promise<void> {
     .eq("usuario_id", user.id);
 
   if (deleteDbError) {
-    throw new Error("Não foi possível excluir o registro do anexo.");
+    throw new Error(`Não foi possível excluir o registro do anexo: ${deleteDbError.message}`);
   }
 
   const { error: deleteStorageError } = await supabase.storage

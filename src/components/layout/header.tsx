@@ -19,26 +19,47 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "@/components/layout/sidebar";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/auth-provider";
 
 export function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, isAuthenticated, refresh } = useAuth();
 
   const currentNav = mainNavItems.find((item) =>
     item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),
   );
   const title = currentNav?.title ?? "Dashboard";
 
+  const initials = user?.user_metadata?.name
+    ? user.user_metadata.name
+        .split(" ")
+        .map((n: string) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : user?.email?.slice(0, 2).toUpperCase() ?? "U";
+
+  const displayName =
+    user?.user_metadata?.name ||
+    user?.user_metadata?.full_name ||
+    user?.email?.split("@")[0] ||
+    "Usuário";
+
+  const perfil = typeof window !== "undefined" ? localStorage.getItem("user_perfil") : null;
+  const perfilLabel = perfil || "Usuário";
+
   async function handleLogout() {
     if (isSupabaseConfigured()) {
       const supabase = createClient();
       await supabase.auth.signOut();
-    } else {
-      await fetch("/api/auth/logout", { method: "POST" });
     }
+    localStorage.removeItem("user_perfil");
+    localStorage.removeItem("user_permissoes");
+    document.cookie = "crm-bypass-session=; path=/; max-age=0; SameSite=Lax";
+    document.cookie = "crm-demo-session=; path=/; max-age=0; SameSite=Lax";
     router.push("/login");
-    router.refresh();
   }
 
   return (
@@ -67,48 +88,50 @@ export function Header() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
-          <span className="sr-only">Notificações</span>
-        </Button>
+      {isAuthenticated && (
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="relative">
+            <Bell className="h-4 w-4" />
+            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
+            <span className="sr-only">Notificações</span>
+          </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-9 gap-2 px-2">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-primary/20 text-primary text-xs font-semibold">
-                  PC
-                </AvatarFallback>
-              </Avatar>
-              <div className="hidden flex-col items-start text-left md:flex">
-                <span className="text-sm font-medium leading-none">Paulo Cesar</span>
-                <Badge variant="success" className="mt-1 h-4 px-1 text-[10px]">
-                  Admin
-                </Badge>
-              </div>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>Minha conta</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/configuracoes")}>
-              <User className="mr-2 h-4 w-4" />
-              Perfil
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/configuracoes")}>
-              <Settings className="mr-2 h-4 w-4" />
-              Configurações
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              Sair
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-9 gap-2 px-2">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-primary/20 text-primary text-xs font-semibold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="hidden flex-col items-start text-left md:flex">
+                  <span className="text-sm font-medium leading-none">{displayName}</span>
+                  <Badge variant="success" className="mt-1 h-4 px-1 text-[10px]">
+                    {perfilLabel}
+                  </Badge>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Minha conta</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push("/configuracoes")}>
+                <User className="mr-2 h-4 w-4" />
+                Perfil
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/configuracoes")}>
+                <Settings className="mr-2 h-4 w-4" />
+                Configurações
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </header>
   );
 }

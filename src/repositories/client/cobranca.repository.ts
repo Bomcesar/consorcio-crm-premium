@@ -1,20 +1,24 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database.types";
-import { getAuthenticatedUser } from "@/lib/auth-user";
+import { getAuthenticatedUser, isAdminOrGestor } from "@/lib/auth-user";
 
 export type Cobranca = Database["public"]["Tables"]["cobrancas"]["Row"];
 export type CobrancaInsert = Database["public"]["Tables"]["cobrancas"]["Insert"];
 export type CobrancaUpdate = Database["public"]["Tables"]["cobrancas"]["Update"];
 export type CobrancaHistorico = Database["public"]["Tables"]["cobranca_historico"]["Row"];
 
+function cobrancaBaseQuery(supabase: ReturnType<typeof createClient>) {
+  return supabase.from("cobrancas").select("*");
+}
+
 export async function getCobrancas(): Promise<Cobranca[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase.from("cobrancas")
-    .select("*")
-    .eq("usuario_id", user.id)
-    .order("data_vencimento", { ascending: true });
-
+  let query = cobrancaBaseQuery(supabase).order("data_vencimento", { ascending: true });
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar as cobranças.");
   return (data as Cobranca[]) ?? [];
 }
@@ -22,12 +26,11 @@ export async function getCobrancas(): Promise<Cobranca[]> {
 export async function getCobranca(id: string): Promise<Cobranca | null> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase.from("cobrancas")
-    .select("*")
-    .eq("id", id)
-    .eq("usuario_id", user.id)
-    .single();
-
+  let query = cobrancaBaseQuery(supabase).eq("id", id);
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query.single();
   if (error || !data) return null;
   return data as Cobranca;
 }
@@ -39,7 +42,6 @@ export async function createCobranca(payload: CobrancaInsert): Promise<Cobranca>
     .insert({ ...payload, usuario_id: user.id })
     .select()
     .single();
-
   if (error || !data) throw new Error("Não foi possível salvar a cobrança.");
   return data as Cobranca;
 }
@@ -47,13 +49,9 @@ export async function createCobranca(payload: CobrancaInsert): Promise<Cobranca>
 export async function updateCobranca(id: string, payload: CobrancaUpdate): Promise<Cobranca> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase.from("cobrancas")
-    .update(payload)
-    .eq("id", id)
-    .eq("usuario_id", user.id)
-    .select()
-    .single();
-
+  const base = supabase.from("cobrancas").update(payload).eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { data, error } = await query.select().single();
   if (error || !data) throw new Error("Não foi possível atualizar a cobrança.");
   return data as Cobranca;
 }
@@ -61,7 +59,9 @@ export async function updateCobranca(id: string, payload: CobrancaUpdate): Promi
 export async function deleteCobranca(id: string): Promise<void> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { error } = await supabase.from("cobrancas").delete().eq("id", id).eq("usuario_id", user.id);
+  const base = supabase.from("cobrancas").delete().eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { error } = await query;
   if (error) throw new Error("Não foi possível excluir a cobrança.");
 }
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePosVenda } from "@/hooks/use-pos-venda";
 import { useClientes } from "@/hooks/use-clientes";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,20 +26,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Loader2, Headphones, CheckCircle2, Circle, Phone, MessageSquare, FileText, Calendar } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Headphones, CheckCircle2, Circle, Phone, MessageSquare, FileText, Calendar, Search } from "lucide-react";
 import type { PosVendaInsert, PosVendaTarefa, PosVendaComunicacao } from "@/repositories/client/pos-venda.repository";
 import { AnexosUpload } from "@/components/anexos/anexos-upload";
 import { AnexosList } from "@/components/anexos/anexos-list";
 
 const emptyForm: PosVendaInsert = {
-  tipo: "Follow-up",
-  descricao: "",
-  data_prevista: "",
-  data_realizada: null,
-  status: "Pendente",
-  cliente_id: null,
-  lead_id: null,
-  usuario_id: "",
+  status: "Boas-vindas",
+  priority: "normal",
+  satisfaction: 0,
+  channel: "WhatsApp",
+  needs_attention: false,
+  observacoes: "",
+  cliente_id: "",
+  agenda_id: null,
+  next_contact_at: null,
+  last_contact_at: null,
   boleto_url: "",
   lembrete_em: null,
   retencao_motivo: "",
@@ -47,10 +50,33 @@ const emptyForm: PosVendaInsert = {
 
 type PosVendaFormData = PosVendaInsert;
 
+const STATUS_OPTIONS = [
+  "Boas-vindas",
+  "Comprovante",
+  "Lembrete de vencimento",
+  "Aplicativo do cliente",
+  "Pagar o boleto",
+  "Boleto em atraso",
+  "Pago",
+  "Cancelado",
+  "Ativo",
+  "Sorteio Loteria Federal",
+  "Resultado número da Loteria Federal",
+  "Resultado da Assembleia",
+  "Dia da Assembleia",
+  "Imóvel",
+  "Motors",
+  "Serviços",
+  "Outros bens móveis",
+  "Contemplei",
+];
+
+const CHANNEL_OPTIONS = ["WhatsApp", "SMS", "Ligação"] as const;
+
 export default function PosVendaPage() {
   const posVenda = usePosVenda();
-  const { list: listClientes } = useClientes();
-  const [clientes, setClientes] = useState<{ id: string; nome: string }[]>([]);
+  const clientesHook = useClientes();
+  const { error } = useToast();
   const [historicoForm, setHistoricoForm] = useState({ tipo: "observacao", descricao: "" });
   const [tarefaForm, setTarefaForm] = useState({ titulo: "", descricao: "", data_prevista: "" });
   const [comunicacaoForm, setComunicacaoForm] = useState({ tipo: "WhatsApp" as PosVendaComunicacao["tipo"], descricao: "", resultado: "" });
@@ -59,95 +85,120 @@ export default function PosVendaPage() {
   const [isCommsSaving, setIsCommsSaving] = useState(false);
 
   useEffect(() => {
-    void listClientes().then((data) => {
-      setClientes(data.map((c: { id: string; nome: string }) => ({ id: c.id, nome: c.nome })));
-    });
-  }, [listClientes]);
+    if (clientesHook.searchResults.length > 0) {
+      posVenda.setClienteSearchResults(
+        clientesHook.searchResults.map((c) => ({
+          id: c.id,
+          nome: c.nome,
+          telefone: c.telefone,
+          status: c.status,
+        })),
+      );
+    } else {
+      posVenda.setClienteSearchResults([]);
+    }
+  }, [clientesHook.searchResults, posVenda]);
 
   useEffect(() => {
-    if (posVenda.selectedPosVenda) {
+    if (posVenda.selectedPosVenda?.id) {
       void posVenda.loadHistorico(posVenda.selectedPosVenda.id);
       void posVenda.loadTarefas(posVenda.selectedPosVenda.id);
       void posVenda.loadComunicacoes(posVenda.selectedPosVenda.id);
     }
-  }, [posVenda]);
+  }, [posVenda.selectedPosVenda?.id]);
 
   const handleChange = (field: keyof PosVendaFormData, value: string | number | boolean | null) => {
     posVenda.setFormData((current) => ({ ...current, [field]: value }));
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!posVenda.formData.descricao?.trim()) return;
-
-    await posVenda.handleSubmit(event);
-  };
-
-  const handleDelete = async () => {
-    await posVenda.handleDelete();
-  };
-
-  const handleAddHistorico = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!posVenda.selectedPosVenda || !historicoForm.descricao.trim()) return;
-    setIsHistorySaving(true);
-    try {
-      await posVenda.addHistorico(posVenda.selectedPosVenda.id, historicoForm);
-      setHistoricoForm({ tipo: "observacao", descricao: "" });
-    } catch {
-      // erro tratado no hook
-    } finally {
-      setIsHistorySaving(false);
+  const handleSendWhatsApp = async (destino: "cliente" | "gestao" | "ambos") => {
+    if (!posVenda.selectedPosVenda) {
+      error("Selecione ou salve um registro de pós-venda antes de enviar.");
+      return;
     }
-  };
 
-  const handleAddTarefa = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!posVenda.selectedPosVenda || !tarefaForm.titulo.trim()) return;
-    setIsTaskSaving(true);
-    try {
-      await posVenda.addTarefa({
-        pos_venda_id: posVenda.selectedPosVenda.id,
-        titulo: tarefaForm.titulo.trim(),
-        descricao: tarefaForm.descricao.trim(),
-        data_prevista: tarefaForm.data_prevista,
-        status: "Pendente",
-        usuario_id: posVenda.selectedPosVenda.usuario_id,
-      });
-      setTarefaForm({ titulo: "", descricao: "", data_prevista: "" });
-    } catch {
-      // erro tratado no hook
-    } finally {
-      setIsTaskSaving(false);
+    const clienteId = posVenda.formData.cliente_id;
+    if (!clienteId) {
+      error("Selecione um cliente para enviar o WhatsApp.");
+      return;
     }
-  };
 
-  const handleToggleTarefa = async (tarefa: PosVendaTarefa) => {
-    const newStatus = tarefa.status === "Pendente" ? "Concluída" : "Pendente";
-    await posVenda.updateTarefa(tarefa.id, {
-      status: newStatus,
-      data_realizada: newStatus === "Concluída" ? new Date().toISOString().split("T")[0] : null,
-    });
-  };
+    const cliente = posVenda.clienteSearchResults.find((c) => c.id === clienteId);
+    const telefone = cliente?.telefone || "";
+    const mensagem = `Olá ${cliente?.nome || ""}, ${posVenda.formData.observacoes || "entramos em contato pelo CRM."}`;
 
-  const handleAddComunicacao = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!posVenda.selectedPosVenda || !comunicacaoForm.descricao.trim()) return;
-    setIsCommsSaving(true);
+    if (!telefone) {
+      error("Telefone do cliente inválido para WhatsApp.");
+      return;
+    }
+
+    const numero = telefone.replace(/\D/g, "");
+    const texto = encodeURIComponent(mensagem);
+    const link = `https://wa.me/55${numero}?text=${texto}`;
+
+    window.open(link, "_blank");
+
     try {
       await posVenda.addComunicacao({
         pos_venda_id: posVenda.selectedPosVenda.id,
-        tipo: comunicacaoForm.tipo,
-        descricao: comunicacaoForm.descricao.trim(),
-        resultado: comunicacaoForm.resultado.trim(),
+        tipo: "WhatsApp",
+        descricao: mensagem,
+        resultado: destino === "cliente" ? "Enviado para Grupo do Cliente" : destino === "gestao" ? "Enviado para Grupo da Gestão" : "Enviado para ambos",
         data: new Date().toISOString(),
         usuario_id: posVenda.selectedPosVenda.usuario_id,
       });
-      setComunicacaoForm({ tipo: "WhatsApp", descricao: "", resultado: "" });
     } catch {
       // erro tratado no hook
-    } finally {
-      setIsCommsSaving(false);
+    }
+  };
+
+  const handleCall = () => {
+    if (!posVenda.formData.cliente_id) {
+      error("Selecione um cliente antes de ligar.");
+      return;
+    }
+    const cliente = posVenda.clienteSearchResults.find((c) => c.id === posVenda.formData.cliente_id);
+    const telefone = cliente?.telefone || "";
+    const digits = telefone.replace(/\D/g, "");
+    if (!digits) {
+      error("Telefone inválido para ligação.");
+      return;
+    }
+    window.location.href = `tel:+55${digits}`;
+    if (posVenda.selectedPosVenda) {
+      void posVenda.addComunicacao({
+        pos_venda_id: posVenda.selectedPosVenda.id,
+        tipo: "Ligação",
+        descricao: "Tentativa de ligação iniciada.",
+        resultado: "Registrado",
+        data: new Date().toISOString(),
+        usuario_id: posVenda.selectedPosVenda.usuario_id,
+      });
+    }
+  };
+
+  const handleSMS = () => {
+    if (!posVenda.formData.cliente_id) {
+      error("Selecione um cliente antes de enviar SMS.");
+      return;
+    }
+    const cliente = posVenda.clienteSearchResults.find((c) => c.id === posVenda.formData.cliente_id);
+    const telefone = cliente?.telefone || "";
+    const digits = telefone.replace(/\D/g, "");
+    if (!digits) {
+      error("Telefone inválido para SMS.");
+      return;
+    }
+    window.location.href = `sms:+55${digits}?body=${encodeURIComponent(posVenda.formData.observacoes || "")}`;
+    if (posVenda.selectedPosVenda) {
+      void posVenda.addComunicacao({
+        pos_venda_id: posVenda.selectedPosVenda.id,
+        tipo: "WhatsApp",
+        descricao: "SMS iniciado.",
+        resultado: "Registrado",
+        data: new Date().toISOString(),
+        usuario_id: posVenda.selectedPosVenda.usuario_id,
+      });
     }
   };
 
@@ -162,50 +213,26 @@ export default function PosVendaPage() {
 
   const getStatusBadge = (status: string) => {
     const map: Record<string, "default" | "secondary" | "success" | "destructive" | "outline"> = {
-      Pendente: "secondary",
-      Agendado: "outline",
-      Realizado: "success",
+      "Boas-vindas": "secondary",
+      Comprovante: "secondary",
+      "Lembrete de vencimento": "secondary",
+      "Pagar o boleto": "outline",
+      "Boleto em atraso": "destructive",
+      Pago: "success",
       Cancelado: "destructive",
-      "Concluída": "success",
+      Ativo: "success",
+      "Aplicativo do cliente": "outline",
+      "Sorteio Loteria Federal": "outline",
+      "Resultado número da Loteria Federal": "secondary",
+      "Resultado da Assembleia": "secondary",
+      "Dia da Assembleia": "outline",
+      Contemplei: "success",
+      Imóvel: "outline",
+      Motors: "outline",
+      Serviços: "outline",
+      "Outros bens móveis": "outline",
     };
     return map[status] || "secondary";
-  };
-
-  const getTipoLabel = (tipo: string) => {
-    const map: Record<string, string> = {
-      "Follow-up": "Follow-up",
-      "Assembleia": "Assembleia",
-      "Contemplação": "Contemplação",
-      "Retenção": "Retenção",
-      "Treinamento": "Treinamento",
-      "Envio de boleto": "Envio de boleto",
-      "Lembrete de vencimento": "Lembrete de vencimento",
-      "Acompanhamento": "Acompanhamento",
-    };
-    return map[tipo] || tipo;
-  };
-
-  const getTipoIcon = (tipo: string) => {
-    switch (tipo) {
-      case "Follow-up":
-        return <Phone className="h-4 w-4" />;
-      case "Assembleia":
-        return <Calendar className="h-4 w-4" />;
-      case "Contemplação":
-        return <CheckCircle2 className="h-4 w-4" />;
-      case "Retenção":
-        return <Headphones className="h-4 w-4" />;
-      case "Treinamento":
-        return <FileText className="h-4 w-4" />;
-      case "Envio de boleto":
-        return <FileText className="h-4 w-4" />;
-      case "Lembrete de vencimento":
-        return <Calendar className="h-4 w-4" />;
-      case "Acompanhamento":
-        return <MessageSquare className="h-4 w-4" />;
-      default:
-        return <Circle className="h-4 w-4" />;
-    }
   };
 
   return (
@@ -234,13 +261,13 @@ export default function PosVendaPage() {
             <CardTitle>Ações de Pós-venda</CardTitle>
             <CardDescription>
               {posVenda.posVendas.length > 0
-                ? `${posVenda.posVendas.length} ação(ões) encontrada(s)`
-                : "Nenhuma ação cadastrada ainda."}
+                ? `${posVenda.posVendas.length} registro(s) encontrado(s)`
+                : "Nenhum registro cadastrado ainda."}
             </CardDescription>
           </div>
           <Button onClick={posVenda.openCreate}>
             <Plus className="mr-2 h-4 w-4" />
-            Nova Ação
+            Novo Registro
           </Button>
         </CardHeader>
         <CardContent>
@@ -249,45 +276,38 @@ export default function PosVendaPage() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : posVenda.posVendas.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma ação cadastrada ainda.</p>
+            <p className="text-sm text-muted-foreground">Nenhum registro cadastrado ainda.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Tipo</TableHead>
                     <TableHead>Cliente</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead>Data Prevista</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Canal</TableHead>
+                    <TableHead>Contato</TableHead>
                     <TableHead className="w-[100px] text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {posVenda.posVendas.map((item) => {
-                    const cliente = clientes.find((c) => c.id === item.cliente_id);
+                    const clienteNome = item.cliente?.nome || "—";
                     return (
                       <TableRow key={item.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getTipoIcon(item.tipo)}
-                            <span className="text-sm">{getTipoLabel(item.tipo)}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{cliente?.nome ?? "—"}</TableCell>
-                        <TableCell className="max-w-[300px] truncate">{item.descricao}</TableCell>
-                        <TableCell>{formatDate(item.data_prevista)}</TableCell>
+                        <TableCell className="font-medium">{clienteNome}</TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusBadge(item.status)}`}>
                             {item.status}
                           </span>
                         </TableCell>
+                        <TableCell>{item.channel}</TableCell>
+                        <TableCell>{formatDate(item.next_contact_at)}</TableCell>
                         <TableCell className="flex justify-end gap-2">
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => posVenda.openEdit(item)}
-                            aria-label="Editar ação"
+                            aria-label="Editar registro"
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -295,7 +315,7 @@ export default function PosVendaPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => posVenda.openDelete(item)}
-                            aria-label="Excluir ação"
+                            aria-label="Excluir registro"
                           >
                             <Trash2 className="h-4 w-4 text-red-600" />
                           </Button>
@@ -313,35 +333,55 @@ export default function PosVendaPage() {
       <Dialog open={posVenda.isFormOpen} onOpenChange={posVenda.setIsFormOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{posVenda.selectedPosVenda ? "Editar ação" : "Nova ação"}</DialogTitle>
+            <DialogTitle>{posVenda.selectedPosVenda ? "Editar registro" : "Novo registro"}</DialogTitle>
             <DialogDescription>
               {posVenda.selectedPosVenda
-                ? "Atualize a ação de pós-venda selecionada."
-                : "Cadastre uma nova ação de pós-venda."}
+                ? "Atualize o registro de pós-venda selecionado."
+                : "Cadastre um novo registro de pós-venda."}
             </DialogDescription>
           </DialogHeader>
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="tipo">Tipo</Label>
-              <select
-                id="tipo"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={posVenda.formData.tipo}
-                onChange={(e) => handleChange("tipo", e.target.value)}
-              >
-                <option value="Follow-up">Follow-up</option>
-                <option value="Assembleia">Assembleia</option>
-                <option value="Contemplação">Contemplação</option>
-                <option value="Retenção">Retenção</option>
-                <option value="Treinamento">Treinamento</option>
-                <option value="Envio de boleto">Envio de boleto</option>
-                <option value="Lembrete de vencimento">Lembrete de vencimento</option>
-                <option value="Acompanhamento">Acompanhamento</option>
-              </select>
-            </div>
-
+          <form className="space-y-4" onSubmit={posVenda.handleSubmit}>
             <div className="space-y-2">
               <Label htmlFor="cliente_id">Cliente</Label>
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="cliente-search"
+                  className="pl-8"
+                  placeholder="Buscar cliente por nome, telefone ou e-mail..."
+                  value={posVenda.clienteSearch}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    posVenda.setClienteSearch(value);
+                    if (value.trim()) {
+                      clientesHook.debouncedSearch(value);
+                    } else {
+                      posVenda.setClienteSearchResults([]);
+                    }
+                  }}
+                />
+              </div>
+              {posVenda.clienteSearchResults.length > 0 && (
+                <div className="max-h-40 overflow-y-auto rounded-md border">
+                  {posVenda.clienteSearchResults.map((cliente) => (
+                    <div
+                      key={cliente.id}
+                      className="flex cursor-pointer items-center justify-between px-3 py-2 hover:bg-muted"
+                      onClick={() => {
+                        posVenda.setFormData((current) => ({ ...current, cliente_id: cliente.id }));
+                        posVenda.setClienteSearch(cliente.nome);
+                        posVenda.setClienteSearchResults([]);
+                      }}
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{cliente.nome}</p>
+                        <p className="text-xs text-muted-foreground">{cliente.telefone}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{cliente.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <select
                 id="cliente_id"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -349,97 +389,103 @@ export default function PosVendaPage() {
                 onChange={(e) => handleChange("cliente_id", e.target.value)}
               >
                 <option value="">Selecione</option>
-                {clientes.map((cliente) => (
+                {posVenda.clienteSearchResults.map((cliente) => (
                   <option key={cliente.id} value={cliente.id}>
-                    {cliente.nome}
+                    {cliente.nome} — {cliente.telefone}
                   </option>
                 ))}
               </select>
             </div>
 
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <select
+                  id="status"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={posVenda.formData.status}
+                  onChange={(e) => handleChange("status", e.target.value)}
+                >
+                  {STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="channel">Canal</Label>
+                <select
+                  id="channel"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={posVenda.formData.channel}
+                  onChange={(e) => handleChange("channel", e.target.value)}
+                >
+                  {CHANNEL_OPTIONS.map((channel) => (
+                    <option key={channel} value={channel}>
+                      {channel}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="descricao">Descrição</Label>
+              <Label htmlFor="observacoes">Observações</Label>
               <Textarea
-                id="descricao"
-                value={posVenda.formData.descricao}
-                onChange={(e) => handleChange("descricao", e.target.value)}
-                placeholder="Descreva a ação"
+                id="observacoes"
+                value={posVenda.formData.observacoes}
+                onChange={(e) => handleChange("observacoes", e.target.value)}
+                placeholder="Descreva a ação de pós-venda"
                 required
               />
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="data_prevista">Data Prevista</Label>
+                <Label htmlFor="next_contact_at">Próximo Contato</Label>
                 <Input
-                  id="data_prevista"
-                  type="date"
-                  value={posVenda.formData.data_prevista}
-                  onChange={(e) => handleChange("data_prevista", e.target.value)}
-                  required
+                  id="next_contact_at"
+                  type="datetime-local"
+                  value={posVenda.formData.next_contact_at || ""}
+                  onChange={(e) => handleChange("next_contact_at", e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="data_realizada">Data Realizada</Label>
+                <Label htmlFor="last_contact_at">Último Contato</Label>
                 <Input
-                  id="data_realizada"
-                  type="date"
-                  value={posVenda.formData.data_realizada || ""}
-                  onChange={(e) => handleChange("data_realizada", e.target.value)}
+                  id="last_contact_at"
+                  type="datetime-local"
+                  value={posVenda.formData.last_contact_at || ""}
+                  onChange={(e) => handleChange("last_contact_at", e.target.value)}
                 />
               </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={() => handleSendWhatsApp("cliente")}>
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Enviar para WhatsApp
+              </Button>
+              <Button type="button" variant="outline" onClick={handleSMS}>
+                <MessageSquare className="mr-2 h-4 w-4" />
+                SMS
+              </Button>
+              <Button type="button" variant="outline" onClick={handleCall}>
+                <Phone className="mr-2 h-4 w-4" />
+                Ligar
+              </Button>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <select
-                id="status"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={posVenda.formData.status}
-                onChange={(e) => handleChange("status", e.target.value)}
-              >
-                <option value="Pendente">Pendente</option>
-                <option value="Agendado">Agendado</option>
-                <option value="Realizado">Realizado</option>
-                <option value="Cancelado">Cancelado</option>
-              </select>
+              <Label htmlFor="boleto_url">Inserir link</Label>
+              <Input
+                id="boleto_url"
+                value={posVenda.formData.boleto_url}
+                onChange={(e) => handleChange("boleto_url", e.target.value)}
+                placeholder="https://..."
+              />
             </div>
-
-            {posVenda.formData.tipo === "Envio de boleto" && (
-              <div className="space-y-2">
-                <Label htmlFor="boleto_url">URL do Boleto</Label>
-                <Input
-                  id="boleto_url"
-                  value={posVenda.formData.boleto_url}
-                  onChange={(e) => handleChange("boleto_url", e.target.value)}
-                  placeholder="https://..."
-                />
-              </div>
-            )}
-
-            {posVenda.formData.tipo === "Lembrete de vencimento" && (
-              <div className="space-y-2">
-                <Label htmlFor="lembrete_em">Data do Lembrete</Label>
-                <Input
-                  id="lembrete_em"
-                  type="datetime-local"
-                  value={posVenda.formData.lembrete_em || ""}
-                  onChange={(e) => handleChange("lembrete_em", e.target.value)}
-                />
-              </div>
-            )}
-
-            {posVenda.formData.tipo === "Retenção" && (
-              <div className="space-y-2">
-                <Label htmlFor="retencao_motivo">Motivo da Retenção</Label>
-                <Textarea
-                  id="retencao_motivo"
-                  value={posVenda.formData.retencao_motivo}
-                  onChange={(e) => handleChange("retencao_motivo", e.target.value)}
-                  placeholder="Descreva o motivo da retenção"
-                />
-              </div>
-            )}
 
             <DialogFooter>
               <Button
@@ -474,9 +520,9 @@ export default function PosVendaPage() {
         <Dialog open={posVenda.isFormOpen} onOpenChange={posVenda.setIsFormOpen}>
           <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Detalhes da Ação</DialogTitle>
+              <DialogTitle>Detalhes do Registro</DialogTitle>
               <DialogDescription>
-                {posVenda.selectedPosVenda.descricao}
+                {posVenda.selectedPosVenda.observacoes}
               </DialogDescription>
             </DialogHeader>
             <Tabs defaultValue="timeline" className="w-full">
@@ -492,11 +538,11 @@ export default function PosVendaPage() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      {getTipoIcon(posVenda.selectedPosVenda.tipo)}
+                      <Headphones className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">{getTipoLabel(posVenda.selectedPosVenda.tipo)}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(posVenda.selectedPosVenda.data_prevista)}</p>
+                      <p className="text-sm font-medium">{posVenda.selectedPosVenda.status}</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(posVenda.selectedPosVenda.next_contact_at)}</p>
                     </div>
                   </div>
 
@@ -513,7 +559,17 @@ export default function PosVendaPage() {
                   </div>
                 </div>
 
-                <form onSubmit={handleAddHistorico} className="flex gap-2">
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!posVenda.selectedPosVenda || !historicoForm.descricao.trim()) return;
+                  setIsHistorySaving(true);
+                  try {
+                    await posVenda.addHistorico(posVenda.selectedPosVenda.id, historicoForm);
+                    setHistoricoForm({ tipo: "observacao", descricao: "" });
+                  } finally {
+                    setIsHistorySaving(false);
+                  }
+                }} className="flex gap-2">
                   <Input
                     value={historicoForm.descricao}
                     onChange={(e) => setHistoricoForm((f) => ({ ...f, descricao: e.target.value }))}
@@ -533,7 +589,7 @@ export default function PosVendaPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleToggleTarefa(tarefa)}
+                          onClick={() => posVenda.updateTarefa(tarefa.id, { status: tarefa.status === "Pendente" ? "Concluída" : "Pendente" })}
                           aria-label={tarefa.status === "Pendente" ? "Concluir tarefa" : "Reabrir tarefa"}
                         >
                           {tarefa.status === "Pendente" ? (
@@ -564,7 +620,24 @@ export default function PosVendaPage() {
                   )}
                 </div>
 
-                <form onSubmit={handleAddTarefa} className="space-y-2">
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!posVenda.selectedPosVenda || !tarefaForm.titulo.trim()) return;
+                  setIsTaskSaving(true);
+                  try {
+                    await posVenda.addTarefa({
+                      pos_venda_id: posVenda.selectedPosVenda.id,
+                      titulo: tarefaForm.titulo.trim(),
+                      descricao: tarefaForm.descricao.trim(),
+                      data_prevista: tarefaForm.data_prevista,
+                      status: "Pendente",
+                      usuario_id: posVenda.selectedPosVenda.usuario_id,
+                    });
+                    setTarefaForm({ titulo: "", descricao: "", data_prevista: "" });
+                  } finally {
+                    setIsTaskSaving(false);
+                  }
+                }} className="space-y-2">
                   <Input
                     value={tarefaForm.titulo}
                     onChange={(e) => setTarefaForm((f) => ({ ...f, titulo: e.target.value }))}
@@ -611,7 +684,24 @@ export default function PosVendaPage() {
                   )}
                 </div>
 
-                <form onSubmit={handleAddComunicacao} className="space-y-2">
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!posVenda.selectedPosVenda || !comunicacaoForm.descricao.trim()) return;
+                  setIsCommsSaving(true);
+                  try {
+                    await posVenda.addComunicacao({
+                      pos_venda_id: posVenda.selectedPosVenda.id,
+                      tipo: comunicacaoForm.tipo,
+                      descricao: comunicacaoForm.descricao.trim(),
+                      resultado: comunicacaoForm.resultado.trim(),
+                      data: new Date().toISOString(),
+                      usuario_id: posVenda.selectedPosVenda.usuario_id,
+                    });
+                    setComunicacaoForm({ tipo: "WhatsApp", descricao: "", resultado: "" });
+                  } finally {
+                    setIsCommsSaving(false);
+                  }
+                }} className="space-y-2">
                   <select
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={comunicacaoForm.tipo}
@@ -646,7 +736,7 @@ export default function PosVendaPage() {
                       rel="noopener noreferrer"
                       className="text-sm text-blue-600 hover:underline"
                     >
-                      Ver boleto
+                      Ver link
                     </a>
                   </div>
                 )}
@@ -683,16 +773,16 @@ export default function PosVendaPage() {
       <Dialog open={posVenda.isDeleteOpen} onOpenChange={posVenda.setIsDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Excluir ação</DialogTitle>
+            <DialogTitle>Excluir registro</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir esta ação de pós-venda? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir este registro de pós-venda? Esta ação não pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => posVenda.setIsDeleteOpen(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            <Button variant="destructive" onClick={posVenda.handleDelete}>
               Excluir
             </Button>
           </DialogFooter>

@@ -8,9 +8,10 @@ import {
 } from "@/components/dashboard/recent-activity";
 import { Badge } from "@/components/ui/badge";
 import { useDashboard } from "@/hooks/use-dashboard";
+import { Shield } from "lucide-react";
 
 export default function DashboardPage() {
-  const { stats, atividades, eventos, pipeline, isLoading, errorMessage, reload } =
+  const { stats, atividades, eventos, pipeline, isLoading, errorMessage, reload, perfil } =
     useDashboard();
 
   if (isLoading) {
@@ -29,14 +30,14 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Bem-vindo, Paulo!</h2>
+            <h2 className="text-2xl font-bold tracking-tight">Bem-vindo!</h2>
             <p className="text-sm text-muted-foreground">
               Acompanhe o desempenho do seu CRM de consórcios
             </p>
           </div>
           <Badge variant="destructive" className="w-fit">
-              Erro ao carregar
-            </Badge>
+            Erro ao carregar
+          </Badge>
         </div>
         <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
           <p className="text-sm text-red-600">{errorMessage}</p>
@@ -57,14 +58,28 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Bem-vindo, Paulo!</h2>
+          <h2 className="text-2xl font-bold tracking-tight">
+            {perfil === "Administrador" && "Visão Administrativa"}
+            {perfil === "Gestor" && "Visão Gerencial"}
+            {perfil === "Consultor" && "Meu Dashboard"}
+            {perfil === "Assistente" && "Dashboard"}
+            {!perfil && "Bem-vindo!"}
+          </h2>
           <p className="text-sm text-muted-foreground">
             Acompanhe o desempenho do seu CRM de consórcios
           </p>
         </div>
-        <Badge variant="success" className="w-fit">
-          Sistema operacional
-        </Badge>
+        <div className="flex items-center gap-2">
+          {perfil && (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Shield className="h-3 w-3" />
+              {perfil}
+            </Badge>
+          )}
+          <Badge variant="success" className="w-fit">
+            Sistema operacional
+          </Badge>
+        </div>
       </div>
 
       {isEmpty ? (

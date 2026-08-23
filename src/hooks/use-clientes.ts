@@ -1,16 +1,21 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { Cliente, ClienteInsert, ClienteUpdate, ClienteHistorico, ClienteContato } from "@/repositories/client/clientes.repository";
 
 export function useClientes() {
   const { success, error } = useToast();
+  const [searchResults, setSearchResults] = useState<Cliente[]>([]);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const list = async () => {
     try {
       const { getClientes } = await import("@/repositories/client/clientes.repository");
       return await getClientes();
-    } catch {
-      error("Não foi possível carregar os clientes.");
-      return [] as Cliente[];
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível carregar os clientes.";
+      error(message);
+      throw err;
     }
   };
 
@@ -28,9 +33,11 @@ export function useClientes() {
     try {
       const { createCliente } = await import("@/repositories/client/clientes.repository");
       const cliente = await createCliente(data);
+      console.log("[useClientes] create sucesso:", cliente);
       success("Cliente cadastrado com sucesso.");
       return cliente;
-    } catch {
+    } catch (err) {
+      console.error("[useClientes] create erro:", err);
       error("Não foi possível salvar o cliente.");
       throw new Error("Falha ao criar cliente.");
     }
@@ -59,15 +66,48 @@ export function useClientes() {
     }
   };
 
-  const search = async (query: string) => {
+  const search = useCallback(async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setSearchResults([]);
+      return [];
+    }
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setIsSearchLoading(true);
     try {
       const { searchClientes } = await import("@/repositories/client/clientes.repository");
-      return await searchClientes(query);
+      const data = await searchClientes(trimmed);
+      if (!controller.signal.aborted) {
+        setSearchResults(data);
+        return data;
+      }
+      return [];
     } catch {
-      error("Não foi possível pesquisar clientes.");
-      return [] as Cliente[];
+      if (!controller.signal.aborted) {
+        error("Não foi possível pesquisar clientes.");
+        setSearchResults([]);
+      }
+      return [];
+    } finally {
+      if (!controller.signal.aborted) {
+        setIsSearchLoading(false);
+      }
     }
-  };
+  }, [error]);
+
+  const debouncedSearch = useCallback(
+    (value: string) => {
+      const timeout = setTimeout(() => {
+        void search(value);
+      }, 250);
+      return () => clearTimeout(timeout);
+    },
+    [search],
+  );
 
   const filterByStatus = async (status: string) => {
     try {
@@ -146,5 +186,5 @@ export function useClientes() {
     }
   };
 
-  return { list, get, create, update, remove, search, filterByStatus, getHistorico, addHistorico, getContatos, addContato, updateContato, removeContato };
+  return { list, get, create, update, remove, search, debouncedSearch, filterByStatus, getHistorico, addHistorico, getContatos, addContato, updateContato, removeContato, searchResults, isSearchLoading };
 }

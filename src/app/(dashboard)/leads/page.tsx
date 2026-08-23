@@ -184,6 +184,7 @@ export default function LeadsPage() {
     if (!formData.nome.trim()) return;
 
     setIsSaving(true);
+    setErrorMessage(null);
     try {
       const payload = {
         nome: formData.nome.trim(),
@@ -209,8 +210,10 @@ export default function LeadsPage() {
       setIsFormOpen(false);
       setFormData(emptyForm);
       setSelectedLead(null);
-    } catch {
-      // erro já tratado no hook
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível salvar o lead.";
+      setErrorMessage(message);
+      error(message);
     } finally {
       setIsSaving(false);
     }

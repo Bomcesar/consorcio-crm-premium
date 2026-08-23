@@ -30,9 +30,10 @@ export function useLeads() {
       const lead = await createLead(data);
       success("Lead cadastrado com sucesso.");
       return lead;
-    } catch {
-      error("Não foi possível salvar o lead.");
-      throw new Error("Falha ao criar lead.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível salvar o lead.";
+      error(message);
+      throw new Error(message);
     }
   };
 

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database.types";
-import { getAuthenticatedUser } from "@/lib/auth-user";
+import { getAuthenticatedUser, isAdminOrGestor } from "@/lib/auth-user";
 
 export type AgendaEvento = Database["public"]["Tables"]["agenda_eventos"]["Row"];
 export type AgendaEventoInsert = Database["public"]["Tables"]["agenda_eventos"]["Insert"];
@@ -14,13 +14,18 @@ export type AgendaFollowup = Database["public"]["Tables"]["agenda_followups"]["R
 export type AgendaFollowupInsert = Database["public"]["Tables"]["agenda_followups"]["Insert"];
 export type AgendaFollowupUpdate = Database["public"]["Tables"]["agenda_followups"]["Update"];
 
+function agendaBaseQuery(supabase: ReturnType<typeof createClient>) {
+  return supabase.from("agenda_eventos").select("*");
+}
+
 export async function getEventosAgenda(): Promise<AgendaEvento[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase.from("agenda_eventos")
-    .select("*")
-    .eq("usuario_id", user.id)
-    .order("data_inicio", { ascending: true });
+  let query = agendaBaseQuery(supabase).order("data_inicio", { ascending: true });
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar os eventos da agenda.");
   return (data as AgendaEvento[]) ?? [];
 }
@@ -28,11 +33,11 @@ export async function getEventosAgenda(): Promise<AgendaEvento[]> {
 export async function getEventoAgenda(id: string): Promise<AgendaEvento | null> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase.from("agenda_eventos")
-    .select("*")
-    .eq("id", id)
-    .eq("usuario_id", user.id)
-    .single();
+  let query = agendaBaseQuery(supabase).eq("id", id);
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query.single();
   if (error || !data) return null;
   return data as AgendaEvento;
 }
@@ -51,12 +56,9 @@ export async function createEventoAgenda(payload: AgendaEventoInsert): Promise<A
 export async function updateEventoAgenda(id: string, payload: AgendaEventoUpdate): Promise<AgendaEvento> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase.from("agenda_eventos")
-    .update(payload)
-    .eq("id", id)
-    .eq("usuario_id", user.id)
-    .select()
-    .single();
+  const base = supabase.from("agenda_eventos").update(payload).eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { data, error } = await query.select().single();
   if (error || !data) throw new Error("Não foi possível atualizar o evento da agenda.");
   return data as AgendaEvento;
 }
@@ -64,7 +66,9 @@ export async function updateEventoAgenda(id: string, payload: AgendaEventoUpdate
 export async function deleteEventoAgenda(id: string): Promise<void> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { error } = await supabase.from("agenda_eventos").delete().eq("id", id).eq("usuario_id", user.id);
+  const base = supabase.from("agenda_eventos").delete().eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { error } = await query;
   if (error) throw new Error("Não foi possível excluir o evento da agenda.");
 }
 

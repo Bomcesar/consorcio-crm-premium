@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database.types";
-import { getAuthenticatedUser } from "@/lib/auth-user";
+import { getAuthenticatedUser, isAdminOrGestor } from "@/lib/auth-user";
 
 export type Cliente = Database["public"]["Tables"]["clientes"]["Row"];
 export type ClienteInsert = Database["public"]["Tables"]["clientes"]["Insert"];
@@ -8,14 +8,18 @@ export type ClienteUpdate = Database["public"]["Tables"]["clientes"]["Update"];
 export type ClienteHistorico = Database["public"]["Tables"]["cliente_historico"]["Row"];
 export type ClienteContato = Database["public"]["Tables"]["cliente_contatos"]["Row"];
 
+function clienteBaseQuery(supabase: ReturnType<typeof createClient>) {
+  return supabase.from("clientes").select("*");
+}
+
 export async function getClientes(): Promise<Cliente[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("clientes")
-    .select("*")
-    .eq("usuario_id", user.id)
-    .order("created_at", { ascending: false });
+  let query = clienteBaseQuery(supabase).order("created_at", { ascending: false });
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar os clientes.");
   return (data as Cliente[]) ?? [];
 }
@@ -23,12 +27,11 @@ export async function getClientes(): Promise<Cliente[]> {
 export async function getCliente(id: string): Promise<Cliente | null> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("clientes")
-    .select("*")
-    .eq("id", id)
-    .eq("usuario_id", user.id)
-    .single();
+  let query = clienteBaseQuery(supabase).eq("id", id);
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query.single();
   if (error || !data) return null;
   return data as Cliente;
 }
@@ -36,25 +39,27 @@ export async function getCliente(id: string): Promise<Cliente | null> {
 export async function createCliente(payload: ClienteInsert): Promise<Cliente> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
+  const insertPayload = { ...payload, usuario_id: user.id };
+  console.log("[clientes.repository] createCliente payload", insertPayload);
   const { data, error } = await supabase
     .from("clientes")
-    .insert({ ...payload, usuario_id: user.id })
+    .insert(insertPayload)
     .select()
     .single();
-  if (error || !data) throw new Error("Não foi possível salvar o cliente.");
+  if (error) {
+    console.error("[clientes.repository] createCliente error detalhe:", error);
+    throw new Error(`Não foi possível salvar o cliente: ${error.message}`);
+  }
+  if (!data) throw new Error("Não foi possível salvar o cliente.");
   return data as Cliente;
 }
 
 export async function updateCliente(id: string, payload: ClienteUpdate): Promise<Cliente> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("clientes")
-    .update(payload)
-    .eq("id", id)
-    .eq("usuario_id", user.id)
-    .select()
-    .single();
+  const base = supabase.from("clientes").update(payload).eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { data, error } = await query.select().single();
   if (error || !data) throw new Error("Não foi possível atualizar o cliente.");
   return data as Cliente;
 }
@@ -62,24 +67,26 @@ export async function updateCliente(id: string, payload: ClienteUpdate): Promise
 export async function deleteCliente(id: string): Promise<void> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { error } = await supabase
-    .from("clientes")
-    .delete()
-    .eq("id", id)
-    .eq("usuario_id", user.id);
+  const base = supabase.from("clientes").delete().eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { error } = await query;
   if (error) throw new Error("Não foi possível excluir o cliente.");
 }
 
 export async function searchClientes(query: string): Promise<Cliente[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const pattern = `%${query}%`;
-  const { data, error } = await supabase
-    .from("clientes")
-    .select("*")
-    .eq("usuario_id", user.id)
-    .or(`nome.ilike.${pattern},email.ilike.${pattern},telefone.ilike.${pattern},cidade.ilike.${pattern},origem.ilike.${pattern},observacoes.ilike.${pattern}`)
+  const normalized = query.trim();
+  if (!normalized) return [];
+  const escaped = normalized.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+  const pattern = `%${escaped}%`;
+  let q = clienteBaseQuery(supabase)
+    .or(`nome.ilike.${pattern},telefone.ilike.${pattern},cidade.ilike.${pattern},origem.ilike.${pattern},observacoes.ilike.${pattern}`)
     .order("created_at", { ascending: false });
+  if (!isAdminOrGestor(user)) {
+    q = q.eq("usuario_id", user.id);
+  }
+  const { data, error } = await q;
   if (error) throw new Error("Não foi possível pesquisar clientes.");
   return (data as Cliente[]) ?? [];
 }
@@ -87,12 +94,11 @@ export async function searchClientes(query: string): Promise<Cliente[]> {
 export async function filterClientesByStatus(status: string): Promise<Cliente[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("clientes")
-    .select("*")
-    .eq("usuario_id", user.id)
-    .eq("status", status)
-    .order("created_at", { ascending: false });
+  let query = clienteBaseQuery(supabase).eq("status", status).order("created_at", { ascending: false });
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query;
   if (error) throw new Error("Não foi possível filtrar clientes.");
   return (data as Cliente[]) ?? [];
 }

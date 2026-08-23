@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database.types";
-import { getAuthenticatedUser } from "@/lib/auth-user";
+import { getAuthenticatedUser, isAdminOrGestor } from "@/lib/auth-user";
 
 export type PosVenda = Database["public"]["Tables"]["pos_venda"]["Row"];
 export type PosVendaInsert = Database["public"]["Tables"]["pos_venda"]["Insert"];
@@ -12,67 +12,169 @@ export type PosVendaTarefaUpdate = Database["public"]["Tables"]["pos_venda_taref
 export type PosVendaComunicacao = Database["public"]["Tables"]["pos_venda_comunicacoes"]["Row"];
 export type PosVendaComunicacaoInsert = Database["public"]["Tables"]["pos_venda_comunicacoes"]["Insert"];
 export type PosVendaComunicacaoUpdate = Database["public"]["Tables"]["pos_venda_comunicacoes"]["Update"];
+export type PosVendaWithRelations = Database["public"]["Tables"]["pos_venda"]["Row"] & {
+  cliente?: { id: string; nome: string; telefone: string; email: string };
+};
 
-export async function getPosVendas(): Promise<PosVenda[]> {
+type SupabaseError = {
+  message?: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+};
+
+function logSupabaseError(context: string, error: SupabaseError | null) {
+  console.error(`[PosVenda] ${context} error:`, {
+    message: error?.message,
+    details: error?.details,
+    hint: error?.hint,
+    code: error?.code,
+  });
+}
+
+function posVendaBaseQuery(supabase: ReturnType<typeof createClient>) {
+  return supabase.from("pos_venda").select("*");
+}
+
+const ALLOWED_STATUS = [
+  "Boas-vindas",
+  "Comprovante",
+  "Lembrete de vencimento",
+  "Aplicativo do cliente",
+  "Pagar o boleto",
+  "Boleto em atraso",
+  "Pago",
+  "Cancelado",
+  "Ativo",
+  "Sorteio Loteria Federal",
+  "Resultado número da Loteria Federal",
+  "Resultado da Assembleia",
+  "Dia da Assembleia",
+  "Imóvel",
+  "Motors",
+  "Serviços",
+  "Outros bens móveis",
+  "Contemplei",
+] as const;
+
+const ALLOWED_CHANNELS = ["WhatsApp", "SMS", "Ligação"] as const;
+
+function sanitizeStatus(status: unknown) {
+  if (typeof status === "string" && (ALLOWED_STATUS as readonly string[]).includes(status)) {
+    return status;
+  }
+  return "Boas-vindas";
+}
+
+function sanitizeChannel(channel: unknown) {
+  if (typeof channel === "string" && (ALLOWED_CHANNELS as readonly string[]).includes(channel)) {
+    return channel;
+  }
+  return "WhatsApp";
+}
+
+function normalizeOptionalId(value: unknown) {
+  if (typeof value === "string" && value.trim() !== "") return value;
+  return null;
+}
+
+function normalizePayload(payload: PosVendaInsert) {
+  const now = new Date().toISOString();
+  return {
+    usuario_id: payload.usuario_id,
+    cliente_id: normalizeOptionalId(payload.cliente_id),
+    agenda_id: normalizeOptionalId(payload.agenda_id),
+    status: sanitizeStatus(payload.status),
+    priority: typeof payload.priority === "string" ? payload.priority : "normal",
+    satisfaction: typeof payload.satisfaction === "number" ? payload.satisfaction : 0,
+    next_contact_at: payload.next_contact_at ?? null,
+    last_contact_at: payload.last_contact_at ?? null,
+    channel: sanitizeChannel(payload.channel),
+    needs_attention: typeof payload.needs_attention === "boolean" ? payload.needs_attention : false,
+    observacoes: typeof payload.observacoes === "string" ? payload.observacoes : "",
+    boleto_url: typeof payload.boleto_url === "string" ? payload.boleto_url : "",
+    lembrete_em: payload.lembrete_em ?? null,
+    retencao_motivo: typeof payload.retencao_motivo === "string" ? payload.retencao_motivo : "",
+    retencao_data: payload.retencao_data ?? null,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+export async function getPosVendas(): Promise<PosVendaWithRelations[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
   const { data, error } = await supabase
     .from("pos_venda")
     .select("*")
     .eq("usuario_id", user.id)
-    .order("data_prevista", { ascending: true });
+    .order("created_at", { ascending: true });
 
-  if (error) throw new Error("Não foi possível carregar as ações de pós-venda.");
-  return (data as PosVenda[]) ?? [];
+  if (error) {
+    logSupabaseError("getPosVendas", error);
+    throw new Error("Não foi possível carregar as ações de pós-venda.");
+  }
+  return (data as PosVendaWithRelations[]) ?? [];
 }
 
 export async function getPosVenda(id: string): Promise<PosVenda | null> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("pos_venda")
-    .select("*")
-    .eq("id", id)
-    .eq("usuario_id", user.id)
-    .single();
-
-  if (error || !data) return null;
+  let query = posVendaBaseQuery(supabase).eq("id", id);
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+  const { data, error } = await query.single();
+  if (error) {
+    logSupabaseError("getPosVenda", error);
+    return null;
+  }
   return data as PosVenda;
 }
 
 export async function createPosVenda(payload: PosVendaInsert): Promise<PosVenda> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
+  const normalized = normalizePayload({ ...payload, usuario_id: user.id });
   const { data, error } = await supabase
     .from("pos_venda")
-    .insert({ ...payload, usuario_id: user.id })
+    .insert(normalized)
     .select()
     .single();
 
-  if (error || !data) throw new Error("Não foi possível salvar a ação de pós-venda.");
+  if (error) {
+    logSupabaseError("createPosVenda", error);
+    throw new Error("Não foi possível salvar a ação de pós-venda.");
+  }
+  if (!data) throw new Error("Não foi possível salvar a ação de pós-venda.");
   return data as PosVenda;
 }
 
 export async function updatePosVenda(id: string, payload: PosVendaUpdate): Promise<PosVenda> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("pos_venda")
-    .update(payload)
-    .eq("id", id)
-    .eq("usuario_id", user.id)
-    .select()
-    .single();
-
-  if (error || !data) throw new Error("Não foi possível atualizar a ação de pós-venda.");
+  const normalized = normalizePayload(payload);
+  const base = supabase.from("pos_venda").update(normalized).eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { data, error } = await query.select().single();
+  if (error) {
+    logSupabaseError("updatePosVenda", error);
+    throw new Error("Não foi possível atualizar a ação de pós-venda.");
+  }
+  if (!data) throw new Error("Não foi possível atualizar a ação de pós-venda.");
   return data as PosVenda;
 }
 
 export async function deletePosVenda(id: string): Promise<void> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const { error } = await supabase.from("pos_venda").delete().eq("id", id).eq("usuario_id", user.id);
-  if (error) throw new Error("Não foi possível excluir a ação de pós-venda.");
+  const base = supabase.from("pos_venda").delete().eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { error } = await query;
+  if (error) {
+    logSupabaseError("deletePosVenda", error);
+    throw new Error("Não foi possível excluir a ação de pós-venda.");
+  }
 }
 
 export async function getPosVendaHistorico(posVendaId: string): Promise<PosVendaHistorico[]> {
@@ -85,7 +187,10 @@ export async function getPosVendaHistorico(posVendaId: string): Promise<PosVenda
     .eq("usuario_id", user.id)
     .order("created_at", { ascending: false });
 
-  if (error) throw new Error("Não foi possível carregar o histórico.");
+  if (error) {
+    logSupabaseError("getPosVendaHistorico", error);
+    throw new Error("Não foi possível carregar o histórico.");
+  }
   return (data as PosVendaHistorico[]) ?? [];
 }
 
@@ -98,7 +203,10 @@ export async function addPosVendaHistorico(posVendaId: string, payload: { tipo?:
     .select()
     .single();
 
-  if (error) throw new Error("Não foi possível adicionar histórico.");
+  if (error) {
+    logSupabaseError("addPosVendaHistorico", error);
+    throw new Error("Não foi possível adicionar histórico.");
+  }
   return data as PosVendaHistorico;
 }
 
@@ -110,9 +218,12 @@ export async function getPosVendaTarefas(posVendaId: string): Promise<PosVendaTa
     .select("*")
     .eq("pos_venda_id", posVendaId)
     .eq("usuario_id", user.id)
-    .order("data_prevista", { ascending: true });
+    .order("created_at", { ascending: true });
 
-  if (error) throw new Error("Não foi possível carregar as tarefas.");
+  if (error) {
+    logSupabaseError("getPosVendaTarefas", error);
+    throw new Error("Não foi possível carregar as tarefas.");
+  }
   return (data as PosVendaTarefa[]) ?? [];
 }
 
@@ -125,7 +236,11 @@ export async function createPosVendaTarefa(payload: PosVendaTarefaInsert): Promi
     .select()
     .single();
 
-  if (error || !data) throw new Error("Não foi possível salvar a tarefa.");
+  if (error) {
+    logSupabaseError("createPosVendaTarefa", error);
+    throw new Error("Não foi possível salvar a tarefa.");
+  }
+  if (!data) throw new Error("Não foi possível salvar a tarefa.");
   return data as PosVendaTarefa;
 }
 
@@ -140,7 +255,11 @@ export async function updatePosVendaTarefa(id: string, payload: PosVendaTarefaUp
     .select()
     .single();
 
-  if (error || !data) throw new Error("Não foi possível atualizar a tarefa.");
+  if (error) {
+    logSupabaseError("updatePosVendaTarefa", error);
+    throw new Error("Não foi possível atualizar a tarefa.");
+  }
+  if (!data) throw new Error("Não foi possível atualizar a tarefa.");
   return data as PosVendaTarefa;
 }
 
@@ -148,7 +267,10 @@ export async function deletePosVendaTarefa(id: string): Promise<void> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
   const { error } = await supabase.from("pos_venda_tarefas").delete().eq("id", id).eq("usuario_id", user.id);
-  if (error) throw new Error("Não foi possível excluir a tarefa.");
+  if (error) {
+    logSupabaseError("deletePosVendaTarefa", error);
+    throw new Error("Não foi possível excluir a tarefa.");
+  }
 }
 
 export async function getPosVendaComunicacoes(posVendaId: string): Promise<PosVendaComunicacao[]> {
@@ -159,9 +281,12 @@ export async function getPosVendaComunicacoes(posVendaId: string): Promise<PosVe
     .select("*")
     .eq("pos_venda_id", posVendaId)
     .eq("usuario_id", user.id)
-    .order("data", { ascending: false });
+    .order("created_at", { ascending: false });
 
-  if (error) throw new Error("Não foi possível carregar as comunicações.");
+  if (error) {
+    logSupabaseError("getPosVendaComunicacoes", error);
+    throw new Error("Não foi possível carregar as comunicações.");
+  }
   return (data as PosVendaComunicacao[]) ?? [];
 }
 
@@ -174,7 +299,11 @@ export async function createPosVendaComunicacao(payload: PosVendaComunicacaoInse
     .select()
     .single();
 
-  if (error || !data) throw new Error("Não foi possível salvar a comunicação.");
+  if (error) {
+    logSupabaseError("createPosVendaComunicacao", error);
+    throw new Error("Não foi possível salvar a comunicação.");
+  }
+  if (!data) throw new Error("Não foi possível salvar a comunicação.");
   return data as PosVendaComunicacao;
 }
 
@@ -189,7 +318,11 @@ export async function updatePosVendaComunicacao(id: string, payload: PosVendaCom
     .select()
     .single();
 
-  if (error || !data) throw new Error("Não foi possível atualizar a comunicação.");
+  if (error) {
+    logSupabaseError("updatePosVendaComunicacao", error);
+    throw new Error("Não foi possível atualizar a comunicação.");
+  }
+  if (!data) throw new Error("Não foi possível atualizar a comunicação.");
   return data as PosVendaComunicacao;
 }
 
@@ -197,6 +330,8 @@ export async function deletePosVendaComunicacao(id: string): Promise<void> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
   const { error } = await supabase.from("pos_venda_comunicacoes").delete().eq("id", id).eq("usuario_id", user.id);
-  if (error) throw new Error("Não foi possível excluir a comunicação.");
+  if (error) {
+    logSupabaseError("deletePosVendaComunicacao", error);
+    throw new Error("Não foi possível excluir a comunicação.");
+  }
 }
-

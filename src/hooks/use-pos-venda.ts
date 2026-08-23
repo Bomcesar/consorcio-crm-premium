@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-import type { PosVenda, PosVendaInsert, PosVendaHistorico, PosVendaTarefa, PosVendaTarefaInsert, PosVendaTarefaUpdate, PosVendaComunicacao, PosVendaComunicacaoInsert } from "@/repositories/client/pos-venda.repository";
+import type { PosVenda, PosVendaInsert, PosVendaHistorico, PosVendaTarefa, PosVendaTarefaInsert, PosVendaTarefaUpdate, PosVendaComunicacao, PosVendaComunicacaoInsert, PosVendaComunicacaoUpdate, PosVendaWithRelations } from "@/repositories/client/pos-venda.repository";
 
 const emptyForm: PosVendaInsert = {
-  tipo: "Follow-up",
-  descricao: "",
-  data_prevista: "",
-  data_realizada: null,
-  status: "Pendente",
-  cliente_id: null,
-  lead_id: null,
+  status: "Boas-vindas",
+  priority: "normal",
+  satisfaction: 0,
+  channel: "WhatsApp",
+  needs_attention: false,
+  observacoes: "",
+  cliente_id: "",
+  agenda_id: null,
+  next_contact_at: null,
+  last_contact_at: null,
   boleto_url: "",
   lembrete_em: null,
   retencao_motivo: "",
@@ -18,7 +21,7 @@ const emptyForm: PosVendaInsert = {
 
 export function usePosVenda() {
   const { success, error } = useToast();
-  const [posVendas, setPosVendas] = useState<PosVenda[]>([]);
+  const [posVendas, setPosVendas] = useState<PosVendaWithRelations[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -32,6 +35,14 @@ export function usePosVenda() {
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [isTasksLoading, setIsTasksLoading] = useState(false);
   const [isCommsLoading, setIsCommsLoading] = useState(false);
+  const [clienteSearch, setClienteSearch] = useState("");
+  const [clienteSearchResults, setClienteSearchResults] = useState<{ id: string; nome: string; telefone: string; status: string }[]>([]);
+  const [isClienteSearchLoading, setIsClienteSearchLoading] = useState(false);
+
+  const errorRef = useRef(error);
+  useEffect(() => {
+    errorRef.current = error;
+  }, [error]);
 
   const loadPosVendas = useCallback(async () => {
     setIsLoading(true);
@@ -42,11 +53,11 @@ export function usePosVenda() {
       setPosVendas(data);
     } catch {
       setErrorMessage("Não foi possível carregar as ações de pós-venda.");
-      error("Não foi possível carregar as ações de pós-venda.");
+      errorRef.current("Não foi possível carregar as ações de pós-venda.");
     } finally {
       setIsLoading(false);
     }
-  }, [error]);
+  }, []);
 
   const loadHistorico = useCallback(async (posVendaId: string) => {
     setIsHistoryLoading(true);
@@ -55,12 +66,12 @@ export function usePosVenda() {
       const data = await getPosVendaHistorico(posVendaId);
       setHistorico(data);
     } catch {
-      error("Não foi possível carregar o histórico.");
+      errorRef.current("Não foi possível carregar o histórico.");
       setHistorico([]);
     } finally {
       setIsHistoryLoading(false);
     }
-  }, [error]);
+  }, []);
 
   const loadTarefas = useCallback(async (posVendaId: string) => {
     setIsTasksLoading(true);
@@ -69,12 +80,12 @@ export function usePosVenda() {
       const data = await getPosVendaTarefas(posVendaId);
       setTarefas(data);
     } catch {
-      error("Não foi possível carregar as tarefas.");
+      errorRef.current("Não foi possível carregar as tarefas.");
       setTarefas([]);
     } finally {
       setIsTasksLoading(false);
     }
-  }, [error]);
+  }, []);
 
   const loadComunicacoes = useCallback(async (posVendaId: string) => {
     setIsCommsLoading(true);
@@ -83,12 +94,37 @@ export function usePosVenda() {
       const data = await getPosVendaComunicacoes(posVendaId);
       setComunicacoes(data);
     } catch {
-      error("Não foi possível carregar as comunicações.");
+      errorRef.current("Não foi possível carregar as comunicações.");
       setComunicacoes([]);
     } finally {
       setIsCommsLoading(false);
     }
-  }, [error]);
+  }, []);
+
+  const searchClientes = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setClienteSearchResults([]);
+      return;
+    }
+    setIsClienteSearchLoading(true);
+    try {
+      const { searchClientes: buscar } = await import("@/repositories/client/clientes.repository");
+      const data = await buscar(query);
+      setClienteSearchResults(
+        data.map((c) => ({
+          id: c.id,
+          nome: c.nome,
+          telefone: c.telefone,
+          status: c.status,
+        })),
+      );
+    } catch {
+      errorRef.current("Não foi possível pesquisar os clientes.");
+      setClienteSearchResults([]);
+    } finally {
+      setIsClienteSearchLoading(false);
+    }
+  }, []);
 
   const openCreate = () => {
     setSelectedPosVenda(null);
@@ -96,6 +132,8 @@ export function usePosVenda() {
     setHistorico([]);
     setTarefas([]);
     setComunicacoes([]);
+    setClienteSearch("");
+    setClienteSearchResults([]);
     setIsFormOpen(true);
   };
 
@@ -103,20 +141,25 @@ export function usePosVenda() {
     setSelectedPosVenda(posVenda);
     setFormData({
       id: posVenda.id,
-      tipo: posVenda.tipo,
-      descricao: posVenda.descricao,
-      data_prevista: posVenda.data_prevista,
-      data_realizada: posVenda.data_realizada,
       status: posVenda.status,
+      priority: posVenda.priority,
+      satisfaction: posVenda.satisfaction,
+      next_contact_at: posVenda.next_contact_at,
+      last_contact_at: posVenda.last_contact_at,
+      channel: posVenda.channel,
+      needs_attention: posVenda.needs_attention,
+      observacoes: posVenda.observacoes,
       cliente_id: posVenda.cliente_id,
-      lead_id: posVenda.lead_id,
+      agenda_id: posVenda.agenda_id,
       boleto_url: posVenda.boleto_url,
       lembrete_em: posVenda.lembrete_em,
       retencao_motivo: posVenda.retencao_motivo,
       retencao_data: posVenda.retencao_data,
       created_at: posVenda.created_at,
       updated_at: posVenda.updated_at,
+      usuario_id: posVenda.usuario_id,
     });
+    setClienteSearchResults([]);
     setIsFormOpen(true);
     void loadHistorico(posVenda.id);
     void loadTarefas(posVenda.id);
@@ -130,18 +173,25 @@ export function usePosVenda() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!formData.descricao?.trim()) return;
+    if (!formData.observacoes?.trim() && !formData.status?.trim()) return;
+    if (!formData.cliente_id) {
+      error("Selecione um cliente antes de salvar.");
+      return;
+    }
 
     setIsSaving(true);
     try {
       const payload: PosVendaInsert = {
-        tipo: formData.tipo,
-        descricao: formData.descricao?.trim() || "",
-        data_prevista: formData.data_prevista,
-        data_realizada: formData.data_realizada || null,
-        status: formData.status,
-        cliente_id: formData.cliente_id || null,
-        lead_id: formData.lead_id || null,
+        status: formData.status || "Boas-vindas",
+        priority: formData.priority || "normal",
+        satisfaction: formData.satisfaction ?? 0,
+        channel: formData.channel || "WhatsApp",
+        needs_attention: formData.needs_attention ?? false,
+        observacoes: formData.observacoes?.trim() || "",
+        cliente_id: formData.cliente_id || "",
+        agenda_id: formData.agenda_id || null,
+        next_contact_at: formData.next_contact_at || null,
+        last_contact_at: formData.last_contact_at || null,
         boleto_url: formData.boleto_url?.trim() || "",
         lembrete_em: formData.lembrete_em || null,
         retencao_motivo: formData.retencao_motivo?.trim() || "",
@@ -273,6 +323,12 @@ export function usePosVenda() {
     isHistoryLoading,
     isTasksLoading,
     isCommsLoading,
+    clienteSearch,
+    setClienteSearch,
+    clienteSearchResults,
+    setClienteSearchResults,
+    isClienteSearchLoading,
+    searchClientes,
     openCreate,
     openEdit,
     openDelete,

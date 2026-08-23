@@ -58,12 +58,12 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       .eq("usuario_id", user.id),
   ]);
 
-  if (leadsResult.error) throw new Error("Não foi possível carregar estatísticas de leads.");
-  if (clientesResult.error) throw new Error("Não foi possível carregar estatísticas de clientes.");
-  if (indicadoresResult.error) throw new Error("Não foi possível carregar estatísticas de indicadores.");
-  if (negociacoesResult.error) throw new Error("Não foi possível carregar estatísticas de negociações.");
-  if (agendaResult.error) throw new Error("Não foi possível carregar estatísticas de agenda.");
-  if (whatsappResult.error) throw new Error("Não foi possível carregar estatísticas de WhatsApp.");
+  if (leadsResult.error) throw new Error(`Não foi possível carregar estatísticas de leads: ${leadsResult.error.message}`);
+  if (clientesResult.error) throw new Error(`Não foi possível carregar estatísticas de clientes: ${clientesResult.error.message}`);
+  if (indicadoresResult.error) throw new Error(`Não foi possível carregar estatísticas de indicadores: ${indicadoresResult.error.message}`);
+  if (negociacoesResult.error) throw new Error(`Não foi possível carregar estatísticas de negociações: ${negociacoesResult.error.message}`);
+  if (agendaResult.error) throw new Error(`Não foi possível carregar estatísticas de agenda: ${agendaResult.error.message}`);
+  if (whatsappResult.error) throw new Error(`Não foi possível carregar estatísticas de WhatsApp: ${whatsappResult.error.message}`);
 
   const comissoes = await comissoesResult;
 

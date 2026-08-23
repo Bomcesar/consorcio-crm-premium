@@ -1,9 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const DEMO_SESSION_COOKIE = "crm-demo-session";
-const BYPASS_SESSION_COOKIE = "crm-bypass-session";
-
 export function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -15,18 +12,11 @@ export function isSupabaseConfigured(): boolean {
   );
 }
 
-export function hasDemoSession(request: NextRequest): boolean {
-  return request.cookies.get(DEMO_SESSION_COOKIE)?.value === "active";
-}
-
-export function hasBypassSession(request: NextRequest): boolean {
-  return request.cookies.get(BYPASS_SESSION_COOKIE)?.value === "active";
-}
-
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+  const supabaseResponse = NextResponse.next({ request });
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
+  const isAuthRoute = request.nextUrl.pathname.startsWith("/login") || request.nextUrl.pathname.startsWith("/forgot-password") || request.nextUrl.pathname.startsWith("/reset-password");
+  const shouldAllowReset = request.nextUrl.pathname.startsWith("/reset-password") || request.nextUrl.pathname.startsWith("/forgot-password");
   const isPublicAsset =
     request.nextUrl.pathname.startsWith("/_next") ||
     request.nextUrl.pathname.startsWith("/api/auth");
@@ -35,56 +25,43 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  if (isSupabaseConfigured()) {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
-          setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-            cookiesToSet.forEach(({ name, value }) =>
-              request.cookies.set(name, value),
-            );
-            supabaseResponse = NextResponse.next({ request });
-            cookiesToSet.forEach(({ name, value, options }) =>
-              supabaseResponse.cookies.set(name, value, options),
-            );
-          },
-        },
-      },
-    );
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user && !isAuthRoute && !hasBypassSession(request)) {
+  if (!isSupabaseConfigured()) {
+    if (!isAuthRoute) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       return NextResponse.redirect(url);
     }
-
-    if ((user || hasBypassSession(request)) && isAuthRoute) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      return NextResponse.redirect(url);
-    }
-
     return supabaseResponse;
   }
 
-  const demoActive = hasDemoSession(request);
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options),
+          );
+        },
+      },
+    },
+  );
 
-  if (!demoActive && !isAuthRoute) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user && !isAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  if (demoActive && isAuthRoute) {
+  if (user && isAuthRoute && !shouldAllowReset) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
@@ -92,5 +69,3 @@ export async function updateSession(request: NextRequest) {
 
   return supabaseResponse;
 }
-
-export { DEMO_SESSION_COOKIE };
