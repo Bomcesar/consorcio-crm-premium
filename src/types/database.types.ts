@@ -371,50 +371,53 @@ export interface Database {
           updated_at?: string;
         };
       };
-       clientes: {
-         Row: {
-           id: string;
-           nome: string;
-           telefone: string;
-           cpf_cnpj: string;
-           cidade: string;
-           estado: string;
-           status: StatusCliente;
-           origem: string;
-           observacoes: string;
-           usuario_id: string;
-           created_at: string;
-           updated_at: string;
-         };
-         Insert: {
-           id?: string;
-           nome?: string;
-           telefone?: string;
-           cpf_cnpj?: string;
-           cidade?: string;
-           estado?: string;
-           status?: StatusCliente;
-           origem?: string;
-           observacoes?: string;
-           usuario_id?: string;
-           created_at?: string;
-           updated_at?: string;
-         };
-         Update: {
-           id?: string;
-           nome?: string;
-           telefone?: string;
-           cpf_cnpj?: string;
-           cidade?: string;
-           estado?: string;
-           status?: StatusCliente;
-           origem?: string;
-           observacoes?: string;
-           usuario_id?: string;
-           created_at?: string;
-           updated_at?: string;
-         };
-       };
+        clientes: {
+          Row: {
+            id: string;
+            nome: string;
+            telefone: string;
+            email: string;
+            cpf_cnpj: string;
+            cidade: string;
+            estado: string;
+            status: StatusCliente;
+            origem: string;
+            observacoes: string;
+            usuario_id: string;
+            created_at: string;
+            updated_at: string;
+          };
+          Insert: {
+            id?: string;
+            nome?: string;
+            telefone?: string;
+            email?: string;
+            cpf_cnpj?: string;
+            cidade?: string;
+            estado?: string;
+            status?: StatusCliente;
+            origem?: string;
+            observacoes?: string;
+            usuario_id?: string;
+            created_at?: string;
+            updated_at?: string;
+          };
+          Update: {
+            id?: string;
+            nome?: string;
+            telefone?: string;
+            email?: string;
+            cpf_cnpj?: string;
+            cidade?: string;
+            estado?: string;
+            status?: StatusCliente;
+            origem?: string;
+            observacoes?: string;
+            usuario_id?: string;
+            created_at?: string;
+            updated_at?: string;
+          };
+        };
       cliente_historico: {
         Row: {
           id: string;
@@ -1748,27 +1751,144 @@ export interface Database {
           created_at?: string;
         };
       };
-      permission_preset_items: {
-        Row: {
-          id: string;
-          preset_id: string;
-          permissao_id: string;
-          ordem: number;
-        };
-        Insert: {
-          id?: string;
-          preset_id?: string;
-          permissao_id?: string;
-          ordem?: number;
-        };
-        Update: {
-          id?: string;
-          preset_id?: string;
-          permissao_id?: string;
-          ordem?: number;
-        };
-      };
-    };
+       permission_preset_items: {
+         Row: {
+           id: string;
+           preset_id: string;
+           permissao_id: string;
+           ordem: number;
+         };
+         Insert: {
+           id?: string;
+           preset_id?: string;
+           permissao_id?: string;
+           ordem?: number;
+         };
+         Update: {
+           id?: string;
+           preset_id?: string;
+           permissao_id?: string;
+           ordem?: number;
+         };
+       };
+       pastas: {
+         Row: {
+           id: string;
+           nome: string;
+           descricao: string;
+           cor: string;
+           origem: string;
+           observacao: string;
+           usuario_id: string;
+           created_at: string;
+           updated_at: string;
+         };
+         Insert: {
+           id?: string;
+           nome?: string;
+           descricao?: string;
+           cor?: string;
+           origem?: string;
+           observacao?: string;
+           usuario_id?: string;
+           created_at?: string;
+           updated_at?: string;
+         };
+         Update: {
+           id?: string;
+           nome?: string;
+           descricao?: string;
+           cor?: string;
+           origem?: string;
+           observacao?: string;
+           usuario_id?: string;
+           created_at?: string;
+           updated_at?: string;
+         };
+       };
+       pasta_itens: {
+         Row: {
+           id: string;
+           pasta_id: string;
+           cliente_id: string;
+           prospeccao_status: string;
+           ultimo_contato: string;
+           proxima_acao: string;
+           data_retorno: string;
+           responsavel_id: string;
+           usuario_id: string;
+           created_at: string;
+           updated_at: string;
+           cliente?: {
+             id: string;
+             nome: string;
+             telefone: string;
+             observacoes: string;
+           };
+         };
+         Insert: {
+           id?: string;
+           pasta_id?: string;
+           cliente_id?: string;
+           prospeccao_status?: string;
+           ultimo_contato?: string;
+           proxima_acao?: string;
+           data_retorno?: string;
+           responsavel_id?: string;
+           usuario_id?: string;
+           created_at?: string;
+           updated_at?: string;
+         };
+         Update: {
+           id?: string;
+           pasta_id?: string;
+           cliente_id?: string;
+           prospeccao_status?: string;
+           ultimo_contato?: string;
+           proxima_acao?: string;
+           data_retorno?: string;
+           responsavel_id?: string;
+           usuario_id?: string;
+           created_at?: string;
+           updated_at?: string;
+         };
+       };
+       prospeccao_historico: {
+         Row: {
+           id: string;
+           pasta_item_id: string;
+           tipo: string;
+           resultado: string;
+           observacao: string;
+           proxima_acao: string;
+           data_retorno: string;
+           usuario_id: string;
+           created_at: string;
+         };
+         Insert: {
+           id?: string;
+           pasta_item_id?: string;
+           tipo?: string;
+           resultado?: string;
+           observacao?: string;
+           proxima_acao?: string;
+           data_retorno?: string;
+           usuario_id?: string;
+           created_at?: string;
+         };
+         Update: {
+           id?: string;
+           pasta_item_id?: string;
+           tipo?: string;
+           resultado?: string;
+           observacao?: string;
+           proxima_acao?: string;
+           data_retorno?: string;
+           usuario_id?: string;
+           created_at?: string;
+         };
+       };
+     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
     Enums: Record<string, never>;

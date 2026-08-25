@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePosVenda } from "@/hooks/use-pos-venda";
-import { useClientes } from "@/hooks/use-clientes";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,7 +74,8 @@ const CHANNEL_OPTIONS = ["WhatsApp", "SMS", "Ligação"] as const;
 
 export default function PosVendaPage() {
   const posVenda = usePosVenda();
-  const clientesHook = useClientes();
+  const posVendaRef = useRef(posVenda);
+  posVendaRef.current = posVenda;
   const { error } = useToast();
   const [historicoForm, setHistoricoForm] = useState({ tipo: "observacao", descricao: "" });
   const [tarefaForm, setTarefaForm] = useState({ titulo: "", descricao: "", data_prevista: "" });
@@ -85,25 +85,11 @@ export default function PosVendaPage() {
   const [isCommsSaving, setIsCommsSaving] = useState(false);
 
   useEffect(() => {
-    if (clientesHook.searchResults.length > 0) {
-      posVenda.setClienteSearchResults(
-        clientesHook.searchResults.map((c) => ({
-          id: c.id,
-          nome: c.nome,
-          telefone: c.telefone,
-          status: c.status,
-        })),
-      );
-    } else {
-      posVenda.setClienteSearchResults([]);
-    }
-  }, [clientesHook.searchResults, posVenda]);
-
-  useEffect(() => {
-    if (posVenda.selectedPosVenda?.id) {
-      void posVenda.loadHistorico(posVenda.selectedPosVenda.id);
-      void posVenda.loadTarefas(posVenda.selectedPosVenda.id);
-      void posVenda.loadComunicacoes(posVenda.selectedPosVenda.id);
+    const current = posVendaRef.current;
+    if (current.selectedPosVenda?.id) {
+      void current.loadHistorico(current.selectedPosVenda.id);
+      void current.loadTarefas(current.selectedPosVenda.id);
+      void current.loadComunicacoes(current.selectedPosVenda.id);
     }
   }, [posVenda.selectedPosVenda?.id]);
 
@@ -354,7 +340,7 @@ export default function PosVendaPage() {
                     const value = e.target.value;
                     posVenda.setClienteSearch(value);
                     if (value.trim()) {
-                      clientesHook.debouncedSearch(value);
+                      void posVenda.searchClientes(value);
                     } else {
                       posVenda.setClienteSearchResults([]);
                     }
@@ -386,9 +372,16 @@ export default function PosVendaPage() {
                 id="cliente_id"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={posVenda.formData.cliente_id || ""}
-                onChange={(e) => handleChange("cliente_id", e.target.value)}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  posVenda.setFormData((current) => ({ ...current, cliente_id: id }));
+                  const found = posVenda.clienteSearchResults.find((c) => c.id === id);
+                  if (found) {
+                    posVenda.setClienteSearch(found.nome);
+                  }
+                }}
               >
-                <option value="">Selecione</option>
+                <option value="">Selecione um cliente cadastrado</option>
                 {posVenda.clienteSearchResults.map((cliente) => (
                   <option key={cliente.id} value={cliente.id}>
                     {cliente.nome} — {cliente.telefone}

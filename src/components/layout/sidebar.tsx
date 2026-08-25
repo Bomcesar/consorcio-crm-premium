@@ -8,6 +8,7 @@ import { getNavItemsForRole, type NavItem } from "@/config/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Gem } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/auth-user";
+import { createClient } from "@/lib/supabase/client";
 
 interface SidebarProps {
   onNavigate?: () => void;
@@ -23,7 +24,15 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       setIsLoading(true);
       try {
         const authUser = await getAuthenticatedUser();
-        const items = getNavItemsForRole(authUser.perfil);
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("module_visibility")
+          .select("href, visivel")
+          .eq("perfil", authUser.perfil)
+          .eq("visivel", true);
+
+        const visibleModules = new Set((data ?? []).map((row) => row.href));
+        const items = getNavItemsForRole(authUser.perfil, visibleModules);
         setNavItems(items);
       } catch {
         setNavItems([]);

@@ -29,6 +29,7 @@ export function usePosVenda() {
   const [selectedPosVenda, setSelectedPosVenda] = useState<PosVenda | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [historico, setHistorico] = useState<PosVendaHistorico[]>([]);
   const [tarefas, setTarefas] = useState<PosVendaTarefa[]>([]);
   const [comunicacoes, setComunicacoes] = useState<PosVendaComunicacao[]>([]);
@@ -102,14 +103,15 @@ export function usePosVenda() {
   }, []);
 
   const searchClientes = useCallback(async (query: string) => {
-    if (!query.trim()) {
+    const trimmed = query.trim();
+    if (!trimmed) {
       setClienteSearchResults([]);
       return;
     }
     setIsClienteSearchLoading(true);
     try {
       const { searchClientes: buscar } = await import("@/repositories/client/clientes.repository");
-      const data = await buscar(query);
+      const data = await buscar(trimmed);
       setClienteSearchResults(
         data.map((c) => ({
           id: c.id,
@@ -161,6 +163,7 @@ export function usePosVenda() {
     });
     setClienteSearchResults([]);
     setIsFormOpen(true);
+    setIsDetailsOpen(false);
     void loadHistorico(posVenda.id);
     void loadTarefas(posVenda.id);
     void loadComunicacoes(posVenda.id);
@@ -212,6 +215,8 @@ export function usePosVenda() {
       setIsFormOpen(false);
       setFormData(emptyForm);
       setSelectedPosVenda(null);
+      setClienteSearch("");
+      setClienteSearchResults([]);
     } catch {
       error("Não foi possível salvar a ação de pós-venda.");
     } finally {
@@ -317,6 +322,8 @@ export function usePosVenda() {
     setIsFormOpen,
     isDeleteOpen,
     setIsDeleteOpen,
+    isDetailsOpen,
+    setIsDetailsOpen,
     historico,
     tarefas,
     comunicacoes,

@@ -51,11 +51,13 @@ export const ALL_NAV_ITEMS: NavItem[] = [
 
 export const mainNavItems = ALL_NAV_ITEMS.filter((item) => !item.allowedRoles || item.allowedRoles.length === 0);
 
-export function getNavItemsForRole(perfil: string | undefined): NavItem[] {
+export function getNavItemsForRole(perfil: string | undefined, visibleModules: Set<string> = new Set()): NavItem[] {
   const effectivePerfil = perfil ?? "Consultor";
 
   return ALL_NAV_ITEMS.filter((item) => {
     if (!item.allowedRoles) return true;
-    return item.allowedRoles.includes(effectivePerfil);
+    if (!item.allowedRoles.includes(effectivePerfil)) return false;
+    if (visibleModules.size > 0 && !visibleModules.has(item.href)) return false;
+    return true;
   });
 }

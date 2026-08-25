@@ -22,13 +22,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Settings, User, Shield, Users as UsersIcon } from "lucide-react";
+import { Loader2, Settings, User, Shield, Users as UsersIcon, Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getAuthenticatedUser, hasPermission, canAssignProfile, canEditUserProfile } from "@/lib/auth-user";
 import { getProfiles, updateProfile, createProfile } from "@/repositories/client/profiles.repository";
 import type { Perfil } from "@/repositories/client/profiles.repository";
 
-type TabValue = "perfil" | "usuarios" | "permissoes";
+type TabValue = "perfil" | "usuarios" | "permissoes" | "visibilidade";
 
 type UsuarioForm = {
   nome: string;
@@ -63,6 +63,8 @@ export default function ConfiguracoesPage() {
   const [todasPermissoes, setTodasPermissoes] = useState<{ id: string; codigo: string; nome: string; categoria: string }[]>([]);
   const [isPermissoesLoading, setIsPermissoesLoading] = useState(false);
   const [usuarioPermissoesId, setUsuarioPermissoesId] = useState<string | null>(null);
+  const [modulosVisibilidade, setModulosVisibilidade] = useState<{ perfil: string; modulo: string; href: string; titulo: string; visivel: boolean }[]>([]);
+  const [isVisibilidadeLoading, setIsVisibilidadeLoading] = useState(false);
   const errorRef = useRef(error);
   useEffect(() => {
     errorRef.current = error;
@@ -141,6 +143,63 @@ export default function ConfiguracoesPage() {
 
     void loadPermissoes();
   }, [activeTab, canManagePermissions]);
+
+  useEffect(() => {
+    if (activeTab !== "visibilidade" || userRole !== "Administrador") return;
+
+    const loadVisibilidade = async () => {
+      setIsVisibilidadeLoading(true);
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("module_visibility")
+          .select("*")
+          .order("perfil")
+          .order("titulo");
+
+        setModulosVisibilidade(data ?? []);
+      } catch {
+        errorRef.current("Não foi possível carregar a visibilidade dos módulos.");
+      } finally {
+        setIsVisibilidadeLoading(false);
+      }
+    };
+
+    void loadVisibilidade();
+  }, [activeTab, userRole]);
+
+  const toggleVisibilidade = async (perfil: string, modulo: string) => {
+    if (userRole !== "Administrador") return;
+
+    const current = modulosVisibilidade.find((item) => item.perfil === perfil && item.modulo === modulo);
+    if (!current) return;
+
+    const newVisivel = !current.visivel;
+    setModulosVisibilidade((prev) =>
+      prev.map((item) =>
+        item.perfil === perfil && item.modulo === modulo ? { ...item, visivel: newVisivel } : item,
+      ),
+    );
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("module_visibility")
+        .update({ visivel: newVisivel })
+        .eq("perfil", perfil)
+        .eq("modulo", modulo);
+
+      if (error) throw error;
+      success("Visibilidade atualizada.");
+    } catch {
+      errorRef.current("Não foi possível atualizar a visibilidade.");
+      setModulosVisibilidade((prev) =>
+        prev.map((item) =>
+          item.perfil === perfil && item.modulo === modulo ? { ...item, visivel: current.visivel } : item,
+        ),
+      );
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -342,6 +401,16 @@ export default function ConfiguracoesPage() {
                 Permissões
               </Button>
             )}
+            {userRole === "Administrador" && (
+              <Button
+                variant={activeTab === "visibilidade" ? "default" : "ghost"}
+                onClick={() => setActiveTab("visibilidade")}
+                className="rounded-none border-b-2 border-transparent"
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                Visibilidade dos módulos
+              </Button>
+            )}
           </div>
 
           {activeTab === "perfil" && (
@@ -532,6 +601,70 @@ export default function ConfiguracoesPage() {
                   <p className="text-sm text-muted-foreground">
                     Vá até a aba <strong>Usuários</strong>, clique em <strong>Permissões</strong> ao lado de um usuário para editar.
                   </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === "visibilidade" && userRole === "Administrador" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Visibilidade dos módulos</CardTitle>
+                <CardDescription>
+                  Controle quais módulos aparecem no menu para cada perfil. O Administrador sempre tem acesso total.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isVisibilidadeLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Módulo</TableHead>
+                          <TableHead>Rota</TableHead>
+                          {["Administrador", "Gestor", "Consultor", "Trainee", "Secretaria", "Indicador"].map((perfil) => (
+                            <TableHead key={perfil} className="text-center">{perfil}</TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Array.from(new Set(modulosVisibilidade.map((item) => item.modulo))).map((modulo) => {
+                          const item = modulosVisibilidade.find((i) => i.modulo === modulo);
+                          if (!item) return null;
+                          return (
+                            <TableRow key={modulo}>
+                              <TableCell className="font-medium">{item.titulo}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{item.href}</TableCell>
+                              {["Administrador", "Gestor", "Consultor", "Trainee", "Secretaria", "Indicador"].map((perfil) => {
+                                const visibilidade = modulosVisibilidade.find((i) => i.perfil === perfil && i.modulo === modulo);
+                                const isVisible = visibilidade?.visivel ?? false;
+                                return (
+                                  <TableCell key={perfil} className="text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleVisibilidade(perfil, modulo)}
+                                      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium transition ${
+                                        isVisible
+                                          ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                          : "bg-red-50 text-red-700 hover:bg-red-100"
+                                      }`}
+                                    >
+                                      {isVisible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                                      {isVisible ? "Mostrar" : "Ocultar"}
+                                    </button>
+                                  </TableCell>
+                                );
+                              })}
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>

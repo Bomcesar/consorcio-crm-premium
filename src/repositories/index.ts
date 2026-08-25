@@ -115,3 +115,27 @@ export {
   type DashboardStats,
   type DashboardAtividadeRecente,
 } from "./dashboard.repository";
+
+export {
+  getPastas,
+  getPasta,
+  createPasta,
+  updatePasta,
+  deletePasta,
+  getPastaItens,
+  addClienteToPasta,
+  updatePastaItem,
+  removeClienteFromPasta,
+  getProspeccaoHistorico,
+  addProspeccaoHistorico,
+  getProspeccaoStats,
+  type Pasta,
+  type PastaInsert,
+  type PastaUpdate,
+  type PastaItem,
+  type PastaItemInsert,
+  type PastaItemUpdate,
+  type ProspeccaoHistorico,
+  type ProspeccaoHistoricoInsert,
+  type ProspeccaoHistoricoUpdate,
+} from "./client/pastas.repository";

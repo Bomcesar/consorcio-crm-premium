@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useClientes } from "@/hooks/use-clientes";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -25,14 +25,16 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Pencil, Trash2, Loader2, Upload, Download, Users, Phone, Mail, FileText, UserPlus } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, Upload, Download, Users, Phone, Mail, UserPlus, FolderOpen, ChevronRight, MessageSquare, ArrowRight, ClipboardList, Filter, MessageCircle } from "lucide-react";
 import type { Cliente } from "@/repositories/client/clientes.repository";
 import type { Contato, ContatoImportPreview } from "@/lib/contatos";
+import type { Pasta, PastaItem } from "@/repositories/client/pastas.repository";
 import { exportCSV, exportVCF, exportTXT, downloadFile, parseCSV, parseVCF, parseTXT, detectDuplicates } from "@/lib/contatos";
 
 const emptyForm = {
   nome: "",
   telefone: "",
+  email: "",
   observacoes: "",
 };
 
@@ -56,20 +58,37 @@ export default function ContatosPage() {
   const [importFormat, setImportFormat] = useState<"csv" | "vcf" | "txt">("csv");
   const [exportFormat, setExportFormat] = useState<"csv" | "vcf" | "txt">("csv");
   const [importPreview, setImportPreview] = useState<ContatoImportPreview[]>([]);
-  const [importFile, setImportFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importMode, setImportMode] = useState<"new" | "update" | "all">("new");
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const clientesRef = useRef(clientes);
   clientesRef.current = clientes;
+  const [pastas, setPastas] = useState<Pasta[]>([]);
+  const [selectedPastaId, setSelectedPastaId] = useState<string | null>(null);
+  const [pastaItens, setPastaItens] = useState<PastaItem[]>([]);
+  const [isPastaFormOpen, setIsPastaFormOpen] = useState(false);
+  const [pastaFormData, setPastaFormData] = useState({ nome: "", descricao: "", cor: "#3b82f6", origem: "", observacao: "" });
+  const [isAddClienteToPastaOpen, setIsAddClienteToPastaOpen] = useState(false);
+  const [selectedClienteForPasta, setSelectedClienteForPasta] = useState<Cliente | null>(null);
+  const [pastaItemForm, setPastaItemForm] = useState({ prospeccao_status: "Não contatado" as PastaItem["prospeccao_status"], proxima_acao: "", data_retorno: "" });
+  const [pastaFilter, setPastaFilter] = useState<string | null>(null);
+  const [selectedPastaItemIds, setSelectedPastaItemIds] = useState<Set<string>>(new Set());
+  const [selectedClienteIds, setSelectedClienteIds] = useState<Set<string>>(new Set());
+  const [isMoveToPastaOpen, setIsMoveToPastaOpen] = useState(false);
+  const [targetPastaId, setTargetPastaId] = useState<string>("");
+  const [isPastaMassActionOpen, setIsPastaMassActionOpen] = useState(false);
+  const [pastaMassActionType, setPastaMassActionType] = useState<"move" | "remove">("move");
+  const [targetPastaIdForMove, setTargetPastaIdForMove] = useState<string>("");
+  const [isEditPastaOpen, setIsEditPastaOpen] = useState(false);
+  const [editingPasta, setEditingPasta] = useState<Pasta | null>(null);
+  const [editPastaForm, setEditPastaForm] = useState({ nome: "", descricao: "", cor: "#3b82f6", origem: "", observacao: "" });
+  const [isDeletePastaOpen, setIsDeletePastaOpen] = useState(false);
+  const [deletingPasta, setDeletingPasta] = useState<Pasta | null>(null);
 
-  useEffect(() => {
+   useEffect(() => {
     let cancelled = false;
-    setIsLoading(true);
-    setImportError(null);
-    clientesHook
-      .list()
+    clientesHookRef.current.list()
       .then((data) => {
         if (!cancelled) {
           setClientes(data);
@@ -86,6 +105,22 @@ export default function ContatosPage() {
       .finally(() => {
         if (!cancelled) setIsLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    clientesHookRef.current.loadPastas().then((data) => {
+      if (!cancelled) {
+        setPastas(data);
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        errorRef.current("Não foi possível carregar as pastas.");
+      }
+    });
     return () => {
       cancelled = true;
     };
@@ -153,6 +188,60 @@ export default function ContatosPage() {
     setFiltered(updated);
   };
 
+  const createPastaNow = async () => {
+    console.log("[Contatos] Criando pasta:", pastaFormData);
+    if (!pastaFormData.nome.trim()) return;
+    try {
+      await clientesHook.createPasta(pastaFormData);
+      console.log("[Contatos] Pasta criada com sucesso.");
+      setIsPastaFormOpen(false);
+      setPastaFormData({ nome: "", descricao: "", cor: "#3b82f6", origem: "", observacao: "" });
+      const pastasAtualizadas = await clientesHook.loadPastas();
+      console.log("[Contatos] Pastas atualizadas:", pastasAtualizadas);
+      setPastas(pastasAtualizadas);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível criar a pasta.";
+      console.error("[Contatos] Erro ao criar pasta:", err);
+      errorRef.current(message);
+    }
+  };
+
+  const handleCreatePasta = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await createPastaNow();
+  };
+
+  const handleOpenPasta = async (pasta: Pasta) => {
+    setSelectedPastaId(pasta.id);
+    const itens = await clientesHook.loadPastaItens(pasta.id);
+    setPastaItens(itens);
+  };
+
+  const handleAddClienteToPasta = async () => {
+    if (!selectedPastaId || !selectedClienteForPasta) return;
+    await clientesHook.addClienteToPasta(selectedPastaId, selectedClienteForPasta.id);
+    setIsAddClienteToPastaOpen(false);
+    setSelectedClienteForPasta(null);
+    const itens = await clientesHook.loadPastaItens(selectedPastaId);
+    setPastaItens(itens);
+  };
+
+  const handleRemoveClienteFromPasta = async (pastaItemId: string) => {
+    await clientesHook.removeClienteFromPasta(pastaItemId);
+    if (selectedPastaId) {
+      const itens = await clientesHook.loadPastaItens(selectedPastaId);
+      setPastaItens(itens);
+    }
+  };
+
+  const handleUpdatePastaItemStatus = async (pastaItemId: string, status: string) => {
+    await clientesHook.updatePastaItem(pastaItemId, { prospeccao_status: status });
+    if (selectedPastaId) {
+      const itens = await clientesHook.loadPastaItens(selectedPastaId);
+      setPastaItens(itens);
+    }
+  };
+
   const handleExport = () => {
     const contatos: Contato[] = filtered.map((c) => ({
       nome: c.nome,
@@ -176,7 +265,6 @@ export default function ContatosPage() {
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setImportFile(file);
     setImportError(null);
     try {
       const text = await file.text();
@@ -224,7 +312,6 @@ export default function ContatosPage() {
       setFiltered(updated);
       setIsImportOpen(false);
       setImportPreview([]);
-      setImportFile(null);
       setImportError(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } finally {
@@ -240,7 +327,7 @@ export default function ContatosPage() {
 
   const openEdit = (cliente: Cliente) => {
     setSelectedCliente(cliente);
-    setFormData({ nome: cliente.nome, telefone: cliente.telefone, observacoes: cliente.observacoes || "" });
+    setFormData({ nome: cliente.nome, telefone: cliente.telefone, email: cliente.email || "", observacoes: cliente.observacoes || "" });
     setIsFormOpen(true);
   };
 
@@ -248,8 +335,6 @@ export default function ContatosPage() {
     setSelectedCliente(cliente);
     setIsDeleteOpen(true);
   };
-
-  const contatos = useMemo(() => filtered.map((c) => ({ nome: c.nome, telefone: c.telefone, observacao: c.observacoes || "" })), [filtered]);
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -267,7 +352,6 @@ export default function ContatosPage() {
     }
     const format = extension === ".csv" ? "csv" : extension === ".vcf" ? "vcf" : "txt";
     setImportFormat(format);
-    setImportFile(file);
     setImportError(null);
     try {
       const text = await file.text();
@@ -284,6 +368,248 @@ export default function ContatosPage() {
     }
   };
 
+  const getPastaStats = () => {
+    const stats = {
+      total: pastaItens.length,
+      naoContatado: 0,
+      contatado: 0,
+      retornoPendente: 0,
+      interessado: 0,
+      convertido: 0,
+      semResposta: 0,
+      numeroInvalido: 0,
+    };
+    pastaItens.forEach((item) => {
+      const status = item.prospeccao_status || "Não contatado";
+      switch (status) {
+        case "Não contatado":
+          stats.naoContatado++;
+          break;
+        case "Ligação realizada":
+        case "WhatsApp enviado":
+        case "SMS enviado":
+        case "Conversa iniciada":
+          stats.contatado++;
+          break;
+        case "Retorno pendente":
+          stats.retornoPendente++;
+          break;
+        case "Interessado":
+        case "Em negociação":
+          stats.interessado++;
+          break;
+        case "Convertido":
+          stats.convertido++;
+          break;
+        case "Sem resposta":
+          stats.semResposta++;
+          break;
+        case "Número inválido":
+          stats.numeroInvalido++;
+          break;
+      }
+    });
+    return stats;
+  };
+
+  const pastaStats = getPastaStats();
+  const filteredPastaItens = pastaItens.filter((item) => {
+    if (!pastaFilter) return true;
+    return item.prospeccao_status === pastaFilter;
+  });
+
+  const handleSelectAllPastaItems = (checked: boolean) => {
+    if (checked) {
+      setSelectedPastaItemIds(new Set(filteredPastaItens.map((i) => i.id)));
+    } else {
+      setSelectedPastaItemIds(new Set());
+    }
+  };
+
+  const handleTogglePastaItem = (id: string) => {
+    setSelectedPastaItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleNextContact = () => {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const naoContatados = pastaItens.filter((i) => i.prospeccao_status === "Não contatado");
+    if (naoContatados.length > 0) {
+      const next = naoContatados[0];
+      setSelectedPastaItemIds(new Set([next.id]));
+      return;
+    }
+    const retornosPendentes = pastaItens.filter((i) => i.prospeccao_status === "Retorno pendente" && i.data_retorno && i.data_retorno <= hoje);
+    if (retornosPendentes.length > 0) {
+      const next = retornosPendentes[0];
+      setSelectedPastaItemIds(new Set([next.id]));
+      return;
+    }
+    const retornosHoje = pastaItens.filter((i) => i.prospeccao_status === "Retorno pendente" && i.data_retorno === hoje);
+    if (retornosHoje.length > 0) {
+      const next = retornosHoje[0];
+      setSelectedPastaItemIds(new Set([next.id]));
+      return;
+    }
+  };
+
+  const handleOpenPastaMassAction = (type: "move" | "remove") => {
+    if (selectedPastaItemIds.size === 0) return;
+    setPastaMassActionType(type);
+    setTargetPastaIdForMove("");
+    setIsPastaMassActionOpen(true);
+  };
+
+  const handleMovePastaItemsToPasta = async () => {
+    if (!targetPastaIdForMove || selectedPastaItemIds.size === 0) return;
+    try {
+      for (const itemId of selectedPastaItemIds) {
+        const item = pastaItens.find((i) => i.id === itemId);
+        if (item) {
+          await clientesHookRef.current.addClienteToPasta(targetPastaIdForMove, item.cliente_id);
+        }
+      }
+      setSelectedPastaItemIds(new Set());
+      setTargetPastaIdForMove("");
+      setIsPastaMassActionOpen(false);
+      if (selectedPastaId) {
+        const itensAtualizados = await clientesHookRef.current.loadPastaItens(selectedPastaId);
+        setPastaItens(itensAtualizados);
+      }
+    } catch {
+      errorRef.current("Não foi possível mover os contatos.");
+    }
+  };
+
+  const handleRemovePastaItems = async () => {
+    if (selectedPastaItemIds.size === 0) return;
+    try {
+      for (const itemId of selectedPastaItemIds) {
+        await clientesHookRef.current.removeClienteFromPasta(itemId);
+      }
+      setSelectedPastaItemIds(new Set());
+      setIsPastaMassActionOpen(false);
+      if (selectedPastaId) {
+        const itensAtualizados = await clientesHookRef.current.loadPastaItens(selectedPastaId);
+        setPastaItens(itensAtualizados);
+      }
+    } catch {
+      errorRef.current("Não foi possível remover os contatos da pasta.");
+    }
+  };
+
+  const handleSelectAllClientes = (checked: boolean) => {
+    if (checked) {
+      setSelectedClienteIds(new Set(filtered.map((c) => c.id)));
+    } else {
+      setSelectedClienteIds(new Set());
+    }
+  };
+
+  const handleToggleCliente = (id: string) => {
+    setSelectedClienteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleMoveSelectedToPasta = async () => {
+    if (!targetPastaId || selectedClienteIds.size === 0) return;
+    try {
+      for (const clienteId of selectedClienteIds) {
+        await clientesHookRef.current.addClienteToPasta(targetPastaId, clienteId);
+      }
+      setSelectedClienteIds(new Set());
+      setTargetPastaId("");
+      setIsMoveToPastaOpen(false);
+      const pastasAtualizadas = await clientesHookRef.current.loadPastas();
+      setPastas(pastasAtualizadas);
+      if (selectedPastaId) {
+        const itensAtualizados = await clientesHookRef.current.loadPastaItens(selectedPastaId);
+        setPastaItens(itensAtualizados);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível adicionar os contatos à pasta.";
+      errorRef.current(message);
+    }
+  };
+
+  const handleNavigatePasta = async (direction: "prev" | "next") => {
+    if (!selectedPastaId || pastas.length === 0) return;
+    const currentIndex = pastas.findIndex((p) => p.id === selectedPastaId);
+    let targetIndex = currentIndex;
+    if (direction === "prev") {
+      targetIndex = currentIndex > 0 ? currentIndex - 1 : pastas.length - 1;
+    } else {
+      targetIndex = currentIndex < pastas.length - 1 ? currentIndex + 1 : 0;
+    }
+    const targetPasta = pastas[targetIndex];
+    if (!targetPasta) return;
+    setSelectedPastaId(targetPasta.id);
+    const itens = await clientesHookRef.current.loadPastaItens(targetPasta.id);
+    setPastaItens(itens);
+    setSelectedPastaItemIds(new Set());
+  };
+
+  const handleOpenEditPasta = (pasta: Pasta) => {
+    setEditingPasta(pasta);
+    setEditPastaForm({ nome: pasta.nome, descricao: pasta.descricao || "", cor: pasta.cor, origem: pasta.origem || "", observacao: pasta.observacao || "" });
+    setIsEditPastaOpen(true);
+  };
+
+  const handleSaveEditPasta = async () => {
+    if (!editingPasta) return;
+    try {
+      await clientesHookRef.current.updatePasta(editingPasta.id, editPastaForm);
+      setIsEditPastaOpen(false);
+      setEditingPasta(null);
+      const pastasAtualizadas = await clientesHookRef.current.loadPastas();
+      setPastas(pastasAtualizadas);
+      if (selectedPastaId === editingPasta.id) {
+        const itensAtualizados = await clientesHookRef.current.loadPastaItens(editingPasta.id);
+        setPastaItens(itensAtualizados);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível atualizar a pasta.";
+      errorRef.current(message);
+    }
+  };
+
+  const handleOpenDeletePasta = (pasta: Pasta) => {
+    setDeletingPasta(pasta);
+    setIsDeletePastaOpen(true);
+  };
+
+  const handleConfirmDeletePasta = async () => {
+    if (!deletingPasta) return;
+    try {
+      await clientesHookRef.current.deletePasta(deletingPasta.id);
+      setIsDeletePastaOpen(false);
+      setDeletingPasta(null);
+      if (selectedPastaId === deletingPasta.id) {
+        setSelectedPastaId(null);
+        setPastaItens([]);
+      }
+      const pastasAtualizadas = await clientesHookRef.current.loadPastas();
+      setPastas(pastasAtualizadas);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível excluir a pasta.";
+      errorRef.current(message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -291,8 +617,8 @@ export default function ContatosPage() {
           <Users className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Contatos</h1>
-          <p className="text-sm text-muted-foreground">Central de contatos, importação e exportação</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{selectedPastaId ? "Pasta de Prospecção" : "Central de Prospecção"}</h1>
+          <p className="text-sm text-muted-foreground">{selectedPastaId ? "Gerencie sua fila de contatos" : "Organize contatos por nicho, origem ou campanha"}</p>
         </div>
       </div>
 
@@ -304,97 +630,337 @@ export default function ContatosPage() {
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Contatos cadastrados</CardTitle>
-            <CardDescription>
-              {filtered.length > 0 ? `${filtered.length} contato(s) encontrado(s)` : "Nenhum contato cadastrado ainda."}
-            </CardDescription>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setIsImportOpen(true)}>
-              <Upload className="mr-2 h-4 w-4" />
-              Importar
-            </Button>
-            <div className="flex items-center gap-2">
-              <select
-                value={exportFormat}
-                onChange={(e) => setExportFormat(e.target.value as "csv" | "vcf" | "txt")}
-                className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="csv">CSV</option>
-                <option value="vcf">VCF/vCard</option>
-                <option value="txt">TXT UTF-8</option>
-              </select>
-              <Button size="sm" onClick={handleExport}>
-                <Download className="mr-2 h-4 w-4" />
-                Exportar
+      {!selectedPastaId ? (
+        <>
+          <Card>
+            <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Minhas Pastas</CardTitle>
+                <CardDescription>
+                  {pastas.length > 0 ? `${pastas.length} pasta(s) criada(s)` : "Nenhuma pasta criada ainda."}
+                </CardDescription>
+              </div>
+              <Button onClick={() => setIsPastaFormOpen(true)}>
+                <FolderOpen className="mr-2 h-4 w-4" />
+                Nova Pasta
               </Button>
-            </div>
-            <Button onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo contato
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent onDragOver={handleDragOver} onDrop={handleDrop}>
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Pesquisar por nome, telefone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-          </div>
-
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum contato cadastrado ainda.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Telefone</TableHead>
-                    <TableHead>Observação</TableHead>
-                    <TableHead className="w-[120px] text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((cliente) => (
-                    <TableRow key={cliente.id}>
-                      <TableCell className="font-medium">{cliente.nome}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-4 w-4 text-muted-foreground" />
-                          {cliente.telefone}
+            </CardHeader>
+            <CardContent>
+              {pastas.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma pasta criada ainda. Crie sua primeira pasta para organizar seus contatos.</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {pastas.map((pasta) => (
+                    <Card key={pasta.id} className="relative">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleOpenPasta(pasta)}>
+                            <div className="h-4 w-4 rounded-full" style={{ backgroundColor: pasta.cor }} />
+                            <CardTitle className="text-base">{pasta.nome}</CardTitle>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={(e) => { e.stopPropagation(); handleOpenEditPasta(pasta); }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-600"
+                              onClick={(e) => { e.stopPropagation(); handleOpenDeletePasta(pasta); }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">{cliente.observacoes || "—"}</TableCell>
-                      <TableCell className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(cliente)} aria-label="Editar">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => openDelete(cliente)} aria-label="Excluir">
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                        <CardDescription className="line-clamp-2 cursor-pointer" onClick={() => handleOpenPasta(pasta)}>{pasta.descricao || "Sem descrição"}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">{pasta.origem || "Origem não definida"}</span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </CardContent>
+                    </Card>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Contatos cadastrados</CardTitle>
+                <CardDescription>
+                  {filtered.length > 0 ? `${filtered.length} contato(s) encontrado(s)` : "Nenhum contato cadastrado ainda."}
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Importar
+                </Button>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={exportFormat}
+                    onChange={(e) => setExportFormat(e.target.value as "csv" | "vcf" | "txt")}
+                    className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="csv">CSV</option>
+                    <option value="vcf">VCF/vCard</option>
+                    <option value="txt">TXT UTF-8</option>
+                  </select>
+                  <Button size="sm" onClick={handleExport}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Exportar
+                  </Button>
+                </div>
+                <Button onClick={openCreate}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Novo contato
+                </Button>
+                <Button variant="secondary" onClick={() => { if (selectedClienteIds.size === 0) { errorRef.current("Selecione pelo menos um contato."); } else { setIsMoveToPastaOpen(true); } }}>
+                  <FolderOpen className="mr-2 h-4 w-4" />
+                  Mover para pasta {selectedClienteIds.size > 0 ? `(${selectedClienteIds.size})` : ""}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent onDragOver={handleDragOver} onDrop={handleDrop}>
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="relative w-full sm:max-w-sm">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Pesquisar por nome, telefone..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : filtered.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum contato cadastrado ainda.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[40px]">
+                            <input
+                              type="checkbox"
+                              checked={selectedClienteIds.size === filtered.length && filtered.length > 0}
+                              onChange={(e) => handleSelectAllClientes(e.target.checked)}
+                            />
+                          </TableHead>
+                          <TableHead>Nome</TableHead>
+                          <TableHead>Telefone</TableHead>
+                          <TableHead>Observação</TableHead>
+                          <TableHead className="w-[180px] text-right">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filtered.map((cliente) => (
+                          <TableRow key={cliente.id}>
+                            <TableCell>
+                              <input
+                                type="checkbox"
+                                checked={selectedClienteIds.has(cliente.id)}
+                                onChange={() => handleToggleCliente(cliente.id)}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">{cliente.nome}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Phone className="h-4 w-4 text-muted-foreground" />
+                                {cliente.telefone}
+                              </div>
+                            </TableCell>
+                            <TableCell className="max-w-[200px] truncate">{cliente.observacoes || "—"}</TableCell>
+                            <TableCell className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" aria-label="Ligar" onClick={() => window.location.href = `tel:+55${cliente.telefone.replace(/\D/g, "")}`}>
+                              <Phone className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" aria-label="WhatsApp" onClick={() => window.open(`https://wa.me/55${cliente.telefone.replace(/\D/g, "")}`, "_blank")}>
+                              <MessageSquare className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" aria-label="SMS" onClick={() => window.location.href = `sms:+55${cliente.telefone.replace(/\D/g, "")}`}>
+                              <MessageCircle className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" aria-label="E-mail" onClick={() => window.location.href = `mailto:${cliente.email || ""}`}>
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(cliente)} aria-label="Editar">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => openDelete(cliente)} aria-label="Excluir">
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <Card>
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" onClick={() => handleNavigatePasta("prev")} aria-label="Pasta anterior">
+                <ArrowRight className="h-4 w-4 rotate-180" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => { setSelectedPastaId(null); setPastaItens([]); }} aria-label="Voltar para pastas">
+                <FolderOpen className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => handleNavigatePasta("next")} aria-label="Próxima pasta">
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+              <div>
+                <CardTitle>{pastas.find((p) => p.id === selectedPastaId)?.nome || "Pasta"}</CardTitle>
+                <CardDescription>
+                  {pastaStats.total} contato(s) • {pastaStats.naoContatado} não contatados • {pastaStats.retornoPendente} retornos pendentes
+                </CardDescription>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={handleNextContact}>
+                <ClipboardList className="mr-2 h-4 w-4" />
+                Próximo contato
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setIsAddClienteToPastaOpen(true)}>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Adicionar contato
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setPastaFilter(pastaFilter === "Não contatado" ? null : "Não contatado")}>
+                <Filter className="mr-2 h-4 w-4" />
+                {pastaFilter === "Não contatado" ? "Mostrar todos" : "Não contatados"}
+              </Button>
+              {selectedPastaItemIds.size > 0 && (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => handleOpenPastaMassAction("move")}>
+                    <FolderOpen className="mr-2 h-4 w-4" />
+                    Mover selecionados ({selectedPastaItemIds.size})
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => handleOpenPastaMassAction("remove")}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Remover selecionados ({selectedPastaItemIds.size})
+                  </Button>
+                </>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="text-lg font-semibold">{pastaStats.total}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Não contatados</p>
+                <p className="text-lg font-semibold">{pastaStats.naoContatado}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Contatados</p>
+                <p className="text-lg font-semibold">{pastaStats.contatado}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Interessados</p>
+                <p className="text-lg font-semibold">{pastaStats.interessado}</p>
+              </div>
+            </div>
+
+            {filteredPastaItens.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum contato na pasta.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[40px]">
+                        <input
+                          type="checkbox"
+                          checked={selectedPastaItemIds.size === filteredPastaItens.length && filteredPastaItens.length > 0}
+                          onChange={(e) => handleSelectAllPastaItems(e.target.checked)}
+                        />
+                      </TableHead>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Último contato</TableHead>
+                      <TableHead>Próxima ação</TableHead>
+                      <TableHead className="w-[180px] text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPastaItens.map((item) => {
+                      const cliente = item.cliente as Cliente | undefined;
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              checked={selectedPastaItemIds.has(item.id)}
+                              onChange={() => handleTogglePastaItem(item.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{cliente?.nome || "—"}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Phone className="h-4 w-4 text-muted-foreground" />
+                              {cliente?.telefone || "—"}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800">
+                              {item.prospeccao_status || "Não contatado"}
+                            </span>
+                          </TableCell>
+                          <TableCell>{item.ultimo_contato || "—"}</TableCell>
+                          <TableCell>{item.proxima_acao || "—"}</TableCell>
+                          <TableCell className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" aria-label="Ligar" onClick={() => window.location.href = `tel:+55${(cliente?.telefone || "").replace(/\D/g, "")}`}>
+                              <Phone className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" aria-label="WhatsApp" onClick={() => window.open(`https://wa.me/55${(cliente?.telefone || "").replace(/\D/g, "")}`, "_blank")}>
+                              <MessageSquare className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" aria-label="SMS" onClick={() => window.location.href = `sms:+55${(cliente?.telefone || "").replace(/\D/g, "")}`}>
+                              <MessageCircle className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" aria-label="E-mail" onClick={() => window.location.href = `mailto:${cliente?.email || ""}`}>
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" aria-label="Editar status" onClick={() => {
+                              const novoStatus = prompt("Novo status de prospecção:", item.prospeccao_status || "Não contatado");
+                              if (novoStatus !== null) {
+                                handleUpdatePastaItemStatus(item.id, novoStatus);
+                              }
+                            }}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" aria-label="Remover da pasta" onClick={() => handleRemoveClienteFromPasta(item.id)}>
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent>
@@ -410,6 +976,10 @@ export default function ContatosPage() {
             <div className="space-y-2">
               <Label htmlFor="telefone">Telefone</Label>
               <Input id="telefone" value={formData.telefone} onChange={(e) => handleChange("telefone", e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">E-mail</Label>
+              <Input id="email" type="email" value={formData.email} onChange={(e) => handleChange("email", e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="observacoes">Observação</Label>
@@ -518,6 +1088,259 @@ export default function ContatosPage() {
             </Button>
             <Button onClick={handleImport} disabled={isImporting || importPreview.length === 0}>
               {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirmar importação"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPastaFormOpen} onOpenChange={setIsPastaFormOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova pasta</DialogTitle>
+            <DialogDescription>Crie uma pasta para organizar sua prospecção.</DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleCreatePasta}>
+            <div className="space-y-2">
+              <Label htmlFor="pasta-nome">Nome</Label>
+              <Input id="pasta-nome" value={pastaFormData.nome} onChange={(e) => setPastaFormData((current) => ({ ...current, nome: e.target.value }))} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pasta-descricao">Descrição</Label>
+              <Input id="pasta-descricao" value={pastaFormData.descricao} onChange={(e) => setPastaFormData((current) => ({ ...current, descricao: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pasta-cor">Cor</Label>
+              <Input id="pasta-cor" type="color" value={pastaFormData.cor} onChange={(e) => setPastaFormData((current) => ({ ...current, cor: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pasta-origem">Origem</Label>
+              <Input id="pasta-origem" value={pastaFormData.origem} onChange={(e) => setPastaFormData((current) => ({ ...current, origem: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pasta-observacao">Observação</Label>
+              <Input id="pasta-observacao" value={pastaFormData.observacao} onChange={(e) => setPastaFormData((current) => ({ ...current, observacao: e.target.value }))} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsPastaFormOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={createPastaNow}>Criar pasta</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddClienteToPastaOpen} onOpenChange={setIsAddClienteToPastaOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar contato à pasta</DialogTitle>
+            <DialogDescription>Selecione um contato para adicionar à pasta atual.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Contato</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={selectedClienteForPasta?.id || ""}
+                onChange={(e) => {
+                  const cliente = clientes.find((c) => c.id === e.target.value);
+                  setSelectedClienteForPasta(cliente || null);
+                }}
+              >
+                <option value="">Selecione um contato</option>
+                {clientes.map((cliente) => (
+                  <option key={cliente.id} value={cliente.id}>
+                    {cliente.nome} — {cliente.telefone}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Status de prospecção</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={pastaItemForm.prospeccao_status}
+                onChange={(e) => setPastaItemForm((current) => ({ ...current, prospeccao_status: e.target.value as PastaItem["prospeccao_status"] }))}
+              >
+                <option value="Não contatado">Não contatado</option>
+                <option value="Ligação realizada">Ligação realizada</option>
+                <option value="WhatsApp enviado">WhatsApp enviado</option>
+                <option value="SMS enviado">SMS enviado</option>
+                <option value="Conversa iniciada">Conversa iniciada</option>
+                <option value="Sem resposta">Sem resposta</option>
+                <option value="Retorno pendente">Retorno pendente</option>
+                <option value="Interessado">Interessado</option>
+                <option value="Em negociação">Em negociação</option>
+                <option value="Não interessado">Não interessado</option>
+                <option value="Número inválido">Número inválido</option>
+                <option value="Convertido">Convertido</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddClienteToPastaOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleAddClienteToPasta} disabled={!selectedClienteForPasta}>
+              Adicionar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isMoveToPastaOpen} onOpenChange={setIsMoveToPastaOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mover contatos para pasta</DialogTitle>
+            <DialogDescription>Selecione a pasta de destino para os contatos selecionados.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Pasta de destino</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={targetPastaId}
+                onChange={(e) => setTargetPastaId(e.target.value)}
+              >
+                <option value="">Selecione uma pasta</option>
+                {pastas.map((pasta) => (
+                  <option key={pasta.id} value={pasta.id}>
+                    {pasta.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Contatos selecionados</Label>
+              <div className="max-h-60 overflow-y-auto rounded-md border p-2">
+                {clientes.filter((c) => selectedClienteIds.has(c.id)).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhum contato selecionado.</p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {clientes.filter((c) => selectedClienteIds.has(c.id)).map((cliente) => (
+                      <li key={cliente.id} className="flex items-center justify-between">
+                        <span className="font-medium">{cliente.nome}</span>
+                        <span className="text-muted-foreground">{cliente.telefone}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsMoveToPastaOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleMoveSelectedToPasta} disabled={!targetPastaId || selectedClienteIds.size === 0}>
+              Mover para pasta
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPastaMassActionOpen} onOpenChange={setIsPastaMassActionOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {pastaMassActionType === "move" ? "Mover contatos da pasta" : "Remover contatos da pasta"}
+            </DialogTitle>
+            <DialogDescription>
+              {pastaMassActionType === "move"
+                ? "Selecione a pasta de destino para os contatos selecionados."
+                : "Essa ação não exclui os contatos do CRM, apenas remove esta vinculação."}
+            </DialogDescription>
+          </DialogHeader>
+          {pastaMassActionType === "move" && (
+            <div className="space-y-2">
+              <Label>Pasta de destino</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={targetPastaIdForMove}
+                onChange={(e) => setTargetPastaIdForMove(e.target.value)}
+              >
+                <option value="">Selecione uma pasta</option>
+                {pastas
+                  .filter((p) => p.id !== selectedPastaId)
+                  .map((pasta) => (
+                    <option key={pasta.id} value={pasta.id}>
+                      {pasta.nome}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">
+            {selectedPastaItemIds.size} contato(s) selecionado(s)
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPastaMassActionOpen(false)}>
+              Cancelar
+            </Button>
+            {pastaMassActionType === "move" ? (
+              <Button onClick={handleMovePastaItemsToPasta} disabled={!targetPastaIdForMove}>
+                Mover para pasta
+              </Button>
+            ) : (
+              <Button variant="destructive" onClick={handleRemovePastaItems}>
+                Remover da pasta
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditPastaOpen} onOpenChange={setIsEditPastaOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar pasta</DialogTitle>
+            <DialogDescription>Atualize os dados da pasta.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome</Label>
+              <Input value={editPastaForm.nome} onChange={(e) => setEditPastaForm((current) => ({ ...current, nome: e.target.value }))} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Input value={editPastaForm.descricao} onChange={(e) => setEditPastaForm((current) => ({ ...current, descricao: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Cor</Label>
+              <Input type="color" value={editPastaForm.cor} onChange={(e) => setEditPastaForm((current) => ({ ...current, cor: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Origem</Label>
+              <Input value={editPastaForm.origem} onChange={(e) => setEditPastaForm((current) => ({ ...current, origem: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Observação</Label>
+              <Input value={editPastaForm.observacao} onChange={(e) => setEditPastaForm((current) => ({ ...current, observacao: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditPastaOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveEditPasta}>Salvar alterações</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeletePastaOpen} onOpenChange={setIsDeletePastaOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir pasta</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir a pasta <strong>{deletingPasta?.nome}</strong>? Os contatos continuarão cadastrados no CRM, mas serão removidos desta pasta.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeletePastaOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDeletePasta}>
+              Excluir pasta
             </Button>
           </DialogFooter>
         </DialogContent>
