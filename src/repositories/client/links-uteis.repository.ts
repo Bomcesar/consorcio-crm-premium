@@ -29,7 +29,7 @@ export async function getLinksUteis(): Promise<LinkUtil[]> {
   const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar os links.");
   const items = (data as LinkUtil[]) ?? [];
-  if (isAdminOrGestor(user)) return items.filter((item) => item.visivel !== false);
+  if (isAdminOrGestor(user)) return items;
   const hidden = await getHiddenLinkIds(user.id);
   return items.filter((item) => item.visivel !== false && !hidden.has(item.id));
 }
@@ -41,7 +41,7 @@ export async function getLinksUteisByCategoria(categoria: string): Promise<LinkU
   const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar os links.");
   const items = (data as LinkUtil[]) ?? [];
-  if (isAdminOrGestor(user)) return items.filter((item) => item.visivel !== false);
+  if (isAdminOrGestor(user)) return items;
   const hidden = await getHiddenLinkIds(user.id);
   return items.filter((item) => item.visivel !== false && !hidden.has(item.id));
 }
@@ -52,7 +52,7 @@ export async function getLinkUtil(id: string): Promise<LinkUtil | null> {
   const query = linkBaseQuery(supabase).eq("id", id);
   const { data, error } = await query.single();
   if (error || !data) return null;
-  if (isAdminOrGestor(user)) return data.visivel === false ? null : (data as LinkUtil);
+  if (isAdminOrGestor(user)) return data as LinkUtil;
   const hidden = await getHiddenLinkIds(user.id);
   return hidden.has(data.id) || data.visivel === false ? null : (data as LinkUtil);
 }

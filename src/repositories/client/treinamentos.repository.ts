@@ -30,7 +30,7 @@ export async function getTreinamentos(): Promise<Treinamento[]> {
   const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar os treinamentos.");
   const items = (data as Treinamento[]) ?? [];
-  if (isAdminOrGestor(user)) return items.filter((item) => item.visivel !== false);
+  if (isAdminOrGestor(user)) return items;
   const hidden = await getHiddenTreinamentoIds(user.id);
   return items.filter((item) => item.visivel !== false && !hidden.has(item.id));
 }
@@ -44,7 +44,7 @@ export async function getTreinamentosByCategoria(categoria: string): Promise<Tre
   const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar os treinamentos.");
   const items = (data as Treinamento[]) ?? [];
-  if (isAdminOrGestor(user)) return items.filter((item) => item.visivel !== false);
+  if (isAdminOrGestor(user)) return items;
   const hidden = await getHiddenTreinamentoIds(user.id);
   return items.filter((item) => item.visivel !== false && !hidden.has(item.id));
 }
@@ -55,7 +55,7 @@ export async function getTreinamento(id: string): Promise<Treinamento | null> {
   const query = treinamentoBaseQuery(supabase).eq("id", id);
   const { data, error } = await query.single();
   if (error || !data) return null;
-  if (isAdminOrGestor(user)) return data.visivel === false ? null : (data as Treinamento);
+  if (isAdminOrGestor(user)) return data as Treinamento;
   const hidden = await getHiddenTreinamentoIds(user.id);
   return hidden.has(data.id) || data.visivel === false ? null : (data as Treinamento);
 }

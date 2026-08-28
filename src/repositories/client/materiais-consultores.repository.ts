@@ -29,7 +29,7 @@ export async function getMateriaisConsultores(): Promise<MaterialConsultor[]> {
   const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar os materiais.");
   const items = (data as MaterialConsultor[]) ?? [];
-  if (isAdminOrGestor(user)) return items.filter((item) => item.visivel !== false);
+  if (isAdminOrGestor(user)) return items;
   const hidden = await getHiddenMaterialIds(user.id);
   return items.filter((item) => item.visivel !== false && !hidden.has(item.id));
 }
@@ -41,7 +41,7 @@ export async function getMateriaisConsultoresByCategoria(categoria: string): Pro
   const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar os materiais.");
   const items = (data as MaterialConsultor[]) ?? [];
-  if (isAdminOrGestor(user)) return items.filter((item) => item.visivel !== false);
+  if (isAdminOrGestor(user)) return items;
   const hidden = await getHiddenMaterialIds(user.id);
   return items.filter((item) => item.visivel !== false && !hidden.has(item.id));
 }
@@ -52,7 +52,7 @@ export async function getMaterialConsultor(id: string): Promise<MaterialConsulto
   const query = materialBaseQuery(supabase).eq("id", id);
   const { data, error } = await query.single();
   if (error || !data) return null;
-  if (isAdminOrGestor(user)) return data.visivel === false ? null : (data as MaterialConsultor);
+  if (isAdminOrGestor(user)) return data as MaterialConsultor;
   const hidden = await getHiddenMaterialIds(user.id);
   return hidden.has(data.id) || data.visivel === false ? null : (data as MaterialConsultor);
 }

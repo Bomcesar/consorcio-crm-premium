@@ -133,6 +133,7 @@ export default function CentralDeIndicadoresPage() {
   const [ativoFilter, setAtivoFilter] = useState<string>("todos");
   const [selectedIndicator, setSelectedIndicator] = useState<Indicador | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [tab, setTab] = useState("info");
   const [historicoPage, setHistoricoPage] = useState(1);
   const [historicoPageSize, setHistoricoPageSize] = useState(20);
@@ -190,12 +191,15 @@ export default function CentralDeIndicadoresPage() {
       ativo: indicator.ativo,
     });
     setIsFormOpen(true);
+    setIsDetailOpen(false);
+    setIsDeleteConfirmOpen(false);
   };
 
   const openDelete = (indicator: Indicador) => {
     setSelectedIndicator(indicator);
-    setIsDetailOpen(false);
     setIsFormOpen(false);
+    setIsDetailOpen(false);
+    setIsDeleteConfirmOpen(true);
   };
 
   const toggleAtivo = async (indicator: Indicador) => {
@@ -227,6 +231,7 @@ export default function CentralDeIndicadoresPage() {
       await deleteIndicador(selectedIndicator.id);
       setIndicators((prev) => prev.filter((i) => i.id !== selectedIndicator.id));
       setIsDetailOpen(false);
+      setIsDeleteConfirmOpen(false);
       setSelectedIndicator(null);
       success("Indicador excluído com sucesso.");
     } catch {
@@ -465,7 +470,7 @@ export default function CentralDeIndicadoresPage() {
                           {indicator.ativo ? "Sim" : "Não"}
                         </Button>
                       </TableCell>
-                      <TableCell className="flex justify-end gap-2">
+                      <TableCell className="flex justify-end gap-6">
                         <Button variant="ghost" size="icon" onClick={() => openDetail(indicator)} aria-label="Ver detalhes">
                           <FileText className="h-4 w-4" />
                         </Button>
@@ -491,7 +496,7 @@ export default function CentralDeIndicadoresPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+      <Dialog key={selectedIndicator?.id ?? "new"} open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedIndicator ? "Editar indicador" : "Novo indicador"}</DialogTitle>
@@ -920,7 +925,7 @@ export default function CentralDeIndicadoresPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selectedIndicator && isFormOpen} onOpenChange={(open) => { if (!open) { setIsFormOpen(false); setSelectedIndicator(null); } }}>
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Excluir indicador</DialogTitle>
@@ -929,7 +934,7 @@ export default function CentralDeIndicadoresPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setIsFormOpen(false); setSelectedIndicator(null); }}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setIsDeleteConfirmOpen(false); setSelectedIndicator(null); }}>Cancelar</Button>
             <Button variant="destructive" onClick={handleDelete}>Excluir</Button>
           </DialogFooter>
         </DialogContent>
