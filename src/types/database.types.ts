@@ -337,6 +337,12 @@ export interface Database {
           usuario_id: string;
           created_at: string;
           updated_at: string;
+          nota_fiscal_url: string | null;
+          comprovante_pagamento_url: string | null;
+          comprovante_pagamento_data: string | null;
+          comprovante_pagamento_mes: number | null;
+          comprovante_pagamento_ano: number | null;
+          status_pagamento: string;
         };
         Insert: {
           id?: string;
@@ -353,6 +359,12 @@ export interface Database {
           usuario_id?: string;
           created_at?: string;
           updated_at?: string;
+          nota_fiscal_url?: string | null;
+          comprovante_pagamento_url?: string | null;
+          comprovante_pagamento_data?: string | null;
+          comprovante_pagamento_mes?: number | null;
+          comprovante_pagamento_ano?: number | null;
+          status_pagamento?: string;
         };
         Update: {
           id?: string;
@@ -369,6 +381,12 @@ export interface Database {
           usuario_id?: string;
           created_at?: string;
           updated_at?: string;
+          nota_fiscal_url?: string | null;
+          comprovante_pagamento_url?: string | null;
+          comprovante_pagamento_data?: string | null;
+          comprovante_pagamento_mes?: number | null;
+          comprovante_pagamento_ano?: number | null;
+          status_pagamento?: string;
         };
       };
         clientes: {
@@ -1411,6 +1429,7 @@ export interface Database {
           usuario_id: string;
           created_at: string;
           updated_at: string;
+          visivel: boolean;
         };
         Insert: {
           id?: string;
@@ -1427,6 +1446,7 @@ export interface Database {
           usuario_id?: string;
           created_at?: string;
           updated_at?: string;
+          visivel?: boolean;
         };
         Update: {
           id?: string;
@@ -1443,6 +1463,7 @@ export interface Database {
           usuario_id?: string;
           created_at?: string;
           updated_at?: string;
+          visivel?: boolean;
         };
       };
       treinamentos: {
@@ -1456,6 +1477,7 @@ export interface Database {
           usuario_id: string;
           created_at: string;
           updated_at: string;
+          visivel: boolean;
         };
         Insert: {
           id?: string;
@@ -1467,6 +1489,7 @@ export interface Database {
           usuario_id?: string;
           created_at?: string;
           updated_at?: string;
+          visivel?: boolean;
         };
         Update: {
           id?: string;
@@ -1478,6 +1501,7 @@ export interface Database {
           usuario_id?: string;
           created_at?: string;
           updated_at?: string;
+          visivel?: boolean;
         };
       };
       links_uteis: {
@@ -1491,6 +1515,7 @@ export interface Database {
           usuario_id: string;
           created_at: string;
           updated_at: string;
+          visivel: boolean;
         };
         Insert: {
           id?: string;
@@ -1502,6 +1527,7 @@ export interface Database {
           usuario_id?: string;
           created_at?: string;
           updated_at?: string;
+          visivel?: boolean;
         };
         Update: {
           id?: string;
@@ -1513,6 +1539,7 @@ export interface Database {
           usuario_id?: string;
           created_at?: string;
           updated_at?: string;
+          visivel?: boolean;
         };
       };
       parceiros: {
@@ -1886,11 +1913,73 @@ export interface Database {
            data_retorno?: string;
            usuario_id?: string;
            created_at?: string;
-         };
-       };
-     };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: Record<string, never>;
-  };
-}
+          };
+        };
+        module_visibility: {
+          Row: {
+            id: string;
+            perfil: string;
+            modulo: string;
+            href: string;
+            titulo: string;
+            visivel: boolean;
+            created_at: string;
+            updated_at: string;
+          };
+          Insert: {
+            id?: string;
+            perfil?: string;
+            modulo?: string;
+            href?: string;
+            titulo?: string;
+            visivel?: boolean;
+            created_at?: string;
+            updated_at?: string;
+          };
+          Update: {
+            id?: string;
+            perfil?: string;
+            modulo?: string;
+            href?: string;
+            titulo?: string;
+            visivel?: boolean;
+            created_at?: string;
+            updated_at?: string;
+          };
+        };
+        module_item_visibility: {
+          Row: {
+            id: string;
+            module_name: string;
+            item_id: string;
+            usuario_id: string;
+            visivel: boolean;
+            created_at: string;
+            updated_at: string;
+          };
+          Insert: {
+            id?: string;
+            module_name?: string;
+            item_id?: string;
+            usuario_id?: string;
+            visivel?: boolean;
+            created_at?: string;
+            updated_at?: string;
+          };
+          Update: {
+            id?: string;
+            module_name?: string;
+            modulo?: string;
+            item_id?: string;
+            usuario_id?: string;
+            visivel?: boolean;
+            created_at?: string;
+            updated_at?: string;
+          };
+        };
+      };
+     Views: Record<string, never>;
+     Functions: Record<string, never>;
+     Enums: Record<string, never>;
+   };
+ }

@@ -10,40 +10,51 @@ function materialBaseQuery(supabase: ReturnType<typeof createClient>) {
   return supabase.from("materiais_consultores").select("*");
 }
 
+async function getHiddenMaterialIds(usuarioId: string): Promise<Set<string>> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("module_item_visibility")
+    .select("item_id")
+    .eq("module_name", "materiais_consultores")
+    .eq("usuario_id", usuarioId)
+    .eq("visivel", false);
+
+  return new Set((data ?? []).map((row) => row.item_id));
+}
+
 export async function getMateriaisConsultores(): Promise<MaterialConsultor[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  let query = materialBaseQuery(supabase).order("created_at", { ascending: false });
-  if (!isAdminOrGestor(user)) {
-    query = query.eq("usuario_id", user.id);
-  }
+  const query = materialBaseQuery(supabase).order("created_at", { ascending: false });
   const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar os materiais.");
-  return (data as MaterialConsultor[]) ?? [];
+  const items = (data as MaterialConsultor[]) ?? [];
+  if (isAdminOrGestor(user)) return items.filter((item) => item.visivel !== false);
+  const hidden = await getHiddenMaterialIds(user.id);
+  return items.filter((item) => item.visivel !== false && !hidden.has(item.id));
 }
 
 export async function getMateriaisConsultoresByCategoria(categoria: string): Promise<MaterialConsultor[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  let query = materialBaseQuery(supabase).eq("categoria", categoria).order("created_at", { ascending: false });
-  if (!isAdminOrGestor(user)) {
-    query = query.eq("usuario_id", user.id);
-  }
+  const query = materialBaseQuery(supabase).eq("categoria", categoria).order("created_at", { ascending: false });
   const { data, error } = await query;
   if (error) throw new Error("Não foi possível carregar os materiais.");
-  return (data as MaterialConsultor[]) ?? [];
+  const items = (data as MaterialConsultor[]) ?? [];
+  if (isAdminOrGestor(user)) return items.filter((item) => item.visivel !== false);
+  const hidden = await getHiddenMaterialIds(user.id);
+  return items.filter((item) => item.visivel !== false && !hidden.has(item.id));
 }
 
 export async function getMaterialConsultor(id: string): Promise<MaterialConsultor | null> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  let query = materialBaseQuery(supabase).eq("id", id);
-  if (!isAdminOrGestor(user)) {
-    query = query.eq("usuario_id", user.id);
-  }
+  const query = materialBaseQuery(supabase).eq("id", id);
   const { data, error } = await query.single();
   if (error || !data) return null;
-  return data as MaterialConsultor;
+  if (isAdminOrGestor(user)) return data.visivel === false ? null : (data as MaterialConsultor);
+  const hidden = await getHiddenMaterialIds(user.id);
+  return hidden.has(data.id) || data.visivel === false ? null : (data as MaterialConsultor);
 }
 
 export async function createMaterialConsultor(payload: MaterialConsultorInsert): Promise<MaterialConsultor> {

@@ -13,6 +13,12 @@ const emptyForm = {
   data_prevista: "",
   data_pagamento: "",
   observacoes: "",
+  nota_fiscal_url: "",
+  comprovante_pagamento_url: "",
+  comprovante_pagamento_data: "",
+  comprovante_pagamento_mes: "",
+  comprovante_pagamento_ano: "",
+  status_pagamento: "Em aberto",
 };
 
 type FormData = typeof emptyForm;
@@ -88,6 +94,12 @@ export function useComissoes() {
       data_prevista: comissao.data_prevista || "",
       data_pagamento: comissao.data_pagamento || "",
       observacoes: comissao.observacoes || "",
+      nota_fiscal_url: comissao.nota_fiscal_url || "",
+      comprovante_pagamento_url: comissao.comprovante_pagamento_url || "",
+      comprovante_pagamento_data: comissao.comprovante_pagamento_data || "",
+      comprovante_pagamento_mes: comissao.comprovante_pagamento_mes ? String(comissao.comprovante_pagamento_mes) : "",
+      comprovante_pagamento_ano: comissao.comprovante_pagamento_ano ? String(comissao.comprovante_pagamento_ano) : "",
+      status_pagamento: comissao.status_pagamento || "Em aberto",
     });
     setIsFormOpen(true);
   };
@@ -109,6 +121,12 @@ export function useComissoes() {
         data_prevista: formData.data_prevista || null,
         data_pagamento: formData.data_pagamento || null,
         observacoes: formData.observacoes,
+        nota_fiscal_url: formData.nota_fiscal_url || null,
+        comprovante_pagamento_url: formData.comprovante_pagamento_url || null,
+        comprovante_pagamento_data: formData.comprovante_pagamento_data || null,
+        comprovante_pagamento_mes: formData.comprovante_pagamento_mes ? Number(formData.comprovante_pagamento_mes) : null,
+        comprovante_pagamento_ano: formData.comprovante_pagamento_ano ? Number(formData.comprovante_pagamento_ano) : null,
+        status_pagamento: formData.status_pagamento,
       };
 
       const { createComissaoIndicador, updateComissaoIndicador } = await import("@/repositories/client/comissoes-indicadores.repository");

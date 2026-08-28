@@ -39,6 +39,8 @@ import {
   FileText,
   History,
   MessageCircle,
+  Upload,
+  X,
 } from "lucide-react";
 import type { Indicador, IndicadorHistorico } from "@/repositories/client/indicadores.repository";
 import type { ContatoIndicado } from "@/repositories/client/contatos-indicados.repository";
@@ -79,12 +81,15 @@ export default function CentralDeIndicadoresPage() {
     contacts,
     commissions,
     historico,
+    anexos,
     selectedIndicatorId,
     isFormOpen,
     isContactFormOpen,
     isContactsLoading,
     isLoading,
     isHistoryLoading,
+    isAnexosLoading,
+    isAnexoSaving,
     formData,
     contactFormData,
     historicoForm,
@@ -97,6 +102,8 @@ export default function CentralDeIndicadoresPage() {
     setIndicators,
     setContacts,
     setCommissions,
+    setHistorico,
+    setAnexos,
     setFormData,
     setContactFormData,
     setHistoricoForm,
@@ -108,12 +115,15 @@ export default function CentralDeIndicadoresPage() {
     loadContacts,
     loadCommissions,
     loadHistorico,
+    loadAnexos,
     handleOpenContacts,
     handleSubmit,
     handleSaveContact,
     handleDeleteContact,
     handleMarkCommissionAsPaid,
     handleAddHistorico,
+    handleAddAnexo,
+    handleRemoveAnexo,
     success,
     error,
   } = useCentralIndicadores();
@@ -124,6 +134,9 @@ export default function CentralDeIndicadoresPage() {
   const [selectedIndicator, setSelectedIndicator] = useState<Indicador | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [tab, setTab] = useState("info");
+  const [historicoPage, setHistoricoPage] = useState(1);
+  const [historicoPageSize, setHistoricoPageSize] = useState(20);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   const filteredIndicators = useMemo(() => {
     let result = indicators;
@@ -202,8 +215,10 @@ export default function CentralDeIndicadoresPage() {
     setSelectedIndicator(indicator);
     setTab("info");
     setIsDetailOpen(true);
+    setHistoricoPage(1);
     await handleOpenContacts(indicator.id);
     await loadHistorico(indicator.id);
+    await loadAnexos(indicator.id);
   };
 
   const handleDelete = async () => {
@@ -645,7 +660,7 @@ export default function CentralDeIndicadoresPage() {
                     <p className="text-sm text-muted-foreground">Nenhum histórico registrado.</p>
                   ) : (
                     <div className="space-y-3">
-                      {historico.map((item) => (
+                      {historico.slice(0, historicoPageSize).map((item) => (
                         <div key={item.id} className="rounded-lg border border-border/50 p-3">
                           <div className="flex items-center justify-between">
                             <Badge variant="outline" className="text-xs capitalize">{item.tipo}</Badge>
@@ -654,6 +669,40 @@ export default function CentralDeIndicadoresPage() {
                           <p className="mt-2 text-sm">{item.descricao}</p>
                         </div>
                       ))}
+                    </div>
+                  )}
+                  {historico.length > historicoPageSize && (
+                    <div className="flex items-center justify-between pt-2">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={historicoPage === 1}
+                          onClick={() => setHistoricoPage((current) => current - 1)}
+                        >
+                          Anterior
+                        </Button>
+                        <span className="text-xs text-muted-foreground">Página {historicoPage}</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={historicoPage * historicoPageSize >= historico.length}
+                          onClick={() => setHistoricoPage((current) => current + 1)}
+                        >
+                          Próxima
+                        </Button>
+                      </div>
+                      <select
+                        className="flex h-9 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={historicoPageSize}
+                        onChange={(e) => { setHistoricoPageSize(Number(e.target.value)); setHistoricoPage(1); }}
+                      >
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="150">150</option>
+                      </select>
                     </div>
                   )}
                 </div>
@@ -750,23 +799,74 @@ export default function CentralDeIndicadoresPage() {
                 </div>
               )}
               {tab === "acoes" && (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Button variant="outline" onClick={() => handleWhatsApp(selectedIndicator)}>
-                    <MessageCircle className="mr-2 h-4 w-4" />
-                    Enviar WhatsApp
-                  </Button>
-                  <Button variant="outline" onClick={() => handleCall(selectedIndicator)}>
-                    <Phone className="mr-2 h-4 w-4" />
-                    Ligar
-                  </Button>
-                  <Button variant="outline" onClick={handleConvertToCliente}>
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Converter para Cliente
-                  </Button>
-                  <Button variant="destructive" onClick={handleDelete}>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Excluir Indicador
-                  </Button>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Button variant="outline" onClick={() => handleWhatsApp(selectedIndicator)}>
+                      <MessageCircle className="mr-2 h-4 w-4" />
+                      Enviar WhatsApp
+                    </Button>
+                    <Button variant="outline" onClick={() => handleCall(selectedIndicator)}>
+                      <Phone className="mr-2 h-4 w-4" />
+                      Ligar
+                    </Button>
+                    <Button variant="outline" onClick={handleConvertToCliente}>
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Converter para Cliente
+                    </Button>
+                    <Button variant="destructive" onClick={handleDelete}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Excluir Indicador
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Materiais do indicador</p>
+                      <form onSubmit={handleAddAnexo} className="flex items-center gap-2">
+                        <Input
+                          key={fileInputKey}
+                          id={`indicador-anexo-${selectedIndicator.id}`}
+                          type="file"
+                          className="hidden"
+                          onChange={() => {}}
+                        />
+                        <Button type="button" size="sm" variant="outline" onClick={() => document.getElementById(`indicador-anexo-${selectedIndicator.id}`)?.click()}>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Anexar material
+                        </Button>
+                        <Button type="submit" size="sm" disabled={isAnexoSaving}>
+                          {isAnexoSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Salvar anexo"}
+                        </Button>
+                      </form>
+                    </div>
+
+                    {isAnexosLoading ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : anexos.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhum material anexado.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {anexos.map((anexo) => (
+                          <div key={anexo.id} className="flex items-center justify-between rounded-lg border border-border/50 p-3">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              <div>
+                                <p className="text-sm font-medium">{anexo.nome}</p>
+                                <p className="text-xs text-muted-foreground">{new Intl.NumberFormat("pt-BR", { style: "decimal" }).format(anexo.tamanho)} bytes</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button variant="ghost" size="icon" onClick={() => handleRemoveAnexo(anexo.id)} aria-label="Remover material">
+                                <X className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </>

@@ -25,17 +25,29 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       try {
         const authUser = await getAuthenticatedUser();
         const supabase = createClient();
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("module_visibility")
           .select("href, visivel")
           .eq("perfil", authUser.perfil)
           .eq("visivel", true);
 
+        if (error) {
+          console.error("[Sidebar] Erro ao carregar module_visibility:", error);
+          const items = getNavItemsForRole(authUser.perfil);
+          setNavItems(items);
+          return;
+        }
+
         const visibleModules = new Set((data ?? []).map((row) => row.href));
         const items = getNavItemsForRole(authUser.perfil, visibleModules);
         setNavItems(items);
-      } catch {
-        setNavItems([]);
+      } catch (err) {
+        console.error("[Sidebar] Falha ao carregar menu:", err);
+        const authUser = await getAuthenticatedUser().catch(() => null);
+        if (authUser) {
+          const items = getNavItemsForRole(authUser.perfil);
+          setNavItems(items);
+        }
       } finally {
         setIsLoading(false);
       }

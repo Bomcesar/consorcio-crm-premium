@@ -31,8 +31,12 @@ import {
   Loader2,
   Search,
   ExternalLink,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import type { LinkUtil } from "@/repositories/client/links-uteis.repository";
+import { useEffect, useState } from "react";
+import { getAuthenticatedUser, isAdminOrGestor } from "@/lib/auth-user";
 
 const emptyForm = {
   nome: "",
@@ -47,7 +51,28 @@ type LinkFormData = typeof emptyForm;
 
 export default function LinksUteisPage() {
   const { error } = useToast();
-  const { links, isLoading, isSaving, errorMessage, formData, setFormData, selectedLink, setSelectedLink, isFormOpen, setIsFormOpen, isDeleteOpen, setIsDeleteOpen, searchQuery, setSearchQuery, filterCategoria, setFilterCategoria, categorias, openCreate, openEdit, openDelete, handleSubmit, handleDelete } = useLinksUteis();
+  const { links, isLoading, isSaving, errorMessage, formData, setFormData, selectedLink, setSelectedLink, isFormOpen, setIsFormOpen, isDeleteOpen, setIsDeleteOpen, searchQuery, setSearchQuery, filterCategoria, setFilterCategoria, categorias, openCreate, openEdit, openDelete, handleSubmit, handleDelete, toggleVisibilidade, refresh } = useLinksUteis();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadRole = async () => {
+      try {
+        const user = await getAuthenticatedUser();
+        if (!cancelled) {
+          setIsAdmin(isAdminOrGestor(user));
+        }
+      } catch {
+        if (!cancelled) {
+          setIsAdmin(false);
+        }
+      }
+    };
+    void loadRole();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleChange = (field: keyof LinkFormData, value: string) => {
     setFormData((current) => ({ ...current, [field]: value }));
@@ -59,6 +84,11 @@ export default function LinksUteisPage() {
       return;
     }
     window.open(link.url, "_blank");
+  };
+
+  const handleToggleVisibility = async (link: LinkUtil) => {
+    await toggleVisibilidade(link);
+    await refresh();
   };
 
   return (
@@ -155,6 +185,11 @@ export default function LinksUteisPage() {
                         <Button variant="ghost" size="icon" onClick={() => handleAccess(link)} aria-label="Acessar link">
                           <ExternalLink className="h-4 w-4" />
                         </Button>
+                        {isAdmin && (
+                          <Button variant="ghost" size="icon" onClick={() => handleToggleVisibility(link)} aria-label={link.visivel ? "Ocultar" : "Mostrar"}>
+                            {link.visivel ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" onClick={() => openEdit(link)} aria-label="Editar">
                           <Pencil className="h-4 w-4" />
                         </Button>

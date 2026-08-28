@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDashboard } from "@/hooks/use-dashboard";
 import { useToast } from "@/hooks/use-toast";
-import { BarChart3, TrendingUp, Users, UserPlus, Handshake, Calendar, MessageCircle, Phone } from "lucide-react";
+import { BarChart3, TrendingUp, Users, UserPlus, Handshake, Calendar, MessageCircle, Phone, Lock } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getAuthenticatedUser, hasPermission } from "@/lib/auth-user";
 
 const statsConfig = [
   { key: "totalLeads", label: "Leads", icon: UserPlus },
@@ -22,6 +24,50 @@ const statsConfig = [
 export default function RelatoriosPage() {
   const { error: _error } = useToast();
   const { stats, atividades, pipeline, isLoading, errorMessage, reload } = useDashboard();
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [isChecking, setIsChecking] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkAccess = async () => {
+      try {
+        const user = await getAuthenticatedUser();
+        const allowed = hasPermission(user, "relatorios.ver");
+        if (!cancelled) {
+          setHasAccess(allowed);
+        }
+      } catch {
+        if (!cancelled) {
+          setHasAccess(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsChecking(false);
+        }
+      }
+    };
+    void checkAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (isChecking) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20">
+        <Lock className="h-10 w-10 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Você não tem permissão para acessar Relatórios.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

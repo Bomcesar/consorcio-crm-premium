@@ -31,8 +31,12 @@ import {
   Loader2,
   Search,
   ExternalLink,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import type { Treinamento } from "@/repositories/client/treinamentos.repository";
+import { useEffect, useState } from "react";
+import { getAuthenticatedUser, isAdminOrGestor } from "@/lib/auth-user";
 
 const emptyForm = {
   nome: "",
@@ -47,7 +51,28 @@ type TreinamentoFormData = typeof emptyForm;
 
 export default function TreinamentosPage() {
   const { success, error } = useToast();
-  const { treinamentos, isLoading, isSaving, errorMessage, formData, setFormData, selectedTreinamento, setSelectedTreinamento, isFormOpen, setIsFormOpen, isDeleteOpen, setIsDeleteOpen, searchQuery, setSearchQuery, filterCategoria, setFilterCategoria, categorias, openCreate, openEdit, openDelete, handleSubmit, handleDelete } = useTreinamentos();
+  const { treinamentos, isLoading, isSaving, errorMessage, formData, setFormData, selectedTreinamento, setSelectedTreinamento, isFormOpen, setIsFormOpen, isDeleteOpen, setIsDeleteOpen, searchQuery, setSearchQuery, filterCategoria, setFilterCategoria, categorias, openCreate, openEdit, openDelete, handleSubmit, handleDelete, toggleVisibilidade, refresh } = useTreinamentos();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadRole = async () => {
+      try {
+        const user = await getAuthenticatedUser();
+        if (!cancelled) {
+          setIsAdmin(isAdminOrGestor(user));
+        }
+      } catch {
+        if (!cancelled) {
+          setIsAdmin(false);
+        }
+      }
+    };
+    void loadRole();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleChange = (field: keyof TreinamentoFormData, value: string) => {
     setFormData((current) => ({ ...current, [field]: value }));
@@ -60,6 +85,11 @@ export default function TreinamentosPage() {
     }
     window.open(treinamento.link, "_blank");
     success("Abrindo treinamento em uma nova aba.");
+  };
+
+  const handleToggleVisibility = async (treinamento: Treinamento) => {
+    await toggleVisibilidade(treinamento);
+    await refresh();
   };
 
   return (
@@ -156,6 +186,11 @@ export default function TreinamentosPage() {
                         <Button variant="ghost" size="icon" onClick={() => handleAccess(treinamento)} aria-label="Acessar treinamento">
                           <ExternalLink className="h-4 w-4" />
                         </Button>
+                        {isAdmin && (
+                          <Button variant="ghost" size="icon" onClick={() => handleToggleVisibility(treinamento)} aria-label={treinamento.visivel ? "Ocultar" : "Mostrar"}>
+                            {treinamento.visivel ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" onClick={() => openEdit(treinamento)} aria-label="Editar">
                           <Pencil className="h-4 w-4" />
                         </Button>

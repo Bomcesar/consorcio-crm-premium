@@ -151,6 +151,18 @@ export function useLinksUteis() {
     }
   };
 
+  const toggleVisibilidade = async (link: LinkUtil) => {
+    try {
+      const { updateLinkUtil } = await import("@/repositories/client/links-uteis.repository");
+      const updated = await updateLinkUtil(link.id, { visivel: !link.visivel });
+      setLinks((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+      success(link.visivel ? "Link ocultado." : "Link visibilizado.");
+    } catch (e) {
+      console.error("[LinkUtil] visibility toggle error", e);
+      error("Não foi possível atualizar a visibilidade.");
+    }
+  };
+
   const filteredLinks = links.filter((l) => {
     const matchesSearch = l.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
       l.descricao.toLowerCase().includes(searchQuery.toLowerCase());
@@ -184,6 +196,7 @@ export function useLinksUteis() {
     openDelete,
     handleSubmit,
     handleDelete,
+    toggleVisibilidade,
     refresh: loadLinks,
   };
 }

@@ -211,6 +211,9 @@ export function ComissoesClient() {
                     <TableHead>Status</TableHead>
                     <TableHead>Data Prevista</TableHead>
                     <TableHead>Data Pagamento</TableHead>
+                    <TableHead>Status Pagamento</TableHead>
+                    <TableHead>Nota Fiscal</TableHead>
+                    <TableHead>Comprovante</TableHead>
                     <TableHead className="w-[100px] text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -235,6 +238,29 @@ export function ComissoesClient() {
                         {comissao.data_pagamento
                           ? new Date(comissao.data_pagamento).toLocaleDateString("pt-BR")
                           : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${comissao.status_pagamento === "Pago" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
+                          {comissao.status_pagamento || "Em aberto"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {comissao.nota_fiscal_url ? (
+                          <a href={comissao.nota_fiscal_url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                            Ver
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {comissao.comprovante_pagamento_url ? (
+                          <a href={comissao.comprovante_pagamento_url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                            Ver
+                          </a>
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                       <TableCell className="flex justify-end gap-2">
                         <Button
@@ -415,6 +441,76 @@ export function ComissoesClient() {
                 onChange={(e) => comissoes.setFormData((prev) => ({ ...prev, observacoes: e.target.value }))}
                 placeholder="Observações"
               />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="nota_fiscal_url">Nota fiscal</Label>
+                <Input
+                  id="nota_fiscal_url"
+                  value={comissoes.formData.nota_fiscal_url}
+                  onChange={(e) => comissoes.setFormData((prev) => ({ ...prev, nota_fiscal_url: e.target.value }))}
+                  placeholder="Link ou arquivo"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="comprovante_pagamento_url">Comprovante de pagamento</Label>
+                <Input
+                  id="comprovante_pagamento_url"
+                  value={comissoes.formData.comprovante_pagamento_url}
+                  onChange={(e) => comissoes.setFormData((prev) => ({ ...prev, comprovante_pagamento_url: e.target.value }))}
+                  placeholder="Link imperlink, URL, caixa ou calendário"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="comprovante_pagamento_data">Data do comprovante</Label>
+                <Input
+                  id="comprovante_pagamento_data"
+                  type="date"
+                  value={comissoes.formData.comprovante_pagamento_data}
+                  onChange={(e) => comissoes.setFormData((prev) => ({ ...prev, comprovante_pagamento_data: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status_pagamento">Status do pagamento</Label>
+                <select
+                  id="status_pagamento"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={comissoes.formData.status_pagamento}
+                  onChange={(e) => comissoes.setFormData((prev) => ({ ...prev, status_pagamento: e.target.value }))}
+                >
+                  <option value="Em aberto">Em aberto</option>
+                  <option value="Pago">Pago</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="comprovante_pagamento_mes">Mês do comprovante</Label>
+                <Input
+                  id="comprovante_pagamento_mes"
+                  type="number"
+                  min="1"
+                  max="12"
+                  value={comissoes.formData.comprovante_pagamento_mes}
+                  onChange={(e) => comissoes.setFormData((prev) => ({ ...prev, comprovante_pagamento_mes: e.target.value }))}
+                  placeholder="1-12"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="comprovante_pagamento_ano">Ano do comprovante</Label>
+                <Input
+                  id="comprovante_pagamento_ano"
+                  type="number"
+                  value={comissoes.formData.comprovante_pagamento_ano}
+                  onChange={(e) => comissoes.setFormData((prev) => ({ ...prev, comprovante_pagamento_ano: e.target.value }))}
+                  placeholder="2026"
+                />
+              </div>
             </div>
 
             <DialogFooter>

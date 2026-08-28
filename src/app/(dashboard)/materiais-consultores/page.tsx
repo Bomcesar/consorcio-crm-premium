@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,8 +35,10 @@ import {
   ExternalLink,
   Eye,
   X,
+  EyeOff,
 } from "lucide-react";
 import type { MaterialConsultor, MaterialConsultorInsert } from "@/repositories/client/materiais-consultores.repository";
+import { getAuthenticatedUser, isAdminOrGestor } from "@/lib/auth-user";
 
 const emptyForm: MaterialConsultorInsert = {
   titulo: "",
@@ -56,11 +58,31 @@ type MaterialFormData = typeof emptyForm;
 
 export default function MateriaisConsultoresPage() {
   const { success, error } = useToast();
-  const { materiais, isLoading, isSaving, errorMessage, formData, setFormData, selectedMaterial, setSelectedMaterial, isFormOpen, setIsFormOpen, isDeleteOpen, setIsDeleteOpen, searchQuery, setSearchQuery, filterCategoria, setFilterCategoria, categorias, openCreate, openEdit, openDelete, handleSubmit, handleDelete } = useMateriaisConsultores();
-
+  const { materiais, isLoading, isSaving, errorMessage, formData, setFormData, selectedMaterial, setSelectedMaterial, isFormOpen, setIsFormOpen, isDeleteOpen, setIsDeleteOpen, searchQuery, setSearchQuery, filterCategoria, setFilterCategoria, categorias, openCreate, openEdit, openDelete, handleSubmit, handleDelete, toggleVisibilidade, refresh } = useMateriaisConsultores();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [filterTipo, setFilterTipo] = useState("");
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [viewingMaterial, setViewingMaterial] = useState<MaterialConsultor | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadRole = async () => {
+      try {
+        const user = await getAuthenticatedUser();
+        if (!cancelled) {
+          setIsAdmin(isAdminOrGestor(user));
+        }
+      } catch {
+        if (!cancelled) {
+          setIsAdmin(false);
+        }
+      }
+    };
+    void loadRole();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const tipos = ["PDF", "Imagem", "Vídeo", "Áudio", "Documento", "Texto"];
 
@@ -76,6 +98,11 @@ export default function MateriaisConsultoresPage() {
 
   const handleChange = (field: keyof MaterialFormData, value: string | number | boolean) => {
     setFormData((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleToggleVisibility = async (material: MaterialConsultor) => {
+    await toggleVisibilidade(material);
+    await refresh();
   };
 
   const openView = (material: MaterialConsultor) => {
@@ -221,6 +248,11 @@ export default function MateriaisConsultoresPage() {
                         <Button variant="ghost" size="icon" onClick={() => handleDownload(material)} disabled={!material.permite_download} aria-label="Baixar">
                           <Download className="h-4 w-4" />
                         </Button>
+                        {isAdmin && (
+                          <Button variant="ghost" size="icon" onClick={() => handleToggleVisibility(material)} aria-label={material.visivel ? "Ocultar" : "Mostrar"}>
+                            {material.visivel ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" onClick={() => openEdit(material)} aria-label="Editar">
                           <Pencil className="h-4 w-4" />
                         </Button>

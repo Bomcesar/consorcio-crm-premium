@@ -131,6 +131,18 @@ export function useTreinamentos() {
     }
   };
 
+  const toggleVisibilidade = async (treinamento: Treinamento) => {
+    try {
+      const { updateTreinamento } = await import("@/repositories/client/treinamentos.repository");
+      const updated = await updateTreinamento(treinamento.id, { visivel: !treinamento.visivel });
+      setTreinamentos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      success(treinamento.visivel ? "Treinamento ocultado." : "Treinamento visibilizado.");
+    } catch (e) {
+      console.error("[Treinamento] visibility toggle error", e);
+      error("Não foi possível atualizar a visibilidade.");
+    }
+  };
+
   const filteredTreinamentos = treinamentos.filter((t) => {
     const matchesSearch = t.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.descricao.toLowerCase().includes(searchQuery.toLowerCase());
@@ -164,6 +176,7 @@ export function useTreinamentos() {
     openDelete,
     handleSubmit,
     handleDelete,
+    toggleVisibilidade,
     refresh: loadTreinamentos,
   };
 }

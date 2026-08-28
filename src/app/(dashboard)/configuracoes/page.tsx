@@ -22,11 +22,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Settings, User, Shield, Users as UsersIcon, Eye, EyeOff } from "lucide-react";
+import { Loader2, Settings, User, Shield, Users as UsersIcon, Eye, EyeOff, KeyRound, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getAuthenticatedUser, hasPermission, canAssignProfile, canEditUserProfile } from "@/lib/auth-user";
-import { getProfiles, updateProfile, createProfile } from "@/repositories/client/profiles.repository";
+import { getProfiles, updateProfile } from "@/repositories/client/profiles.repository";
 import type { Perfil } from "@/repositories/client/profiles.repository";
+import { createUsuarioAction, resetSenhaUsuarioAction, deleteUsuarioAction } from "@/app/actions/usuarios.actions";
+import { ALL_NAV_ITEMS } from "@/config/navigation";
 
 type TabValue = "perfil" | "usuarios" | "permissoes" | "visibilidade";
 
@@ -52,6 +54,10 @@ export default function ConfiguracoesPage() {
   const [email, setEmail] = useState("");
   const [isUsuarioDialogOpen, setIsUsuarioDialogOpen] = useState(false);
   const [editingUsuario, setEditingUsuario] = useState<Perfil | null>(null);
+  const [isResetSenhaOpen, setIsResetSenhaOpen] = useState(false);
+  const [resetSenhaUsuario, setResetSenhaUsuario] = useState<Perfil | null>(null);
+  const [novaSenha, setNovaSenha] = useState("");
+  const [isResetSenhaSaving, setIsResetSenhaSaving] = useState(false);
   const [usuarioForm, setUsuarioForm] = useState<UsuarioForm>({
     nome: "",
     email: "",
@@ -63,7 +69,7 @@ export default function ConfiguracoesPage() {
   const [todasPermissoes, setTodasPermissoes] = useState<{ id: string; codigo: string; nome: string; categoria: string }[]>([]);
   const [isPermissoesLoading, setIsPermissoesLoading] = useState(false);
   const [usuarioPermissoesId, setUsuarioPermissoesId] = useState<string | null>(null);
-  const [modulosVisibilidade, setModulosVisibilidade] = useState<{ perfil: string; modulo: string; href: string; titulo: string; visivel: boolean }[]>([]);
+  const [modulosVisibilidade, setModulosVisibilidade] = useState<{ id?: string; perfil: string; modulo: string; href: string; titulo: string; visivel: boolean }[]>([]);
   const [isVisibilidadeLoading, setIsVisibilidadeLoading] = useState(false);
   const errorRef = useRef(error);
   useEffect(() => {
@@ -151,15 +157,51 @@ export default function ConfiguracoesPage() {
       setIsVisibilidadeLoading(true);
       try {
         const supabase = createClient();
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("module_visibility")
           .select("*")
           .order("perfil")
           .order("titulo");
 
-        setModulosVisibilidade(data ?? []);
-      } catch {
+        if (error) {
+          console.error("[Visibilidade] Erro ao carregar module_visibility:", {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          });
+          errorRef.current("Não foi possível carregar a visibilidade dos módulos.");
+          setModulosVisibilidade([]);
+          return;
+        }
+
+        const existing = data ?? [];
+        const perfis = ["Administrador", "Gestor", "Consultor", "Trainee", "Secretaria", "Indicador"];
+        const merged: typeof modulosVisibilidade = [];
+
+        for (const item of ALL_NAV_ITEMS) {
+          for (const perfil of perfis) {
+            const found = existing.find((row) => row.perfil === perfil && row.modulo === item.title);
+            if (found) {
+              merged.push(found);
+            } else {
+              merged.push({
+                id: undefined,
+                perfil,
+                modulo: item.title,
+                href: item.href,
+                titulo: item.title,
+                visivel: true,
+              });
+            }
+          }
+        }
+
+        setModulosVisibilidade(merged);
+      } catch (err) {
+        console.error("[Visibilidade] Falha inesperada:", err);
         errorRef.current("Não foi possível carregar a visibilidade dos módulos.");
+        setModulosVisibilidade([]);
       } finally {
         setIsVisibilidadeLoading(false);
       }
@@ -169,12 +211,14 @@ export default function ConfiguracoesPage() {
   }, [activeTab, userRole]);
 
   const toggleVisibilidade = async (perfil: string, modulo: string) => {
-    if (userRole !== "Administrador") return;
+    if (userRole !== "Administrador") {
+      console.warn("[Visibilidade] Tentativa de alterar visibilidade sem permissão:", userRole);
+      return;
+    }
 
     const current = modulosVisibilidade.find((item) => item.perfil === perfil && item.modulo === modulo);
-    if (!current) return;
+    const newVisivel = current ? !current.visivel : true;
 
-    const newVisivel = !current.visivel;
     setModulosVisibilidade((prev) =>
       prev.map((item) =>
         item.perfil === perfil && item.modulo === modulo ? { ...item, visivel: newVisivel } : item,
@@ -183,21 +227,49 @@ export default function ConfiguracoesPage() {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase
-        .from("module_visibility")
-        .update({ visivel: newVisivel })
-        .eq("perfil", perfil)
-        .eq("modulo", modulo);
+      console.log("[Visibilidade] Atualizando:", { perfil, modulo, newVisivel });
+      const navItem = ALL_NAV_ITEMS.find((item) => item.title === modulo);
+      const payload = {
+        perfil,
+        modulo,
+        href: navItem?.href ?? "/",
+        titulo: navItem?.title ?? modulo,
+        visivel: newVisivel,
+      };
 
-      if (error) throw error;
+      if (current?.id && !current.id.startsWith("default-")) {
+        const { error } = await supabase
+          .from("module_visibility")
+          .update({ visivel: newVisivel })
+          .eq("perfil", perfil)
+          .eq("modulo", modulo);
+
+        if (error) {
+          console.error("[Visibilidade] Erro ao atualizar:", error);
+          throw error;
+        }
+      } else {
+        const { error } = await supabase
+          .from("module_visibility")
+          .upsert(payload, { onConflict: "perfil,modulo" });
+
+        if (error) {
+          console.error("[Visibilidade] Erro ao criar visibilidade:", error);
+          throw error;
+        }
+      }
+
       success("Visibilidade atualizada.");
-    } catch {
+    } catch (err) {
+      console.error("[Visibilidade] Falha ao atualizar visibilidade:", err);
       errorRef.current("Não foi possível atualizar a visibilidade.");
-      setModulosVisibilidade((prev) =>
-        prev.map((item) =>
-          item.perfil === perfil && item.modulo === modulo ? { ...item, visivel: current.visivel } : item,
-        ),
-      );
+      if (current) {
+        setModulosVisibilidade((prev) =>
+          prev.map((item) =>
+            item.perfil === perfil && item.modulo === modulo ? { ...item, visivel: !newVisivel } : item,
+          ),
+        );
+      }
     }
   };
 
@@ -228,12 +300,12 @@ export default function ConfiguracoesPage() {
           return;
         }
 
-        const created = await createProfile({
-          nome: usuarioForm.nome,
-          email: usuarioForm.email,
-          perfil: usuarioForm.perfil,
+        const created = await createUsuarioAction(
+          usuarioForm.email,
           senha,
-        });
+          usuarioForm.nome,
+          usuarioForm.perfil,
+        );
 
         setUsuarios((prev) => [...prev, created]);
         success("Usuário criado com sucesso.");
@@ -328,6 +400,49 @@ export default function ConfiguracoesPage() {
     }
   };
 
+  const abrirResetSenha = (usuario: Perfil) => {
+    if (userRole !== "Administrador") return;
+    setResetSenhaUsuario(usuario);
+    setNovaSenha("");
+    setIsResetSenhaOpen(true);
+  };
+
+  const handleDeleteUsuario = async (usuario: Perfil) => {
+    if (userRole !== "Administrador") return;
+    if (usuario.perfil === "Administrador") {
+      error("Não é possível excluir um usuário Administrador por aqui.");
+      return;
+    }
+    const confirmar = window.confirm(`Tem certeza que deseja excluir o usuário ${usuario.nome}?`);
+    if (!confirmar) return;
+    try {
+      await deleteUsuarioAction(usuario.id);
+      success("Usuário excluído com sucesso.");
+      setUsuarios((prev) => prev.filter((u) => u.id !== usuario.id));
+    } catch {
+      error("Não foi possível excluir o usuário.");
+    }
+  };
+
+  const handleResetSenha = async () => {
+    if (!resetSenhaUsuario || !novaSenha || novaSenha.length < 6) {
+      error("A nova senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+    setIsResetSenhaSaving(true);
+    try {
+      await resetSenhaUsuarioAction(resetSenhaUsuario.id, novaSenha);
+      success("Senha redefinida com sucesso.");
+      setIsResetSenhaOpen(false);
+      setResetSenhaUsuario(null);
+      setNovaSenha("");
+    } catch {
+      error("Não foi possível redefinir a senha.");
+    } finally {
+      setIsResetSenhaSaving(false);
+    }
+  };
+
   const togglePermissao = async (permissaoId: string) => {
     if (!usuarioPermissoesId || userRole !== "Administrador") return;
 
@@ -343,12 +458,14 @@ export default function ConfiguracoesPage() {
           .eq("permissao_id", permissaoId);
 
         setPermissoesUsuario((prev) => prev.filter((id) => id !== permissaoId));
+        success("Permissão removida.");
       } else {
         await supabase
           .from("user_permission_grants")
           .insert({ usuario_id: usuarioPermissoesId, permissao_id: permissaoId });
 
         setPermissoesUsuario((prev) => [...prev, permissaoId]);
+        success("Permissão adicionada.");
       }
     } catch {
       error("Não foi possível atualizar a permissão.");
@@ -506,28 +623,48 @@ export default function ConfiguracoesPage() {
                                   {usuario.ativo ? "Ativo" : "Inativo"}
                                 </span>
                               </TableCell>
-                              <TableCell className="flex justify-end gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openEditUsuario(usuario)}
-                                  aria-label="Editar"
-                                  disabled={!canEdit}
-                                >
-                                  <span className="sr-only">Editar</span>
-                                  Editar
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => abrirPermissoes(usuario)}
-                                  aria-label="Permissões"
-                                  disabled={userRole !== "Administrador"}
-                                >
-                                  <Shield className="h-4 w-4" />
-                                  <span className="sr-only">Permissões</span>
-                                </Button>
-                              </TableCell>
+                                <TableCell className="flex justify-end gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => openEditUsuario(usuario)}
+                                    aria-label="Editar"
+                                    disabled={!canEdit}
+                                  >
+                                    <span className="sr-only">Editar</span>
+                                    Editar
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => abrirPermissoes(usuario)}
+                                    aria-label="Permissões"
+                                    disabled={userRole !== "Administrador"}
+                                  >
+                                    <Shield className="h-4 w-4" />
+                                    <span className="sr-only">Permissões</span>
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => abrirResetSenha(usuario)}
+                                    aria-label="Redefinir senha"
+                                    disabled={userRole !== "Administrador"}
+                                  >
+                                    <KeyRound className="h-4 w-4" />
+                                    <span className="sr-only">Redefinir senha</span>
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteUsuario(usuario)}
+                                    aria-label="Excluir usuário"
+                                    disabled={userRole !== "Administrador" || usuario.perfil === "Administrador"}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="sr-only">Excluir</span>
+                                  </Button>
+                                </TableCell>
                             </TableRow>
                           );
                         })}
@@ -592,6 +729,9 @@ export default function ConfiguracoesPage() {
                             <p className="font-medium">{permissao.nome}</p>
                             <p className="text-xs text-muted-foreground">{permissao.codigo}</p>
                             <p className="text-xs text-muted-foreground">{permissao.categoria}</p>
+                            <span className={`mt-2 inline-flex items-center text-xs font-medium ${ativa ? "text-green-700" : "text-muted-foreground"}`}>
+                              {ativa ? "Selecionado" : "Não selecionado"}
+                            </span>
                           </button>
                         );
                       })}
@@ -618,6 +758,21 @@ export default function ConfiguracoesPage() {
                 {isVisibilidadeLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : modulosVisibilidade.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-8">
+                    <p className="text-sm text-muted-foreground">
+                      Não foi possível carregar a visibilidade dos módulos. Verifique se a migration foi aplicada no Supabase.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setActiveTab("visibilidade");
+                      }}
+                    >
+                      Tentar novamente
+                    </Button>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -754,6 +909,36 @@ export default function ConfiguracoesPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isResetSenhaOpen} onOpenChange={setIsResetSenhaOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Redefinir senha</DialogTitle>
+            <DialogDescription>
+              Defina uma nova senha para {resetSenhaUsuario?.nome || "este usuário"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="nova-senha">Nova senha</Label>
+              <Input
+                id="nova-senha"
+                type="password"
+                value={novaSenha}
+                onChange={(e) => setNovaSenha(e.target.value)}
+                minLength={6}
+                required
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsResetSenhaOpen(false)}>Cancelar</Button>
+            <Button type="button" onClick={handleResetSenha} disabled={isResetSenhaSaving}>
+              {isResetSenhaSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...</> : "Salvar"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

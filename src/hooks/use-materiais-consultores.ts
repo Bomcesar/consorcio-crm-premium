@@ -146,6 +146,18 @@ export function useMateriaisConsultores() {
     }
   };
 
+  const toggleVisibilidade = async (material: MaterialConsultor) => {
+    try {
+      const { updateMaterialConsultor } = await import("@/repositories/client/materiais-consultores.repository");
+      const updated = await updateMaterialConsultor(material.id, { visivel: !material.visivel });
+      setMateriais((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+      success(material.visivel ? "Material ocultado." : "Material visibilizado.");
+    } catch (e) {
+      console.error("[MaterialConsultor] visibility toggle error", e);
+      error("Não foi possível atualizar a visibilidade.");
+    }
+  };
+
   const filteredMateriais = materiais.filter((m) => {
     const matchesSearch = m.titulo.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.descricao.toLowerCase().includes(searchQuery.toLowerCase());
@@ -179,6 +191,7 @@ export function useMateriaisConsultores() {
     openDelete,
     handleSubmit,
     handleDelete,
+    toggleVisibilidade,
     refresh: loadMateriais,
   };
 }

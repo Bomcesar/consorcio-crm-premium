@@ -49,6 +49,8 @@ export default function ContatosPage() {
   const [filtered, setFiltered] = useState<Cliente[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [contatosPage, setContatosPage] = useState(1);
+  const [contatosPageSize, setContatosPageSize] = useState(20);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -149,7 +151,12 @@ export default function ContatosPage() {
       clearTimeout(timeout);
       cancelled = true;
     };
-  }, [searchQuery]);
+   }, [searchQuery]);
+
+  const contatosTotalPages = Math.max(1, Math.ceil(filtered.length / contatosPageSize));
+  const safeContatosPage = Math.min(contatosPage, contatosTotalPages);
+  const contatosStart = (safeContatosPage - 1) * contatosPageSize;
+  const paginatedContatos = filtered.slice(contatosStart, contatosStart + contatosPageSize);
 
   const handleChange = (field: keyof typeof emptyForm, value: string) => {
     setFormData((current) => ({ ...current, [field]: value }));
@@ -747,7 +754,8 @@ export default function ContatosPage() {
               ) : filtered.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum contato cadastrado ainda.</p>
               ) : (
-                <div className="overflow-x-auto">
+                <div>
+                  <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -765,7 +773,7 @@ export default function ContatosPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filtered.map((cliente) => (
+                        {paginatedContatos.map((cliente) => (
                           <TableRow key={cliente.id}>
                             <TableCell>
                               <input
@@ -783,29 +791,64 @@ export default function ContatosPage() {
                             </TableCell>
                             <TableCell className="max-w-[200px] truncate">{cliente.observacoes || "—"}</TableCell>
                             <TableCell className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" aria-label="Ligar" onClick={() => window.location.href = `tel:+55${cliente.telefone.replace(/\D/g, "")}`}>
-                              <Phone className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" aria-label="WhatsApp" onClick={() => window.open(`https://wa.me/55${cliente.telefone.replace(/\D/g, "")}`, "_blank")}>
-                              <MessageSquare className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" aria-label="SMS" onClick={() => window.location.href = `sms:+55${cliente.telefone.replace(/\D/g, "")}`}>
-                              <MessageCircle className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" aria-label="E-mail" onClick={() => window.location.href = `mailto:${cliente.email || ""}`}>
-                              <Mail className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => openEdit(cliente)} aria-label="Editar">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => openDelete(cliente)} aria-label="Excluir">
-                              <Trash2 className="h-4 w-4 text-red-600" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                              <Button variant="ghost" size="icon" aria-label="Ligar" onClick={() => window.location.href = `tel:+55${cliente.telefone.replace(/\D/g, "")}`}>
+                                <Phone className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" aria-label="WhatsApp" onClick={() => window.open(`https://wa.me/55${cliente.telefone.replace(/\D/g, "")}`, "_blank")}>
+                                <MessageSquare className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" aria-label="SMS" onClick={() => window.location.href = `sms:+55${cliente.telefone.replace(/\D/g, "")}`}>
+                                <MessageCircle className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" aria-label="E-mail" onClick={() => window.location.href = `mailto:${cliente.email || ""}`}>
+                                <Mail className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => openEdit(cliente)} aria-label="Editar">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => openDelete(cliente)} aria-label="Excluir">
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {filtered.length > contatosPageSize && (
+                    <div className="flex items-center justify-between pt-4">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={safeContatosPage === 1}
+                          onClick={() => setContatosPage((current) => Math.max(1, current - 1))}
+                        >
+                          Anterior
+                        </Button>
+                        <span className="text-xs text-muted-foreground">Página {safeContatosPage} de {contatosTotalPages}</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={safeContatosPage >= contatosTotalPages}
+                          onClick={() => setContatosPage((current) => current + 1)}
+                        >
+                          Próxima
+                        </Button>
+                      </div>
+                      <select
+                        className="flex h-9 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={contatosPageSize}
+                        onChange={(e) => { setContatosPageSize(Number(e.target.value)); setContatosPage(1); }}
+                      >
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="150">150</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -900,61 +943,61 @@ export default function ContatosPage() {
                       <TableHead className="w-[180px] text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {filteredPastaItens.map((item) => {
-                      const cliente = item.cliente as Cliente | undefined;
-                      return (
-                        <TableRow key={item.id}>
-                          <TableCell>
-                            <input
-                              type="checkbox"
-                              checked={selectedPastaItemIds.has(item.id)}
-                              onChange={() => handleTogglePastaItem(item.id)}
-                            />
-                          </TableCell>
-                          <TableCell className="font-medium">{cliente?.nome || "—"}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Phone className="h-4 w-4 text-muted-foreground" />
-                              {cliente?.telefone || "—"}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800">
-                              {item.prospeccao_status || "Não contatado"}
-                            </span>
-                          </TableCell>
-                          <TableCell>{item.ultimo_contato || "—"}</TableCell>
-                          <TableCell>{item.proxima_acao || "—"}</TableCell>
-                          <TableCell className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" aria-label="Ligar" onClick={() => window.location.href = `tel:+55${(cliente?.telefone || "").replace(/\D/g, "")}`}>
-                              <Phone className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" aria-label="WhatsApp" onClick={() => window.open(`https://wa.me/55${(cliente?.telefone || "").replace(/\D/g, "")}`, "_blank")}>
-                              <MessageSquare className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" aria-label="SMS" onClick={() => window.location.href = `sms:+55${(cliente?.telefone || "").replace(/\D/g, "")}`}>
-                              <MessageCircle className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" aria-label="E-mail" onClick={() => window.location.href = `mailto:${cliente?.email || ""}`}>
-                              <Mail className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" aria-label="Editar status" onClick={() => {
-                              const novoStatus = prompt("Novo status de prospecção:", item.prospeccao_status || "Não contatado");
-                              if (novoStatus !== null) {
-                                handleUpdatePastaItemStatus(item.id, novoStatus);
-                              }
-                            }}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" aria-label="Remover da pasta" onClick={() => handleRemoveClienteFromPasta(item.id)}>
-                              <Trash2 className="h-4 w-4 text-red-600" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
+                      <TableBody>
+                        {filteredPastaItens.map((item) => {
+                          const cliente = item.cliente as Cliente | undefined;
+                          return (
+                            <TableRow key={item.id}>
+                              <TableCell>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedPastaItemIds.has(item.id)}
+                                  onChange={() => handleTogglePastaItem(item.id)}
+                                />
+                              </TableCell>
+                              <TableCell className="font-medium">{cliente?.nome || "—"}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Phone className="h-4 w-4 text-muted-foreground" />
+                                  {cliente?.telefone || "—"}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800">
+                                  {item.prospeccao_status || "Não contatado"}
+                                </span>
+                              </TableCell>
+                              <TableCell>{item.ultimo_contato || "—"}</TableCell>
+                              <TableCell>{item.proxima_acao || "—"}</TableCell>
+                              <TableCell className="flex justify-end gap-1">
+                                <Button variant="ghost" size="icon" aria-label="Ligar" onClick={() => window.location.href = `tel:+55${(cliente?.telefone || "").replace(/\D/g, "")}`}>
+                                  <Phone className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" aria-label="WhatsApp" onClick={() => window.open(`https://wa.me/55${(cliente?.telefone || "").replace(/\D/g, "")}`, "_blank")}>
+                                  <MessageSquare className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" aria-label="SMS" onClick={() => window.location.href = `sms:+55${(cliente?.telefone || "").replace(/\D/g, "")}`}>
+                                  <MessageCircle className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" aria-label="E-mail" onClick={() => window.location.href = `mailto:${cliente?.email || ""}`}>
+                                  <Mail className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" aria-label="Editar status" onClick={() => {
+                                  const novoStatus = prompt("Novo status de prospecção:", item.prospeccao_status || "Não contatado");
+                                  if (novoStatus !== null) {
+                                    handleUpdatePastaItemStatus(item.id, novoStatus);
+                                  }
+                                }}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" aria-label="Remover da pasta" onClick={() => handleRemoveClienteFromPasta(item.id)}>
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
                 </Table>
               </div>
             )}

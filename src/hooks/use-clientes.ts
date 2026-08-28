@@ -302,8 +302,10 @@ export function useClientes() {
       const { getProspeccaoHistorico } = await import("@/repositories/client/pastas.repository");
       const data = await getProspeccaoHistorico(pastaItemId);
       setProspeccaoHistorico(data);
+      return data;
     } catch {
       error("Não foi possível carregar o histórico de prospecção.");
+      throw new Error("Falha ao carregar histórico de prospecção.");
     }
   }, [error]);
 

@@ -2,11 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import type { Indicador } from "@/repositories/indicadores.repository";
-import type { ContatoIndicado } from "@/repositories/contatos-indicados.repository";
+import type { Indicador, IndicadorHistorico, IndicadorAnexo } from "@/repositories/client/indicadores.repository";
+import type { ContatoIndicado } from "@/repositories/client/contatos-indicados.repository";
 import type { ComissaoIndicador } from "@/repositories/comissoes-indicadores.repository";
-import type { IndicadorHistorico } from "@/repositories/client/indicadores.repository";
-import { getIndicadores, getIndicador, createIndicador, updateIndicador, deleteIndicador, getIndicadorHistorico, addIndicadorHistorico } from "@/repositories/client/indicadores.repository";
+import { getIndicadores, getIndicador, createIndicador, updateIndicador, deleteIndicador, getIndicadorHistorico, addIndicadorHistorico, getIndicadorAnexos, addIndicadorAnexo, removeIndicadorAnexo } from "@/repositories/client/indicadores.repository";
 import { getContatosIndicados, getContatoIndicado, createContatoIndicado, updateContatoIndicado, deleteContatoIndicado } from "@/repositories/client/contatos-indicados.repository";
 import { getComissoesIndicadores, getComissaoIndicador, createComissaoIndicador, updateComissaoIndicador, deleteComissaoIndicador } from "@/repositories/client/comissoes-indicadores.repository";
 
@@ -57,6 +56,10 @@ export function useCentralIndicadores() {
   const [isSaving, setIsSaving] = useState(false);
   const [isContactSaving, setIsContactSaving] = useState(false);
   const [isHistoricoSaving, setIsHistoricoSaving] = useState(false);
+  const [anexos, setAnexos] = useState<IndicadorAnexo[]>([]);
+  const [isAnexoSaving, setIsAnexoSaving] = useState(false);
+  const [isAnexosLoading, setIsAnexosLoading] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   const summary = useMemo(() => {
     const totalIndicadores = indicators.length;
@@ -272,17 +275,63 @@ export function useCentralIndicadores() {
     }
   };
 
+  const loadAnexos = async (indicadorId: string) => {
+    setIsAnexosLoading(true);
+    try {
+      const data = await getIndicadorAnexos(indicadorId);
+      setAnexos(data);
+    } catch {
+      error("Não foi possível carregar os materiais.");
+      setAnexos([]);
+    } finally {
+      setIsAnexosLoading(false);
+    }
+  };
+
+  const handleAddAnexo = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedIndicatorId) return;
+    const input = event.currentTarget.querySelector('input[type="file"]') as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) return;
+    setIsAnexoSaving(true);
+    try {
+      const item = await addIndicadorAnexo(selectedIndicatorId, file);
+      setAnexos((prev) => [item, ...prev]);
+      if (input) input.value = "";
+      setFileInputKey((current) => current + 1);
+      success("Material anexado com sucesso.");
+    } catch {
+      error("Não foi possível anexar o material.");
+    } finally {
+      setIsAnexoSaving(false);
+    }
+  };
+
+  const handleRemoveAnexo = async (id: string) => {
+    try {
+      await removeIndicadorAnexo(id);
+      setAnexos((prev) => prev.filter((a) => a.id !== id));
+      success("Material removido.");
+    } catch {
+      error("Não foi possível remover o material.");
+    }
+  };
+
   return {
     indicators,
     contacts,
     commissions,
     historico,
+    anexos,
     selectedIndicatorId,
     isFormOpen,
     isContactFormOpen,
     isContactsLoading,
     isLoading,
     isHistoryLoading,
+    isAnexosLoading,
+    isAnexoSaving,
     formData,
     contactFormData,
     historicoForm,
@@ -296,6 +345,7 @@ export function useCentralIndicadores() {
     setContacts,
     setCommissions,
     setHistorico,
+    setAnexos,
     setFormData,
     setContactFormData,
     setHistoricoForm,
@@ -307,12 +357,15 @@ export function useCentralIndicadores() {
     loadContacts,
     loadCommissions,
     loadHistorico,
+    loadAnexos,
     handleOpenContacts,
     handleSubmit,
     handleSaveContact,
     handleDeleteContact,
     handleMarkCommissionAsPaid,
     handleAddHistorico,
+    handleAddAnexo,
+    handleRemoveAnexo,
     success,
     error,
   };
