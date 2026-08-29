@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useClientes } from "@/hooks/use-clientes";
 import { useToast } from "@/hooks/use-toast";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Pencil, Trash2, Loader2, Upload, Download, Users, Phone, Mail, UserPlus, FolderOpen, ChevronRight, MessageSquare, ArrowRight, ClipboardList, Filter, MessageCircle } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, Upload, Download, Users, Phone, Mail, UserPlus, FolderOpen, ChevronRight, MessageSquare, ArrowRight, ClipboardList, Filter, MessageCircle, UserCheck } from "lucide-react";
 import type { Cliente } from "@/repositories/client/clientes.repository";
 import type { Contato, ContatoImportPreview } from "@/lib/contatos";
 import type { Pasta, PastaItem } from "@/repositories/client/pastas.repository";
@@ -42,8 +43,10 @@ export default function ContatosPage() {
   const clientesHook = useClientes();
   const clientesHookRef = useRef(clientesHook);
   clientesHookRef.current = clientesHook;
-  const { error } = useToast();
+  const { success, error } = useToast();
+  const successRef = useRef(success);
   const errorRef = useRef(error);
+  successRef.current = success;
   errorRef.current = error;
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [filtered, setFiltered] = useState<Cliente[]>([]);
@@ -53,6 +56,7 @@ export default function ContatosPage() {
   const [contatosPageSize, setContatosPageSize] = useState(20);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDeleteSelectedOpen, setIsDeleteSelectedOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -87,6 +91,10 @@ export default function ContatosPage() {
   const [editPastaForm, setEditPastaForm] = useState({ nome: "", descricao: "", cor: "#3b82f6", origem: "", observacao: "" });
   const [isDeletePastaOpen, setIsDeletePastaOpen] = useState(false);
   const [deletingPasta, setDeletingPasta] = useState<Pasta | null>(null);
+  const [isConvertOpen, setIsConvertOpen] = useState(false);
+  const [convertingCliente, setConvertingCliente] = useState<Cliente | null>(null);
+  const [convertTarget, setConvertTarget] = useState<string>("leads");
+  const [isConverting, setIsConverting] = useState(false);
 
    useEffect(() => {
     let cancelled = false;
@@ -179,6 +187,9 @@ export default function ContatosPage() {
       const updated = await clientesHook.list();
       setClientes(updated);
       setFiltered(updated);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível salvar o contato.";
+      errorRef.current(message);
     } finally {
       setIsSaving(false);
     }
@@ -193,6 +204,23 @@ export default function ContatosPage() {
     const updated = await clientesHook.list();
     setClientes(updated);
     setFiltered(updated);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedClienteIds.size === 0) return;
+    try {
+      for (const id of selectedClienteIds) {
+        await clientesHook.remove(id);
+      }
+      setSelectedClienteIds(new Set());
+      setSearchQuery("");
+      const updated = await clientesHook.list();
+      setClientes(updated);
+      setFiltered(updated);
+      successRef.current(`${selectedClienteIds.size} contato(s) excluído(s).`);
+    } catch {
+      errorRef.current("Não foi possível excluir os contatos selecionados.");
+    }
   };
 
   const createPastaNow = async () => {
@@ -351,6 +379,99 @@ export default function ContatosPage() {
   const openDelete = (cliente: Cliente) => {
     setSelectedCliente(cliente);
     setIsDeleteOpen(true);
+  };
+
+  const openConvert = (cliente: Cliente) => {
+    setConvertingCliente(cliente);
+    setConvertTarget("leads");
+    setIsConvertOpen(true);
+  };
+
+  const handleConvert = async () => {
+    if (!convertingCliente) return;
+    setIsConverting(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      if (convertTarget === "leads") {
+        const { error } = await supabase.from("leads").insert({
+          nome: convertingCliente.nome,
+          telefone: convertingCliente.telefone,
+          email: convertingCliente.email || "",
+          observacoes: convertingCliente.observacoes || "Convertido de contato",
+          origem: "Contatos",
+          status: "Novo",
+          valor_estimado: 0,
+          probabilidade: 0,
+          ultimo_contato: new Date().toISOString(),
+        });
+        if (error) throw error;
+      } else if (convertTarget === "clientes") {
+        const { error } = await supabase.from("clientes").insert({
+          nome: convertingCliente.nome,
+          telefone: convertingCliente.telefone,
+          email: convertingCliente.email || "",
+          observacoes: convertingCliente.observacoes || "Convertido de contato",
+          origem: "Contatos",
+          status: "Ativo",
+        });
+        if (error) throw error;
+      } else if (convertTarget === "indicadores") {
+        const { error } = await supabase.from("indicadores").insert({
+          nome: convertingCliente.nome,
+          telefone: convertingCliente.telefone,
+          email: convertingCliente.email || "",
+          cidade: "",
+          estado: "",
+          cpf: "",
+          pix: "",
+          origem: "Contatos",
+          status: "Ativo",
+          observacoes: convertingCliente.observacoes || "Convertido de contato",
+          ativo: true,
+          usuario_id: user.id,
+          grupo_whatsapp: false,
+          link_grupo: "",
+          grupo_criado: false,
+        });
+        if (error) throw error;
+      } else if (convertTarget === "parceiros") {
+        const { error } = await supabase.from("parceiros").insert({
+          nome: convertingCliente.nome,
+          cnpj: "",
+          contato: convertingCliente.nome,
+          email: convertingCliente.email || "",
+          telefone: convertingCliente.telefone,
+          tipo: "",
+          status: "Ativo",
+          observacoes: convertingCliente.observacoes || "Convertido de contato",
+          usuario_id: user.id,
+        });
+        if (error) throw error;
+      } else if (convertTarget === "recrutamento") {
+        const { error } = await supabase.from("recrutamento").insert({
+          nome: convertingCliente.nome,
+          email: convertingCliente.email || "",
+          telefone: convertingCliente.telefone,
+          origem: "Contatos",
+          status: "Novo",
+          observacoes: convertingCliente.observacoes || "Convertido de contato",
+          usuario_id: user.id,
+        });
+        if (error) throw error;
+      }
+
+      setIsConvertOpen(false);
+      setConvertingCliente(null);
+      successRef.current("Contato convertido com sucesso.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível converter o contato.";
+      errorRef.current(message);
+    } finally {
+      setIsConverting(false);
+    }
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
@@ -746,6 +867,12 @@ export default function ContatosPage() {
                   <FolderOpen className="mr-2 h-4 w-4" />
                   Mover para pasta {selectedClienteIds.size > 0 ? `(${selectedClienteIds.size})` : ""}
                 </Button>
+                {selectedClienteIds.size > 0 && (
+                  <Button variant="destructive" onClick={() => setIsDeleteSelectedOpen(true)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Excluir selecionados ({selectedClienteIds.size})
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent onDragOver={handleDragOver} onDrop={handleDrop}>
@@ -819,6 +946,9 @@ export default function ContatosPage() {
                               </Button>
                               <Button variant="ghost" size="icon" onClick={() => openEdit(cliente)} aria-label="Editar">
                                 <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => openConvert(cliente)} aria-label="Converter">
+                                <UserCheck className="h-4 w-4" />
                               </Button>
                               <Button variant="ghost" size="icon" onClick={() => openDelete(cliente)} aria-label="Excluir">
                                 <Trash2 className="h-4 w-4 text-red-600" />
@@ -1066,6 +1196,23 @@ export default function ContatosPage() {
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
               Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteSelectedOpen} onOpenChange={setIsDeleteSelectedOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir contatos selecionados</DialogTitle>
+            <DialogDescription>Tem certeza que deseja excluir {selectedClienteIds.size} contato(s)? Esta ação não pode ser desfeita.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteSelectedOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={() => { setIsDeleteSelectedOpen(false); void handleDeleteSelected(); }}>
+              Excluir selecionados
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1398,6 +1545,39 @@ export default function ContatosPage() {
             </Button>
             <Button variant="destructive" onClick={handleConfirmDeletePasta}>
               Excluir pasta
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isConvertOpen} onOpenChange={setIsConvertOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Converter contato</DialogTitle>
+            <DialogDescription>Selecione para qual módulo deseja converter <strong>{convertingCliente?.nome}</strong>.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Destino</Label>
+              <select
+                value={convertTarget}
+                onChange={(e) => setConvertTarget(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="leads">Lead</option>
+                <option value="clientes">Cliente</option>
+                <option value="indicadores">Indicador</option>
+                <option value="parceiros">Parceiro</option>
+                <option value="recrutamento">Recrutamento</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsConvertOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConvert} disabled={isConverting}>
+              {isConverting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Converter"}
             </Button>
           </DialogFooter>
         </DialogContent>
