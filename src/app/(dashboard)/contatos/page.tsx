@@ -220,8 +220,18 @@ export default function ContatosPage() {
 
   const handleOpenPasta = async (pasta: Pasta) => {
     setSelectedPastaId(pasta.id);
+    setFiltered([]);
+    setSearchQuery("");
     const itens = await clientesHook.loadPastaItens(pasta.id);
     setPastaItens(itens);
+  };
+
+  const handleBackToMain = async () => {
+    setSelectedPastaId(null);
+    setPastaItens([]);
+    const data = await clientesHook.list();
+    setClientes(data);
+    setFiltered(data);
   };
 
   const handleAddClienteToPasta = async () => {
@@ -547,6 +557,9 @@ export default function ContatosPage() {
         const itensAtualizados = await clientesHookRef.current.loadPastaItens(selectedPastaId);
         setPastaItens(itensAtualizados);
       }
+      const updated = await clientesHookRef.current.list();
+      setClientes(updated);
+      setFiltered(updated);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Não foi possível adicionar os contatos à pasta.";
       errorRef.current(message);
@@ -565,6 +578,7 @@ export default function ContatosPage() {
     const targetPasta = pastas[targetIndex];
     if (!targetPasta) return;
     setSelectedPastaId(targetPasta.id);
+    setPastaItens([]);
     const itens = await clientesHookRef.current.loadPastaItens(targetPasta.id);
     setPastaItens(itens);
     setSelectedPastaItemIds(new Set());
@@ -861,9 +875,9 @@ export default function ContatosPage() {
               <Button variant="ghost" size="icon" onClick={() => handleNavigatePasta("prev")} aria-label="Pasta anterior">
                 <ArrowRight className="h-4 w-4 rotate-180" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => { setSelectedPastaId(null); setPastaItens([]); }} aria-label="Voltar para pastas">
-                <FolderOpen className="h-4 w-4" />
-              </Button>
+                <Button variant="ghost" size="icon" onClick={handleBackToMain} aria-label="Voltar para pastas">
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
               <Button variant="ghost" size="icon" onClick={() => handleNavigatePasta("next")} aria-label="Próxima pasta">
                 <ArrowRight className="h-4 w-4" />
               </Button>

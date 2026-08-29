@@ -1,6 +1,10 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database.types";
 import { getAuthenticatedUser, isAdminOrGestor } from "@/lib/auth-user";
+import { createLead } from "./leads.repository";
+import { createIndicador } from "./indicadores.repository";
+import { createParceiro } from "./parceiros.repository";
+import { createRecrutamento } from "./recrutamento.repository";
 
 export type Cliente = Database["public"]["Tables"]["clientes"]["Row"];
 export type ClienteInsert = Database["public"]["Tables"]["clientes"]["Insert"];
@@ -176,5 +180,78 @@ export async function deleteClienteContato(id: string): Promise<void> {
     .eq("id", id)
     .eq("usuario_id", user.id);
   if (error) throw new Error("Não foi possível remover o contato.");
+}
+
+export async function converterClientePara(
+  id: string,
+  destino: "lead" | "indicador" | "parceiro" | "recrutamento" | "cliente",
+): Promise<Cliente> {
+  const user = await getAuthenticatedUser();
+  const supabase = createClient();
+
+  const { data: cliente, error: fetchError } = await supabase
+    .from("clientes")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !cliente) {
+    throw new Error("Não foi possível carregar o cliente para conversão.");
+  }
+
+  if (destino === "lead") {
+    await createLead({
+      nome: cliente.nome,
+      telefone: cliente.telefone,
+      cidade: cliente.cidade,
+      status: "Novo",
+      observacoes: cliente.observacoes,
+    });
+  } else if (destino === "indicador") {
+    await createIndicador({
+      nome: cliente.nome,
+      telefone: cliente.telefone,
+      email: cliente.email,
+      cidade: cliente.cidade,
+      estado: cliente.estado,
+      cpf: cliente.cpf_cnpj,
+      pix: cliente.pix_link || "",
+      origem: cliente.origem,
+      status: "Ativo",
+      observacoes: cliente.observacoes,
+      ativo: true,
+    });
+  } else if (destino === "parceiro") {
+    await createParceiro({
+      nome: cliente.nome,
+      contato: cliente.telefone,
+      email: cliente.email,
+      telefone: cliente.telefone,
+      tipo: "",
+      status: "Ativo",
+      observacoes: cliente.observacoes,
+    });
+  } else if (destino === "recrutamento") {
+    await createRecrutamento({
+      nome: cliente.nome,
+      email: cliente.email,
+      telefone: cliente.telefone,
+      origem: cliente.origem,
+      status: "Novo",
+      observacoes: cliente.observacoes,
+    });
+  }
+
+  const updates: Record<string, unknown> = {
+    status_contato: "Convertido",
+    destino_conversao: destino,
+    data_ultimo_contato: new Date().toISOString(),
+  };
+
+  const base = supabase.from("clientes").update(updates).eq("id", id);
+  const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
+  const { data, error } = await query.select().single();
+  if (error || !data) throw new Error("Não foi possível atualizar o cliente após a conversão.");
+  return data as Cliente;
 }
 

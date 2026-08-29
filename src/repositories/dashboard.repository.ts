@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser } from "@/lib/auth-user";
+import type { Database } from "@/types/database.types";
 
 export type DashboardStats = {
   totalLeads: number;
@@ -10,6 +11,19 @@ export type DashboardStats = {
   totalComissoesPagas: number;
   totalAgendamentos: number;
   totalMensagensPendentes: number;
+};
+
+export type ModuleReportItem = {
+  key: string;
+  label: string;
+  total: number;
+  details?: Record<string, unknown>;
+};
+
+export type RelatorioPayload = {
+  generatedAt: string;
+  modules: string[];
+  stats: Record<string, unknown>;
 };
 
 export type DashboardAtividadeRecente = {
@@ -161,4 +175,148 @@ export async function getAtividadesRecentes(limite = 10): Promise<DashboardAtivi
   }
 
   return atividades.sort((a, b) => (a.data > b.data ? -1 : a.data < b.data ? 1 : 0)).slice(0, limite);
+}
+
+export async function getModuleReport(module: string): Promise<ModuleReportItem> {
+  const user = await getAuthenticatedUser();
+  const supabase = await createClient();
+
+  switch (module) {
+    case "leads": {
+      const { data, error } = await supabase.from("leads").select("*").eq("usuario_id", user.id);
+      if (error) throw new Error(`Não foi possível carregar leads: ${error.message}`);
+      const items = (data ?? []) as Database["public"]["Tables"]["leads"]["Row"][];
+      const statusCounts = items.reduce<Record<string, number>>((acc, item) => {
+        const status = item.status ?? "Sem status";
+        acc[status] = (acc[status] ?? 0) + 1;
+        return acc;
+      }, {});
+      return {
+        key: "leads",
+        label: "Leads",
+        total: items.length,
+        details: statusCounts,
+      };
+    }
+    case "clientes": {
+      const { data, error } = await supabase.from("clientes").select("*").eq("usuario_id", user.id);
+      if (error) throw new Error(`Não foi possível carregar clientes: ${error.message}`);
+      const items = (data ?? []) as Database["public"]["Tables"]["clientes"]["Row"][];
+      const statusCounts = items.reduce<Record<string, number>>((acc, item) => {
+        const status = item.status ?? "Sem status";
+        acc[status] = (acc[status] ?? 0) + 1;
+        return acc;
+      }, {});
+      return {
+        key: "clientes",
+        label: "Clientes",
+        total: items.length,
+        details: statusCounts,
+      };
+    }
+    case "indicadores": {
+      const { data, error } = await supabase.from("indicadores").select("*").eq("usuario_id", user.id);
+      if (error) throw new Error(`Não foi possível carregar indicadores: ${error.message}`);
+      const items = (data ?? []) as Database["public"]["Tables"]["indicadores"]["Row"][];
+      const statusCounts = items.reduce<Record<string, number>>((acc, item) => {
+        const status = item.status ?? "Sem status";
+        acc[status] = (acc[status] ?? 0) + 1;
+        return acc;
+      }, {});
+      return {
+        key: "indicadores",
+        label: "Indicadores",
+        total: items.length,
+        details: statusCounts,
+      };
+    }
+    case "negociacoes": {
+      const { data, error } = await supabase.from("negociacoes").select("*").eq("usuario_id", user.id);
+      if (error) throw new Error(`Não foi possível carregar negociações: ${error.message}`);
+      const items = (data ?? []) as Database["public"]["Tables"]["negociacoes"]["Row"][];
+      const statusCounts = items.reduce<Record<string, number>>((acc, item) => {
+        const status = item.etapa ?? "Sem etapa";
+        acc[status] = (acc[status] ?? 0) + 1;
+        return acc;
+      }, {});
+      return {
+        key: "negociacoes",
+        label: "Negociações",
+        total: items.length,
+        details: statusCounts,
+      };
+    }
+    case "comissoes": {
+      const { data, error } = await supabase
+        .from("comissoes_indicadores")
+        .select("valor, status")
+        .eq("usuario_id", user.id);
+      if (error) throw new Error(`Não foi possível carregar comissões: ${error.message}`);
+      const items = (data ?? []) as { valor: string | number; status: string }[];
+      const totalPendente = items
+        .filter((c) => c.status === "Pendente")
+        .reduce((sum, c) => sum + Number(c.valor), 0);
+      const totalPago = items
+        .filter((c) => c.status === "Paga")
+        .reduce((sum, c) => sum + Number(c.valor), 0);
+      return {
+        key: "comissoes",
+        label: "Comissões",
+        total: items.length,
+        details: {
+          totalPendente: Math.round(totalPendente * 100) / 100,
+          totalPago: Math.round(totalPago * 100) / 100,
+        },
+      };
+    }
+    case "agenda": {
+      const { count, error } = await supabase
+        .from("agenda_eventos")
+        .select("*", { count: "exact", head: true })
+        .eq("usuario_id", user.id);
+      if (error) throw new Error(`Não foi possível carregar agenda: ${error.message}`);
+      return {
+        key: "agenda",
+        label: "Agenda",
+        total: count ?? 0,
+      };
+    }
+    case "whatsapp": {
+      const { count, error } = await supabase
+        .from("whatsapp_mensagens")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pendente")
+        .eq("usuario_id", user.id);
+      if (error) throw new Error(`Não foi possível carregar WhatsApp: ${error.message}`);
+      return {
+        key: "whatsapp",
+        label: "WhatsApp",
+        total: count ?? 0,
+      };
+    }
+    default:
+      return {
+        key: module,
+        label: module,
+        total: 0,
+      };
+  }
+}
+
+export async function getRelatorioPayload(modules: string[]): Promise<RelatorioPayload> {
+  const reports = await Promise.all(modules.map((module) => getModuleReport(module)));
+  const stats = reports.reduce<Record<string, unknown>>((acc, report) => {
+    acc[report.key] = {
+      label: report.label,
+      total: report.total,
+      details: report.details,
+    };
+    return acc;
+  }, {});
+
+  return {
+    generatedAt: new Date().toISOString(),
+    modules,
+    stats,
+  };
 }

@@ -40,6 +40,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import type { Cliente, ClienteHistorico, ClienteContato } from "@/repositories/client/clientes.repository";
+import { converterClientePara } from "@/repositories/client/clientes.repository";
 
 const emptyForm = {
   nome: "",
@@ -142,6 +143,8 @@ export default function ClientesPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isConvertOpen, setIsConvertOpen] = useState(false);
+  const [convertingCliente, setConvertingCliente] = useState<Cliente | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [formData, setFormData] = useState<ClienteFormData>(emptyForm);
@@ -404,6 +407,16 @@ export default function ClientesPage() {
     window.location.href = `tel:+55${phone}`;
   };
 
+  const handleConvert = async (cliente: Cliente, destino: "lead" | "indicador" | "parceiro" | "recrutamento" | "cliente") => {
+    try {
+      await converterClientePara(cliente.id, destino);
+      success(`Cliente convertido para ${destino} com sucesso.`);
+      await loadClientes();
+    } catch {
+      error("Não foi possível converter o cliente.");
+    }
+  };
+
   const statusOptions = useMemo(() => {
     const statuses = new Set(clientes.map((c) => c.status));
     return Array.from(statuses);
@@ -503,6 +516,9 @@ export default function ClientesPage() {
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => openEdit(cliente)} aria-label="Editar">
                           <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => { setConvertingCliente(cliente); setIsConvertOpen(true); }} aria-label="Converter">
+                          <UserPlus className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => openDelete(cliente)} aria-label="Excluir">
                           <Trash2 className="h-4 w-4 text-red-600" />
@@ -975,6 +991,24 @@ export default function ClientesPage() {
               )}
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isConvertOpen} onOpenChange={setIsConvertOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Converter contato</DialogTitle>
+            <DialogDescription>
+              Escolha para onde enviar <strong>{convertingCliente?.nome}</strong> após o contato.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Button variant="outline" onClick={() => { if (convertingCliente) { void handleConvert(convertingCliente, "lead"); setIsConvertOpen(false); } }}>Lead</Button>
+            <Button variant="outline" onClick={() => { if (convertingCliente) { void handleConvert(convertingCliente, "indicador"); setIsConvertOpen(false); } }}>Indicador</Button>
+            <Button variant="outline" onClick={() => { if (convertingCliente) { void handleConvert(convertingCliente, "parceiro"); setIsConvertOpen(false); } }}>Parceiro</Button>
+            <Button variant="outline" onClick={() => { if (convertingCliente) { void handleConvert(convertingCliente, "recrutamento"); setIsConvertOpen(false); } }}>Recrutamento</Button>
+            <Button variant="outline" className="sm:col-span-2" onClick={() => { if (convertingCliente) { void handleConvert(convertingCliente, "cliente"); setIsConvertOpen(false); } }}>Manter como Cliente</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
