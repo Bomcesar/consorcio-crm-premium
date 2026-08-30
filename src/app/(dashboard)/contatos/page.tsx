@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useClientes } from "@/hooks/use-clientes";
 import { useToast } from "@/hooks/use-toast";
 import { createClient } from "@/lib/supabase/client";
@@ -30,7 +30,7 @@ import { Search, Plus, Pencil, Trash2, Loader2, Upload, Download, Users, Phone, 
 import type { Cliente } from "@/repositories/client/clientes.repository";
 import type { Contato, ContatoImportPreview } from "@/lib/contatos";
 import type { Pasta, PastaItem } from "@/repositories/client/pastas.repository";
-import { exportCSV, exportVCF, exportTXT, downloadFile, parseCSV, parseVCF, parseTXT, detectDuplicates } from "@/lib/contatos";
+import { exportCSV, exportVCF, exportTXT, exportXLSX, downloadFile, parseCSV, parseVCF, parseTXT, parseXLSX, detectDuplicates } from "@/lib/contatos";
 
 const emptyForm = {
   nome: "",
@@ -61,8 +61,8 @@ export default function ContatosPage() {
   const [formData, setFormData] = useState(emptyForm);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [importFormat, setImportFormat] = useState<"csv" | "vcf" | "txt">("csv");
-  const [exportFormat, setExportFormat] = useState<"csv" | "vcf" | "txt">("csv");
+  const [importFormat, setImportFormat] = useState<"csv" | "vcf" | "txt" | "xlsx">("csv");
+  const [exportFormat, setExportFormat] = useState<"csv" | "vcf" | "txt" | "xlsx">("csv");
   const [importPreview, setImportPreview] = useState<ContatoImportPreview[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [importMode, setImportMode] = useState<"new" | "update" | "all">("new");
@@ -95,30 +95,50 @@ export default function ContatosPage() {
   const [convertingCliente, setConvertingCliente] = useState<Cliente | null>(null);
   const [convertTarget, setConvertTarget] = useState<string>("leads");
   const [isConverting, setIsConverting] = useState(false);
+  const [pastaMestreId, setPastaMestreId] = useState<string | null>(null);
 
    useEffect(() => {
-    let cancelled = false;
-    clientesHookRef.current.list()
-      .then((data) => {
-        if (!cancelled) {
-          setClientes(data);
-          setFiltered(data);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          const message = err instanceof Error ? err.message : "Não foi possível carregar os contatos.";
-          errorRef.current(message);
-          setImportError(message);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+     let cancelled = false;
+     const initPastaMestre = async () => {
+       try {
+         const { getOrCreatePastaMestre } = await import("@/repositories/client/pastas.repository");
+         const pasta = await getOrCreatePastaMestre();
+         if (!cancelled) {
+           setPastaMestreId(pasta.id);
+         }
+       } catch (err) {
+         console.error("[Contatos] Erro ao criar pasta mestre:", err);
+       }
+     };
+     void initPastaMestre();
+     return () => {
+       cancelled = true;
+     };
+   }, []);
+
+   useEffect(() => {
+     let cancelled = false;
+     clientesHookRef.current.listAvailable()
+       .then((data) => {
+         if (!cancelled) {
+           setClientes(data);
+           setFiltered(data);
+         }
+       })
+       .catch((err) => {
+         if (!cancelled) {
+           const message = err instanceof Error ? err.message : "Não foi possível carregar os contatos.";
+           errorRef.current(message);
+           setImportError(message);
+         }
+       })
+       .finally(() => {
+         if (!cancelled) setIsLoading(false);
+       });
+     return () => {
+       cancelled = true;
+     };
+   }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,16 +195,40 @@ export default function ContatosPage() {
     if (!formData.nome.trim()) return;
     setIsSaving(true);
     try {
+      const payload = {
+        nome: formData.nome.trim(),
+        telefone: formData.telefone.trim(),
+        email: formData.email.trim(),
+        observacoes: formData.observacoes.trim(),
+        cpf_cnpj: "",
+        cidade: "",
+        estado: "",
+        status: "Ativo" as const,
+        origem: "Contatos",
+      };
+
+      let clienteId: string;
       if (selectedCliente) {
-        await clientesHook.update(selectedCliente.id, formData);
+        const updated = await clientesHook.update(selectedCliente.id, payload);
+        clienteId = updated.id;
       } else {
-        await clientesHook.create(formData);
+        const created = await clientesHook.create(payload);
+        clienteId = created.id;
       }
+
+      if (!selectedCliente && pastaMestreId) {
+        try {
+          await clientesHook.addClienteToPasta(pastaMestreId, clienteId);
+        } catch (err) {
+          console.error("[Contatos] Erro ao adicionar à pasta mestre:", err);
+        }
+      }
+
       setIsFormOpen(false);
       setFormData(emptyForm);
       setSelectedCliente(null);
       setSearchQuery("");
-      const updated = await clientesHook.list();
+      const updated = await clientesHook.listAvailable();
       setClientes(updated);
       setFiltered(updated);
     } catch (err) {
@@ -197,24 +241,45 @@ export default function ContatosPage() {
 
   const handleDelete = async () => {
     if (!selectedCliente) return;
-    await clientesHook.remove(selectedCliente.id);
-    setIsDeleteOpen(false);
-    setSelectedCliente(null);
-    setSearchQuery("");
-    const updated = await clientesHook.list();
-    setClientes(updated);
-    setFiltered(updated);
+    try {
+      const pastasAtuais = await clientesHook.loadPastas();
+      for (const pasta of pastasAtuais) {
+        const itens = await clientesHook.loadPastaItens(pasta.id);
+        const item = itens.find((i) => i.cliente_id === selectedCliente.id);
+        if (item) {
+          await clientesHook.removeClienteFromPasta(item.id);
+        }
+      }
+      await clientesHook.remove(selectedCliente.id);
+      setIsDeleteOpen(false);
+      setSelectedCliente(null);
+      setSearchQuery("");
+      const updated = await clientesHook.listAvailable();
+      setClientes(updated);
+      setFiltered(updated);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível excluir o contato.";
+      errorRef.current(message);
+    }
   };
 
   const handleDeleteSelected = async () => {
     if (selectedClienteIds.size === 0) return;
     try {
+      const pastasAtuais = await clientesHook.loadPastas();
       for (const id of selectedClienteIds) {
+        for (const pasta of pastasAtuais) {
+          const itens = await clientesHook.loadPastaItens(pasta.id);
+          const item = itens.find((i) => i.cliente_id === id);
+          if (item) {
+            await clientesHook.removeClienteFromPasta(item.id);
+          }
+        }
         await clientesHook.remove(id);
       }
       setSelectedClienteIds(new Set());
       setSearchQuery("");
-      const updated = await clientesHook.list();
+      const updated = await clientesHook.listAvailable();
       setClientes(updated);
       setFiltered(updated);
       successRef.current(`${selectedClienteIds.size} contato(s) excluído(s).`);
@@ -257,7 +322,7 @@ export default function ContatosPage() {
   const handleBackToMain = async () => {
     setSelectedPastaId(null);
     setPastaItens([]);
-    const data = await clientesHook.list();
+    const data = await clientesHook.listAvailable();
     setClientes(data);
     setFiltered(data);
   };
@@ -265,6 +330,15 @@ export default function ContatosPage() {
   const handleAddClienteToPasta = async () => {
     if (!selectedPastaId || !selectedClienteForPasta) return;
     await clientesHook.addClienteToPasta(selectedPastaId, selectedClienteForPasta.id);
+
+    if (pastaMestreId && selectedPastaId !== pastaMestreId) {
+      const itensMestre = await clientesHook.loadPastaItens(pastaMestreId);
+      const itemMestre = itensMestre.find((i) => i.cliente_id === selectedClienteForPasta.id);
+      if (itemMestre) {
+        await clientesHook.removeClienteFromPasta(itemMestre.id);
+      }
+    }
+
     setIsAddClienteToPastaOpen(false);
     setSelectedClienteForPasta(null);
     const itens = await clientesHook.loadPastaItens(selectedPastaId);
@@ -272,10 +346,18 @@ export default function ContatosPage() {
   };
 
   const handleRemoveClienteFromPasta = async (pastaItemId: string) => {
+    const item = pastaItens.find((i) => i.id === pastaItemId);
     await clientesHook.removeClienteFromPasta(pastaItemId);
     if (selectedPastaId) {
       const itens = await clientesHook.loadPastaItens(selectedPastaId);
       setPastaItens(itens);
+    }
+    if (item && pastaMestreId && item.pasta_id !== pastaMestreId) {
+      try {
+        await clientesHook.addClienteToPasta(pastaMestreId, item.cliente_id);
+      } catch (err) {
+        console.error("[Contatos] Erro ao devolver para pasta mestre:", err);
+      }
     }
   };
 
@@ -287,12 +369,17 @@ export default function ContatosPage() {
     }
   };
 
-  const handleExport = () => {
-    const contatos: Contato[] = filtered.map((c) => ({
-      nome: c.nome,
-      telefone: c.telefone,
-      observacao: c.observacoes || "",
-    }));
+  const handleExport = async () => {
+    const source = selectedPastaId ? pastaItens : filtered;
+    const contatos: Contato[] = source.map((item) => {
+      const pastaItem = item as PastaItem & { cliente?: Cliente } & { nome?: string; telefone?: string; observacoes?: string; observacao?: string };
+      const cliente = pastaItem.cliente;
+      return {
+        nome: pastaItem.nome || cliente?.nome || "",
+        telefone: pastaItem.telefone || cliente?.telefone || "",
+        observacao: pastaItem.observacoes || pastaItem.observacao || cliente?.observacoes || "",
+      } as Contato;
+    });
     if (contatos.length === 0) {
       error("Nenhum contato para exportar.");
       return;
@@ -302,6 +389,9 @@ export default function ContatosPage() {
       downloadFile(exportCSV(contatos), `contatos_${timestamp}.csv`, "text/csv");
     } else if (exportFormat === "vcf") {
       downloadFile(exportVCF(contatos), `contatos_${timestamp}.vcf`, "text/vcard");
+    } else if (exportFormat === "xlsx") {
+      const content = await exportXLSX(contatos);
+      downloadFile(content, `contatos_${timestamp}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     } else {
       downloadFile(exportTXT(contatos), `contatos_${timestamp}.txt`, "text/plain");
     }
@@ -309,16 +399,30 @@ export default function ContatosPage() {
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    console.log("[Contatos] handleFileChange arquivo selecionado", file?.name, file?.type);
     if (!file) return;
     setImportError(null);
     try {
-      const text = await file.text();
-      let contatos: Contato[] = [];
-      if (importFormat === "csv") contatos = parseCSV(text);
-      else if (importFormat === "vcf") contatos = parseVCF(text);
-      else contatos = parseTXT(text);
-      const preview = detectDuplicates(contatos, clientes.map((c) => ({ nome: c.nome, telefone: c.telefone, observacao: c.observacoes || "" })));
-      setImportPreview(preview);
+      if (importFormat === "xlsx") {
+        const buffer = await file.arrayBuffer();
+        const contatos = await parseXLSX(buffer);
+        console.log("[Contatos] handleFileChange xlsx parsed", contatos.length);
+        const preview = detectDuplicates(contatos, clientesRef.current.map((c) => ({ nome: c.nome, telefone: c.telefone, observacao: c.observacoes || "" })));
+        console.log("[Contatos] handleFileChange preview", preview.length);
+        setImportPreview(preview);
+      } else {
+        const text = await file.text();
+        const firstLines = text.split(/\r?\n/).slice(0, 5);
+        console.log("[Contatos] handleFileChange texto bruto", firstLines);
+        let contatos: Contato[] = [];
+        if (importFormat === "csv") contatos = parseCSV(text);
+        else if (importFormat === "vcf") contatos = parseVCF(text);
+        else contatos = parseTXT(text);
+        console.log("[Contatos] handleFileChange parsed", contatos.length);
+        const preview = detectDuplicates(contatos, clientesRef.current.map((c) => ({ nome: c.nome, telefone: c.telefone, observacao: c.observacoes || "" })));
+        console.log("[Contatos] handleFileChange preview", preview.length);
+        setImportPreview(preview);
+      }
     } catch {
       setImportError("Não foi possível ler o arquivo selecionado.");
       setImportPreview([]);
@@ -326,6 +430,13 @@ export default function ContatosPage() {
   };
 
   const handleImport = async () => {
+    console.log("[Contatos] handleImport clicado", {
+      importPreviewLength: importPreview.length,
+      importMode,
+      pastaMestreId,
+      isImporting,
+    });
+
     if (importPreview.length === 0) {
       error("Nenhum contato para importar.");
       return;
@@ -334,6 +445,8 @@ export default function ContatosPage() {
     try {
       const novos = importPreview.filter((p) => p.status === "Novo");
       const naoNovos = importPreview.filter((p) => p.status !== "Novo");
+      console.log("[Contatos] handleImport modos", { novos: novos.length, naoNovos: naoNovos.length, importMode });
+
       if (importMode === "new" && naoNovos.length > 0) {
         const confirmar = window.confirm(`${naoNovos.length} contato(s) já existem e serão ignorados. Deseja continuar?`);
         if (!confirmar) {
@@ -341,24 +454,39 @@ export default function ContatosPage() {
           return;
         }
       }
+
       if (importMode === "update" && naoNovos.length > 0) {
         for (const c of naoNovos) {
-          const existente = clientes.find((cl) => cl.telefone.replace(/\D/g, "") === c.telefone.replace(/\D/g, ""));
+          const existente = clientesRef.current.find((cl) => cl.telefone.replace(/\D/g, "") === c.telefone.replace(/\D/g, ""));
           if (existente) {
-            await clientesHook.update(existente.id, { nome: c.nome, telefone: c.telefone, observacoes: c.observacao || "" });
+            await clientesHookRef.current.update(existente.id, { nome: c.nome, telefone: c.telefone, observacoes: c.observacao || "" });
           }
         }
       }
+
       for (const c of novos) {
-        await clientesHook.create({ nome: c.nome, telefone: c.telefone, observacoes: c.observacao || "", status: "Ativo" });
+        const created = await clientesHookRef.current.create({ nome: c.nome, telefone: c.telefone, observacoes: c.observacao || "", status: "Ativo" });
+        if (pastaMestreId) {
+          try {
+            await clientesHookRef.current.addClienteToPasta(pastaMestreId, created.id);
+          } catch (err) {
+            console.error("[Contatos] Erro ao adicionar importado à pasta mestre:", err);
+          }
+        }
       }
-      const updated = await clientesHook.list();
+
+      const updated = await clientesHookRef.current.listAvailable();
       setClientes(updated);
       setFiltered(updated);
       setIsImportOpen(false);
       setImportPreview([]);
       setImportError(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      successRef.current("Importação concluída com sucesso.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível concluir a importação.";
+      setImportError(message);
+      errorRef.current(message);
     } finally {
       setIsImporting(false);
     }
@@ -550,8 +678,14 @@ export default function ContatosPage() {
     return stats;
   };
 
-  const pastaStats = getPastaStats();
-  const filteredPastaItens = pastaItens.filter((item) => {
+   const sortedPastas = useMemo(() => {
+     const mestre = pastaMestreId ? pastas.find((p) => p.id === pastaMestreId) : null;
+     const outras = pastas.filter((p) => p.id !== pastaMestreId);
+     return mestre ? [mestre, ...outras] : pastas;
+   }, [pastas, pastaMestreId]);
+
+   const pastaStats = useMemo(() => getPastaStats(), [pastaItens]);
+   const filteredPastaItens = pastaItens.filter((item) => {
     if (!pastaFilter) return true;
     return item.prospeccao_status === pastaFilter;
   });
@@ -612,6 +746,13 @@ export default function ContatosPage() {
         const item = pastaItens.find((i) => i.id === itemId);
         if (item) {
           await clientesHookRef.current.addClienteToPasta(targetPastaIdForMove, item.cliente_id);
+          if (pastaMestreId && targetPastaIdForMove !== pastaMestreId) {
+            const itensMestre = await clientesHookRef.current.loadPastaItens(pastaMestreId);
+            const itemMestre = itensMestre.find((i) => i.cliente_id === item.cliente_id);
+            if (itemMestre) {
+              await clientesHookRef.current.removeClienteFromPasta(itemMestre.id);
+            }
+          }
         }
       }
       setSelectedPastaItemIds(new Set());
@@ -630,7 +771,15 @@ export default function ContatosPage() {
     if (selectedPastaItemIds.size === 0) return;
     try {
       for (const itemId of selectedPastaItemIds) {
+        const item = pastaItens.find((i) => i.id === itemId);
         await clientesHookRef.current.removeClienteFromPasta(itemId);
+        if (item && pastaMestreId && item.pasta_id !== pastaMestreId) {
+          try {
+            await clientesHookRef.current.addClienteToPasta(pastaMestreId, item.cliente_id);
+          } catch (err) {
+            console.error("[Contatos] Erro ao devolver para pasta mestre:", err);
+          }
+        }
       }
       setSelectedPastaItemIds(new Set());
       setIsPastaMassActionOpen(false);
@@ -668,6 +817,13 @@ export default function ContatosPage() {
     try {
       for (const clienteId of selectedClienteIds) {
         await clientesHookRef.current.addClienteToPasta(targetPastaId, clienteId);
+        if (pastaMestreId && targetPastaId !== pastaMestreId) {
+          const itensMestre = await clientesHookRef.current.loadPastaItens(pastaMestreId);
+          const itemMestre = itensMestre.find((i) => i.cliente_id === clienteId);
+          if (itemMestre) {
+            await clientesHookRef.current.removeClienteFromPasta(itemMestre.id);
+          }
+        }
       }
       setSelectedClienteIds(new Set());
       setTargetPastaId("");
@@ -678,7 +834,7 @@ export default function ContatosPage() {
         const itensAtualizados = await clientesHookRef.current.loadPastaItens(selectedPastaId);
         setPastaItens(itensAtualizados);
       }
-      const updated = await clientesHookRef.current.list();
+      const updated = await clientesHookRef.current.listAvailable();
       setClientes(updated);
       setFiltered(updated);
     } catch (err) {
@@ -788,17 +944,20 @@ export default function ContatosPage() {
               </Button>
             </CardHeader>
             <CardContent>
-              {pastas.length === 0 ? (
+              {sortedPastas.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhuma pasta criada ainda. Crie sua primeira pasta para organizar seus contatos.</p>
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {pastas.map((pasta) => (
+                  {sortedPastas.map((pasta) => (
                     <Card key={pasta.id} className="relative">
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleOpenPasta(pasta)}>
                             <div className="h-4 w-4 rounded-full" style={{ backgroundColor: pasta.cor }} />
-                            <CardTitle className="text-base">{pasta.nome}</CardTitle>
+                            <CardTitle className="text-base">
+                              {pasta.nome}
+                              {pastaMestreId && pasta.id === pastaMestreId && <span className="ml-2 text-xs text-muted-foreground">(Mestre)</span>}
+                            </CardTitle>
                           </div>
                           <div className="flex items-center gap-1">
                             <Button
@@ -839,22 +998,35 @@ export default function ContatosPage() {
                   {filtered.length > 0 ? `${filtered.length} contato(s) encontrado(s)` : "Nenhum contato cadastrado ainda."}
                 </CardDescription>
               </div>
-              <div className="flex flex-wrap gap-2">
+               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => setIsImportOpen(true)}>
                   <Upload className="mr-2 h-4 w-4" />
                   Importar
                 </Button>
+                <select
+                  value={selectedPastaId || ""}
+                  onChange={(e) => setSelectedPastaId(e.target.value || null)}
+                  className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Lista principal</option>
+                  {pastas.map((pasta) => (
+                    <option key={pasta.id} value={pasta.id}>
+                      {pasta.nome}
+                    </option>
+                  ))}
+                </select>
                 <div className="flex items-center gap-2">
                   <select
                     value={exportFormat}
-                    onChange={(e) => setExportFormat(e.target.value as "csv" | "vcf" | "txt")}
+                    onChange={(e) => setExportFormat(e.target.value as "csv" | "vcf" | "txt" | "xlsx")}
                     className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
                     <option value="csv">CSV</option>
                     <option value="vcf">VCF/vCard</option>
                     <option value="txt">TXT UTF-8</option>
+                    <option value="xlsx">XLSX</option>
                   </select>
-                  <Button size="sm" onClick={handleExport}>
+                   <Button size="sm" onClick={handleExport} type="button">
                     <Download className="mr-2 h-4 w-4" />
                     Exportar
                   </Button>
@@ -1224,11 +1396,12 @@ export default function ContatosPage() {
             <DialogTitle>Importar contatos</DialogTitle>
             <DialogDescription>Selecione o formato e o arquivo para importar.</DialogDescription>
           </DialogHeader>
-            <Tabs value={importFormat} defaultValue="csv" onValueChange={(v) => setImportFormat(v as "csv" | "vcf" | "txt")} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <Tabs value={importFormat} defaultValue="csv" onValueChange={(v) => setImportFormat(v as "csv" | "vcf" | "txt" | "xlsx")} className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="csv">CSV</TabsTrigger>
               <TabsTrigger value="vcf">VCF/vCard</TabsTrigger>
               <TabsTrigger value="txt">TXT UTF-8</TabsTrigger>
+              <TabsTrigger value="xlsx">XLSX</TabsTrigger>
             </TabsList>
             <TabsContent value={importFormat} className="space-y-4">
               <div className="space-y-2">
@@ -1236,12 +1409,15 @@ export default function ContatosPage() {
                 <Input
                   ref={fileInputRef}
                   type="file"
-                  accept={importFormat === "csv" ? ".csv" : importFormat === "vcf" ? ".vcf" : ".txt"}
+                  accept={importFormat === "csv" ? ".csv" : importFormat === "vcf" ? ".vcf" : importFormat === "xlsx" ? ".xlsx" : ".txt"}
                   onChange={handleFileChange}
                 />
                 <p className="text-xs text-muted-foreground">Você também pode arrastar e soltar o arquivo nesta área.</p>
               </div>
 
+              {importError && (
+                <p className="text-sm text-red-600">{importError}</p>
+              )}
               {importPreview.length > 0 && (
                 <div className="space-y-2">
                   <Label>Prévia da importação</Label>

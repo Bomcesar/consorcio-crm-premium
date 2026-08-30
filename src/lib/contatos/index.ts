@@ -62,6 +62,20 @@ export function exportTXT(contatos: Contato[]): string {
     .join("\n");
 }
 
+export async function exportXLSX(contatos: Contato[]): Promise<string> {
+  const XLSX = await import("xlsx");
+  const rows = contatos.map((c) => ({
+    Nome: c.nome,
+    Telefone: c.telefone,
+    Email: c.email || "",
+    Observacao: c.observacao || "",
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Contatos");
+  return XLSX.write(wb, { type: "base64", bookType: "xlsx" });
+}
+
 export function downloadFile(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
   const url = URL.createObjectURL(blob);
@@ -83,7 +97,7 @@ export function parseCSV(text: string): Contato[] {
   for (let i = startIndex; i < lines.length; i++) {
     const line = lines[i];
     const values = line.split(separator).map((v) => v.trim().replace(/^"|"$/g, "").replace(/""/g, '"'));
-    if (values.length >= 3) {
+    if (values.length >= 2) {
       contatos.push({
         nome: values[0] || "",
         telefone: values[1] || "",
@@ -139,6 +153,29 @@ export function parseTXT(text: string): Contato[] {
     }
   }
   return contatos;
+}
+
+export async function parseXLSX(buffer: ArrayBuffer): Promise<Contato[]> {
+  try {
+    const XLSX = await import("xlsx");
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" }) as Record<string, unknown>[];
+    const contatos: Contato[] = [];
+    for (const row of rows) {
+      const nome = String(row.nome || row.Nome || row.NOME || "").trim();
+      const telefone = String(row.telefone || row.Telefone || row.TELEFONE || "").trim();
+      const email = String(row.email || row.Email || row.EMAIL || "").trim();
+      const observacao = String(row.observacao || row.Observacao || row.OBSERVACAO || "").trim();
+      if (nome || telefone || email) {
+        contatos.push({ nome, telefone, email, observacao });
+      }
+    }
+    return contatos;
+  } catch {
+    return [];
+  }
 }
 
 export function detectDuplicates(contatos: Contato[], existing: Contato[]): ContatoImportPreview[] {

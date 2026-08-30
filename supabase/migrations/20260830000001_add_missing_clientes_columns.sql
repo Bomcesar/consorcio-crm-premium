@@ -1,0 +1,9 @@
+BEGIN;
+
+ALTER TABLE public.clientes
+  ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS origem TEXT NOT NULL DEFAULT '';
+
+NOTIFY postgrest, 'reload schema';
+
+COMMIT;

@@ -25,6 +25,17 @@ export function useClientes() {
     }
   };
 
+  const listAvailable = async () => {
+    try {
+      const { getClientesDisponiveis } = await import("@/repositories/client/clientes.repository");
+      return await getClientesDisponiveis();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível carregar os clientes disponíveis.";
+      error(message);
+      throw err;
+    }
+  };
+
   const get = async (id: string) => {
     try {
       const { getCliente } = await import("@/repositories/client/clientes.repository");
@@ -323,7 +334,7 @@ export function useClientes() {
   }, [error]);
 
   return {
-    list, get, create, update, remove, search, debouncedSearch, filterByStatus,
+    list, listAvailable, get, create, update, remove, search, debouncedSearch, filterByStatus,
     getHistorico, addHistorico, getContatos, addContato, updateContato, removeContato,
     searchResults, isSearchLoading, pastas, pastaItens, prospeccaoHistorico, isPastaLoading,
     selectedPastaId, setSelectedPastaId, loadPastas, loadPastaItens, createPasta,

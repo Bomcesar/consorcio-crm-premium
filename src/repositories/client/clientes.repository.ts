@@ -28,6 +28,33 @@ export async function getClientes(): Promise<Cliente[]> {
   return (data as Cliente[]) ?? [];
 }
 
+export async function getClientesDisponiveis(): Promise<Cliente[]> {
+  const user = await getAuthenticatedUser();
+  const supabase = createClient();
+
+  const { data: pastaItens, error: pastaError } = await supabase
+    .from("pasta_itens")
+    .select("cliente_id")
+    .eq("usuario_id", user.id);
+
+  if (pastaError) {
+    console.error("[clientes.repository] Erro ao carregar pasta_itens:", pastaError);
+  }
+
+  const clientesEmPasta = new Set((pastaItens ?? []).map((item) => item.cliente_id));
+
+  let query = clienteBaseQuery(supabase).order("created_at", { ascending: false });
+  if (!isAdminOrGestor(user)) {
+    query = query.eq("usuario_id", user.id);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error("Não foi possível carregar os clientes disponíveis.");
+
+  const todos = (data as Cliente[]) ?? [];
+  return todos.filter((cliente) => !clientesEmPasta.has(cliente.id));
+}
+
 export async function getCliente(id: string): Promise<Cliente | null> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();

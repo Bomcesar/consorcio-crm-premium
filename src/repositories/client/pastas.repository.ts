@@ -36,6 +36,44 @@ export async function getPastas(): Promise<Pasta[]> {
   return (data as Pasta[]) ?? [];
 }
 
+export async function getOrCreatePastaMestre(): Promise<Pasta> {
+  const user = await getAuthenticatedUser();
+  const supabase = createClient();
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("pastas")
+    .select("*")
+    .eq("usuario_id", user.id)
+    .eq("nome", "Mestre")
+    .maybeSingle();
+
+  if (fetchError) {
+    console.error("[pastas.repository] Erro ao buscar pasta mestre:", fetchError);
+  }
+
+  if (existing) {
+    return existing as Pasta;
+  }
+
+  const { data, error } = await supabase
+    .from("pastas")
+    .insert({
+      nome: "Mestre",
+      descricao: "Pasta temporária para novos contatos. Mova os contatos para pastas específicas.",
+      cor: "#3b82f6",
+      origem: "sistema",
+      usuario_id: user.id,
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    throw new Error("Não foi possível criar a pasta mestre.");
+  }
+
+  return data as Pasta;
+}
+
 export async function getPasta(id: string): Promise<Pasta | null> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();

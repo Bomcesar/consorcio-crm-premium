@@ -70,7 +70,8 @@ export async function getModuleReport(module: string): Promise<ModuleReportItem>
       const { data, error } = await query;
       if (error) throw new Error(`Não foi possível carregar clientes: ${error.message}`);
       const items = (data ?? []) as Database["public"]["Tables"]["clientes"]["Row"][];
-      const statusCounts = items.reduce<Record<string, number>>((acc, item) => {
+      const clientesReais = items.filter((item) => item.origem !== "Contatos" && !item.destino_conversao);
+      const statusCounts = clientesReais.reduce<Record<string, number>>((acc, item) => {
         const status = item.status ?? "Sem status";
         acc[status] = (acc[status] ?? 0) + 1;
         return acc;
@@ -78,7 +79,7 @@ export async function getModuleReport(module: string): Promise<ModuleReportItem>
       return {
         key: "clientes",
         label: "Clientes",
-        total: items.length,
+        total: clientesReais.length,
         details: statusCounts,
       };
     }
