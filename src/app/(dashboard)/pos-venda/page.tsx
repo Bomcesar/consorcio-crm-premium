@@ -72,7 +72,7 @@ const STATUS_OPTIONS = [
 
 const CHANNEL_OPTIONS = ["WhatsApp", "SMS", "Ligação"] as const;
 
-export default function PosVendaPage() {
+const PosVendaPage = () => {
   const posVenda = usePosVenda();
   const posVendaRef = useRef(posVenda);
   posVendaRef.current = posVenda;
@@ -83,6 +83,7 @@ export default function PosVendaPage() {
   const [isHistorySaving, setIsHistorySaving] = useState(false);
   const [isTaskSaving, setIsTaskSaving] = useState(false);
   const [isCommsSaving, setIsCommsSaving] = useState(false);
+  const [posVendaSearch, setPosVendaSearch] = useState("");
 
   useEffect(() => {
     const current = posVendaRef.current;
@@ -241,43 +242,66 @@ export default function PosVendaPage() {
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Ações de Pós-venda</CardTitle>
-            <CardDescription>
-              {posVenda.posVendas.length > 0
-                ? `${posVenda.posVendas.length} registro(s) encontrado(s)`
-                : "Nenhum registro cadastrado ainda."}
-            </CardDescription>
-          </div>
-          <Button onClick={posVenda.openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Registro
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {posVenda.isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : posVenda.posVendas.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum registro cadastrado ainda.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Canal</TableHead>
+       <Card>
+         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+           <div>
+             <CardTitle>Ações de Pós-venda</CardTitle>
+             <CardDescription>
+               {posVenda.posVendas.length > 0
+                 ? `${posVenda.posVendas.length} registro(s) encontrado(s)`
+                 : "Nenhum registro cadastrado ainda."}
+             </CardDescription>
+           </div>
+           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+             <div className="relative w-full sm:w-64">
+               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+               <Input
+                 placeholder="Buscar por nome de cliente ou telefone..."
+                 value={posVendaSearch}
+                 onChange={(e) => setPosVendaSearch(e.target.value)}
+                 className="pl-9"
+               />
+             </div>
+             <Button onClick={posVenda.openCreate}>
+               <Plus className="mr-2 h-4 w-4" />
+               Novo Registro
+             </Button>
+           </div>
+         </CardHeader>
+         <CardContent>
+           {posVenda.isLoading ? (
+             <div className="flex items-center justify-center py-8">
+               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+             </div>
+            ) : posVenda.posVendas.filter((item) => {
+             if (!posVendaSearch.trim()) return true;
+             const q = posVendaSearch.trim().toLowerCase();
+             const clienteNome = item.cliente?.nome?.toLowerCase() || "";
+             const clienteTel = item.cliente?.telefone?.toLowerCase() || "";
+             return clienteNome.includes(q) || clienteTel.includes(q);
+           }).length === 0 ? (
+             <p className="text-sm text-muted-foreground">Nenhum registro cadastrado ainda.</p>
+           ) : (
+             <div className="overflow-x-auto">
+               <Table>
+                 <TableHeader>
+                   <TableRow>
+                     <TableHead>Cliente</TableHead>
+                     <TableHead>Status</TableHead>
+                     <TableHead>Canal</TableHead>
                     <TableHead>Contato</TableHead>
                     <TableHead className="w-[100px] text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {posVenda.posVendas.map((item) => {
-                    const clienteNome = item.cliente?.nome || "—";
+                  {posVenda.posVendas.filter((item) => {
+                     if (!posVendaSearch.trim()) return true;
+                     const q = posVendaSearch.trim().toLowerCase();
+                     const clienteNome = item.cliente?.nome?.toLowerCase() || "";
+                     const clienteTel = item.cliente?.telefone?.toLowerCase() || "";
+                     return clienteNome.includes(q) || clienteTel.includes(q);
+                   }).map((item) => {
+                     const clienteNome = item.cliente?.nome || "—";
                     return (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{clienteNome}</TableCell>
@@ -784,3 +808,5 @@ export default function PosVendaPage() {
     </div>
   );
 }
+
+export default PosVendaPage;

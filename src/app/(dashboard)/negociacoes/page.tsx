@@ -38,7 +38,9 @@ import {
   Paperclip,
   CheckCircle2,
   X,
+  UserCheck,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import type { Negociacao, NegociacaoHistorico, NegociacaoAnexo } from "@/repositories/client/negociacoes.repository";
 
 const pipelineStages = [
@@ -114,6 +116,11 @@ export default function NegociacoesPage() {
   const [isAnexosLoading, setIsAnexosLoading] = useState(false);
   const [tab, setTab] = useState("info");
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [isConvertOpen, setIsConvertOpen] = useState(false);
+  const [convertTarget, setConvertTarget] = useState<"parceiros" | "recrutamento" | "clientes">("clientes");
+  const [isConverting, setIsConverting] = useState(false);
+
+  const supabase = createClient();
 
   const loadNegociacoes = async () => {
     setIsLoading(true);
@@ -209,6 +216,97 @@ export default function NegociacoesPage() {
     }
   };
 
+  const openConvert = (negociacao: Negociacao) => {
+    setSelectedNegociacao(negociacao);
+    setConvertTarget("clientes");
+    setIsConvertOpen(true);
+  };
+
+  const handleConvert = async () => {
+    if (!selectedNegociacao) return;
+    setIsConverting(true);
+    try {
+      const { getLead } = await import("@/repositories/client/leads.repository");
+      const { getCliente } = await import("@/repositories/client/clientes.repository");
+
+      let nome = "";
+      let telefone = "";
+      let email = "";
+      let observacoes = "";
+      let origem = "Negociações";
+
+      if (selectedNegociacao.lead_id) {
+        const lead = await getLead(selectedNegociacao.lead_id);
+        if (lead) {
+          nome = lead.nome;
+          telefone = lead.telefone;
+          email = lead.email || "";
+          observacoes = lead.observacoes || "";
+        }
+      }
+      if (selectedNegociacao.cliente_id && !nome) {
+        const cliente = await getCliente(selectedNegociacao.cliente_id);
+        if (cliente) {
+          nome = cliente.nome;
+          telefone = cliente.telefone;
+          email = cliente.email || "";
+          observacoes = cliente.observacoes || "";
+          origem = cliente.origem || "Negociações";
+        }
+      }
+
+      if (!nome) {
+        error("Não foi possível localizar o contato associado a esta negociação.");
+        return;
+      }
+
+      if (convertTarget === "clientes") {
+        const { error: supabaseError } = await supabase.from("clientes").insert({
+          nome,
+          telefone,
+          email,
+          observacoes: observacoes || "Convertido de negociação",
+          origem,
+          status: "Ativo",
+        });
+        if (supabaseError) throw supabaseError;
+      } else if (convertTarget === "parceiros") {
+        const { error: supabaseError } = await supabase.from("parceiros").insert({
+          nome,
+          cnpj: "",
+          contato: nome,
+          email,
+          telefone,
+          tipo: "",
+          status: "Ativo",
+          observacoes: observacoes || "Convertido de negociação",
+        });
+        if (supabaseError) throw supabaseError;
+      } else if (convertTarget === "recrutamento") {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { error: supabaseError } = await supabase.from("recrutamento").insert({
+          nome,
+          email,
+          telefone,
+          origem: "Negociações",
+          status: "Novo",
+          observacoes: observacoes || "Convertido de negociação",
+          usuario_id: user?.id || "",
+        });
+        if (supabaseError) throw supabaseError;
+      }
+
+      success("Contato convertido com sucesso.");
+      setIsConvertOpen(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível converter o contato.";
+      console.error("[Negociacoes] handleConvert error:", err, message);
+      error(message);
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!formData.titulo.trim()) return;
@@ -222,7 +320,7 @@ export default function NegociacoesPage() {
         probabilidade: Number(formData.probabilidade) || 0,
         data_prevista: formData.data_prevista,
         observacoes: formData.observacoes.trim(),
-        lead_id: formData.lead_id,
+        lead_id: formData.lead_id || undefined,
         cliente_id: formData.cliente_id || null,
         modalidade: formData.modalidade.trim(),
         proposta: formData.proposta.trim(),
@@ -234,16 +332,18 @@ export default function NegociacoesPage() {
         setNegociacoes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
         if (isDetailOpen && selectedNegociacao.id === updated.id) {
           setSelectedNegociacao(updated);
+        } else {
+          setSelectedNegociacao(null);
         }
       } else {
         const created = await create(payload);
         setNegociacoes((prev) => [created, ...prev]);
+        setSelectedNegociacao(null);
       }
       setIsFormOpen(false);
       setFormData(emptyForm);
-      setSelectedNegociacao(null);
-    } catch {
-      // erro tratado no hook
+    } catch (err) {
+      console.error("[Negociacoes] handleSubmit error:", err);
     } finally {
       setIsSaving(false);
     }
@@ -610,8 +710,9 @@ export default function NegociacoesPage() {
                 <Button variant={tab === "anexos" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("anexos")}>Anexos</Button>
                 <Button variant={tab === "tarefas" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("tarefas")}>Tarefas</Button>
               </div>
-              {tab === "info" && (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+               {tab === "info" && (
+                <>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">Título</p>
                     <p className="text-sm">{selectedNegociacao.titulo}</p>
@@ -648,11 +749,18 @@ export default function NegociacoesPage() {
                     <p className="text-xs font-medium text-muted-foreground">Proposta</p>
                     <p className="text-sm whitespace-pre-wrap">{selectedNegociacao.proposta || "—"}</p>
                   </div>
-                  <div className="md:col-span-2">
-                    <p className="text-xs font-medium text-muted-foreground">Observações</p>
-                    <p className="text-sm whitespace-pre-wrap">{selectedNegociacao.observacoes || "—"}</p>
+                   <div className="md:col-span-2">
+                     <p className="text-xs font-medium text-muted-foreground">Observações</p>
+                     <p className="text-sm whitespace-pre-wrap">{selectedNegociacao.observacoes || "—"}</p>
+                   </div>
                   </div>
-                </div>
+                  <div className="mt-4 flex justify-end gap-2 border-t pt-4">
+                    <Button variant="outline" size="sm" onClick={() => openConvert(selectedNegociacao)}>
+                      <UserCheck className="mr-2 h-4 w-4" />
+                      Converter contato
+                    </Button>
+                  </div>
+                </>
               )}
               {tab === "historico" && (
                 <div className="space-y-4">
@@ -782,6 +890,39 @@ export default function NegociacoesPage() {
               )}
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isConvertOpen} onOpenChange={setIsConvertOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Converter contato</DialogTitle>
+            <DialogDescription>
+              Selecione para qual módulo deseja converter o contato associado à negociação <strong>{selectedNegociacao?.titulo}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Destino</Label>
+              <select
+                value={convertTarget}
+                onChange={(e) => setConvertTarget(e.target.value as "parceiros" | "recrutamento" | "clientes")}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="clientes">Cliente</option>
+                <option value="parceiros">Parceiro</option>
+                <option value="recrutamento">Recrutamento</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsConvertOpen(false)} disabled={isConverting}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConvert} disabled={isConverting}>
+              {isConverting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Converter"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

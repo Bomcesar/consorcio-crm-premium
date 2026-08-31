@@ -101,6 +101,28 @@ function normalizePayload(payload: PosVendaInsert) {
   };
 }
 
+function normalizeUpdatePayload(payload: PosVendaUpdate) {
+  const now = new Date().toISOString();
+  const normalized: Record<string, unknown> = {
+    status: sanitizeStatus(payload.status),
+    priority: typeof payload.priority === "string" ? payload.priority : "normal",
+    satisfaction: typeof payload.satisfaction === "number" ? payload.satisfaction : 0,
+    channel: sanitizeChannel(payload.channel),
+    needs_attention: typeof payload.needs_attention === "boolean" ? payload.needs_attention : false,
+    observacoes: typeof payload.observacoes === "string" ? payload.observacoes : "",
+    boleto_url: typeof payload.boleto_url === "string" ? payload.boleto_url : "",
+    retencao_motivo: typeof payload.retencao_motivo === "string" ? payload.retencao_motivo : "",
+  };
+  if (payload.cliente_id !== undefined) normalized.cliente_id = normalizeOptionalId(payload.cliente_id);
+  if (payload.agenda_id !== undefined) normalized.agenda_id = normalizeOptionalId(payload.agenda_id);
+  if (payload.next_contact_at !== undefined) normalized.next_contact_at = payload.next_contact_at ?? null;
+  if (payload.last_contact_at !== undefined) normalized.last_contact_at = payload.last_contact_at ?? null;
+  if (payload.lembrete_em !== undefined) normalized.lembrete_em = payload.lembrete_em ?? null;
+  if (payload.retencao_data !== undefined) normalized.retencao_data = payload.retencao_data ?? null;
+  normalized.updated_at = now;
+  return normalized;
+}
+
 export async function getPosVendas(): Promise<PosVendaWithRelations[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
@@ -153,7 +175,7 @@ export async function createPosVenda(payload: PosVendaInsert): Promise<PosVenda>
 export async function updatePosVenda(id: string, payload: PosVendaUpdate): Promise<PosVenda> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  const normalized = normalizePayload(payload);
+  const normalized = normalizeUpdatePayload(payload);
   const base = supabase.from("pos_venda").update(normalized).eq("id", id);
   const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
   const { data, error } = await query.select().single();

@@ -217,7 +217,8 @@ export function usePosVenda() {
       setSelectedPosVenda(null);
       setClienteSearch("");
       setClienteSearchResults([]);
-    } catch {
+    } catch (err) {
+      console.error("[PosVenda] handleSubmit error:", err);
       error("Não foi possível salvar a ação de pós-venda.");
     } finally {
       setIsSaving(false);
