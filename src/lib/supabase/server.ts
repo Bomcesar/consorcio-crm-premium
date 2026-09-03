@@ -28,15 +28,15 @@ export async function createClient() {
 }
 
 export function createAdminClient() {
-  const secretKey = process.env.SUPABASE_SECRET_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const adminKey = secretKey || serviceRoleKey;
+  const secretKey = process.env.SUPABASE_SECRET_KEY;
+  const adminKey = serviceRoleKey || secretKey;
 
   if (!adminKey) {
-    throw new Error("Missing SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY for admin operations.");
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY for admin operations.");
   }
 
-  console.log("[createAdminClient] using=" + (secretKey ? "SUPABASE_SECRET_KEY" : "SUPABASE_SERVICE_ROLE_KEY") + " length=" + adminKey.length);
+  console.log("[createAdminClient] using=" + (serviceRoleKey ? "SUPABASE_SERVICE_ROLE_KEY" : "SUPABASE_SECRET_KEY") + " length=" + adminKey.length);
 
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
