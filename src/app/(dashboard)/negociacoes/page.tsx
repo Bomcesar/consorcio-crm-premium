@@ -120,8 +120,6 @@ export default function NegociacoesPage() {
   const [convertTarget, setConvertTarget] = useState<"parceiros" | "recrutamento" | "clientes" | "indicadores">("clientes");
   const [isConverting, setIsConverting] = useState(false);
 
-  const supabase = createClient();
-
   const loadNegociacoes = async () => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -231,6 +229,7 @@ export default function NegociacoesPage() {
 
   const handleConvert = async () => {
     if (!selectedNegociacao) return;
+    const supabase = createClient();
     setIsConverting(true);
     try {
       const { getLead } = await import("@/repositories/client/leads.repository");
