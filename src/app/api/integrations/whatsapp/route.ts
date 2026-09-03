@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { to, message, templateName, languageCode, components } = body ?? {};
+    const { to, message, templateName, languageCode, components, mediaType, link, caption } = body ?? {};
 
     if (!to) {
       return NextResponse.json({ error: "Destinatário é obrigatório." }, { status: 400 });
@@ -25,11 +25,13 @@ export async function POST(request: Request) {
     let result;
     if (templateName) {
       result = await service.sendTemplateMessage(to, templateName, languageCode, components);
+    } else if (mediaType && link) {
+      result = await service.sendMedia({ to, mediaType, link, caption });
     } else if (message) {
       result = await service.sendMessage({ to, message });
     } else {
       return NextResponse.json(
-        { error: "Informe message ou templateName." },
+        { error: "Informe message, templateName ou mediaType + link." },
         { status: 400 },
       );
     }

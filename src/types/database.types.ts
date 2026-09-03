@@ -36,7 +36,7 @@ export interface PosVendaWithRelations {
 }
 export type StatusTarefaPosVenda = "Pendente" | "Concluída" | "Cancelada";
 export type StatusCobranca = "Pendente" | "Enviado" | "Pago" | "Atrasado" | "Renegociação" | "Cancelado";
-export type TipoComunicacao = "WhatsApp" | "Ligação";
+export type TipoComunicacao = "WhatsApp" | "Ligação" | "SMS" | "Email";
 export type StatusComunicacao = "Pendente" | "Enviado" | "Entregue" | "Lido" | "Respondido" | "Erro";
 export type StatusComissao = "Prevista" | "Pendente" | "Paga" | "A receber";
 export type TipoComissao = "Venda" | "Indicacao" | "Outro";

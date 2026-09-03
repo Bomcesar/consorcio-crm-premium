@@ -7,6 +7,13 @@ export type WhatsAppMessageInput = {
   message: string;
 };
 
+export type WhatsAppMediaInput = {
+  to: string;
+  mediaType: "image" | "audio" | "video" | "document" | "pdf";
+  link: string;
+  caption?: string;
+};
+
 export type WhatsAppMessageResponse = {
   messagingProduct: string;
   contacts: { input: string; waId: string }[];
@@ -49,7 +56,7 @@ export class WhatsAppService {
     assertEnv(whatsappEnv(), "WhatsApp");
   }
 
-  async sendMessage(input: WhatsAppMessageInput): Promise<WhatsAppMessageResponse> {
+   async sendMessage(input: WhatsAppMessageInput): Promise<WhatsAppMessageResponse> {
     this.validateInput(input);
 
     try {
@@ -67,6 +74,37 @@ export class WhatsAppService {
       return response;
     } catch (error) {
       throw this.normalizeError(error, "sendMessage");
+    }
+  }
+
+  async sendMedia(input: WhatsAppMediaInput): Promise<WhatsAppMessageResponse> {
+    if (!input.to?.trim()) {
+      throw new ValidationError("Destinatário é obrigatório.");
+    }
+    if (!input.link?.trim()) {
+      throw new ValidationError("Link é obrigatório.");
+    }
+
+    const mediaType = input.mediaType === "pdf" ? "document" : input.mediaType;
+
+    try {
+      const response = await this.http.request<WhatsAppMessageResponse>({
+        path: "",
+        method: "POST",
+        body: {
+          messaging_product: "whatsapp",
+          to: this.normalizePhone(input.to),
+          type: mediaType,
+          [mediaType]: {
+            link: input.link,
+            ...(input.caption ? { caption: input.caption } : {}),
+          },
+        },
+      });
+
+      return response;
+    } catch (error) {
+      throw this.normalizeError(error, "sendMedia");
     }
   }
 

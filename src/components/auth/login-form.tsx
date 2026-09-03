@@ -50,6 +50,19 @@ export function LoginForm() {
           setError("Não foi possível obter o usuário autenticado.");
           return;
         }
+
+        void supabase
+          .from("profiles")
+          .select("perfil")
+          .eq("id", authData.user.id)
+          .single()
+          .then(({ data: profile }) => {
+            if (profile?.perfil) {
+              localStorage.setItem("user_perfil", profile.perfil);
+            }
+          });
+
+        router.push("/");
       } else {
         const response = await fetch("/api/auth/login", {
           method: "POST",

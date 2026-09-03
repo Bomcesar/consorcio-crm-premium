@@ -25,7 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Loader2, Headphones, CheckCircle2, Circle, Phone, MessageSquare, FileText, Calendar, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Headphones, CheckCircle2, Circle, Phone, MessageSquare, FileText, Calendar, Search, Mail, Copy, Send, FileImage, FileVideo, FileAudio, LinkIcon, FolderInput, Paperclip } from "lucide-react";
 import type { PosVendaInsert, PosVendaTarefa, PosVendaComunicacao } from "@/repositories/client/pos-venda.repository";
 import { AnexosUpload } from "@/components/anexos/anexos-upload";
 import { AnexosList } from "@/components/anexos/anexos-list";
@@ -33,7 +33,7 @@ import { AnexosList } from "@/components/anexos/anexos-list";
 const emptyForm: PosVendaInsert = {
   status: "Boas-vindas",
   priority: "normal",
-  satisfaction: 0,
+  satisfaction: 3,
   channel: "WhatsApp",
   needs_attention: false,
   observacoes: "",
@@ -76,7 +76,7 @@ const PosVendaPage = () => {
   const posVenda = usePosVenda();
   const posVendaRef = useRef(posVenda);
   posVendaRef.current = posVenda;
-  const { error } = useToast();
+  const { error, success } = useToast();
   const [historicoForm, setHistoricoForm] = useState({ tipo: "observacao", descricao: "" });
   const [tarefaForm, setTarefaForm] = useState({ titulo: "", descricao: "", data_prevista: "" });
   const [comunicacaoForm, setComunicacaoForm] = useState({ tipo: "WhatsApp" as PosVendaComunicacao["tipo"], descricao: "", resultado: "" });
@@ -84,6 +84,13 @@ const PosVendaPage = () => {
   const [isTaskSaving, setIsTaskSaving] = useState(false);
   const [isCommsSaving, setIsCommsSaving] = useState(false);
   const [posVendaSearch, setPosVendaSearch] = useState("");
+  const [isSendingMedia, setIsSendingMedia] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [mediaType, setMediaType] = useState<"image" | "audio" | "video" | "document" | "pdf" | "link" | "text">("document");
+  const [linkValue, setLinkValue] = useState("");
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
 
   useEffect(() => {
     const current = posVendaRef.current;
@@ -180,7 +187,7 @@ const PosVendaPage = () => {
     if (posVenda.selectedPosVenda) {
       void posVenda.addComunicacao({
         pos_venda_id: posVenda.selectedPosVenda.id,
-        tipo: "WhatsApp",
+        tipo: "SMS",
         descricao: "SMS iniciado.",
         resultado: "Registrado",
         data: new Date().toISOString(),
@@ -189,9 +196,226 @@ const PosVendaPage = () => {
     }
   };
 
+  const handleEmail = () => {
+    if (!posVenda.formData.cliente_id) {
+      error("Selecione um cliente antes de enviar e-mail.");
+      return;
+    }
+    const cliente = posVenda.clienteSearchResults.find((c) => c.id === posVenda.formData.cliente_id);
+    const email = cliente?.email || "";
+    if (!email) {
+      error("E-mail do cliente não encontrado.");
+      return;
+    }
+    window.location.href = `mailto:${email}`;
+    if (posVenda.selectedPosVenda) {
+      void posVenda.addComunicacao({
+        pos_venda_id: posVenda.selectedPosVenda.id,
+        tipo: "Email",
+        descricao: `E-mail enviado para ${email}`,
+        resultado: "Registrado",
+        data: new Date().toISOString(),
+        usuario_id: posVenda.selectedPosVenda.usuario_id,
+      });
+    }
+  };
+
+  const getClienteSelecionado = () => {
+    if (!posVenda.formData.cliente_id) return null;
+    return posVenda.clienteSearchResults.find((c) => c.id === posVenda.formData.cliente_id) || null;
+  };
+
+  const handleCopy = () => {
+    const cliente = getClienteSelecionado();
+    if (!cliente) {
+      error("Selecione um cliente antes de copiar.");
+      return;
+    }
+    const phone = cliente.telefone || cliente.telefone;
+    if (!phone) {
+      error("Telefone não encontrado para este cliente.");
+      return;
+    }
+    navigator.clipboard.writeText(phone);
+  };
+
+  const handleMove = () => {
+    if (!posVenda.selectedPosVenda) {
+      error("Salve o registro antes de mover.");
+      return;
+    }
+    setMoveOpen(true);
+  };
+
+  const handleConfirmMove = async () => {
+    const cliente = getClienteSelecionado();
+    if (!cliente || !posVenda.selectedPosVenda) {
+      error("Selecione um cliente de destino.");
+      return;
+    }
+    try {
+      await posVenda.updatePosVenda(posVenda.selectedPosVenda.id, {
+        cliente_id: cliente.id,
+      });
+      success("Registro movido com sucesso.");
+    } catch {
+      error("Não foi possível mover o registro.");
+    }
+    setMoveOpen(false);
+  };
+
+  const handleScheduleReturn = () => {
+    if (!posVenda.selectedPosVenda) {
+      error("Salve o registro antes de agendar retorno.");
+      return;
+    }
+    setScheduleOpen(true);
+    setScheduleDate(posVenda.formData.next_contact_at || "");
+  };
+
+  const handleConfirmSchedule = async () => {
+    if (!posVenda.selectedPosVenda || !scheduleDate) return;
+    try {
+      await posVenda.updatePosVenda(posVenda.selectedPosVenda.id, {
+        next_contact_at: scheduleDate,
+      });
+      posVenda.setFormData((current) => ({ ...current, next_contact_at: scheduleDate }));
+      success("Retorno agendado com sucesso.");
+    } catch {
+      error("Não foi possível agendar o retorno.");
+    }
+    setScheduleOpen(false);
+  };
+
+  const getAcceptForType = (type: "image" | "audio" | "video" | "document" | "pdf") => {
+    if (type === "image") return "image/*";
+    if (type === "audio") return "audio/*";
+    if (type === "video") return "video/*";
+    if (type === "pdf") return ".pdf";
+    return ".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt,.csv,.md";
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleUploadAndSendMedia = async () => {
+    const cliente = getClienteSelecionado();
+    if (!cliente) {
+      error("Selecione um cliente antes de enviar.");
+      return;
+    }
+    if (!posVenda.selectedPosVenda) {
+      error("Salve o registro antes de enviar.");
+      return;
+    }
+
+    if (mediaType === "link") {
+      if (!linkValue.trim()) {
+        error("Digite o link antes de enviar.");
+        return;
+      }
+      setIsSendingMedia(true);
+      try {
+        const digits = cliente.telefone.replace(/\D/g, "");
+        const resp = await fetch("/api/integrations/whatsapp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: digits,
+            mediaType: "document",
+            link: linkValue.trim(),
+            caption: `Link enviado pelo Pós-venda: ${posVenda.formData.observacoes || ""}`,
+          }),
+        });
+        const result = await resp.json();
+        if (!resp.ok) throw new Error(result.error || "Falha no envio");
+        await posVenda.addComunicacao({
+          pos_venda_id: posVenda.selectedPosVenda.id,
+          tipo: "WhatsApp",
+          descricao: `Link enviado: ${linkValue}`,
+          resultado: `Enviado via WhatsApp - ${result.data?.messages?.[0]?.id || "ok"}`,
+          data: new Date().toISOString(),
+          usuario_id: posVenda.selectedPosVenda.usuario_id,
+        });
+        setLinkValue("");
+        success("Link enviado com sucesso.");
+      } catch {
+        error("Não foi possível enviar o link.");
+      } finally {
+        setIsSendingMedia(false);
+      }
+      return;
+    }
+
+    if (mediaType === "text") {
+      if (!linkValue.trim()) {
+        error("Digite o texto antes de enviar.");
+        return;
+      }
+      void handleSendWhatsApp("cliente");
+      return;
+    }
+
+    if (!selectedFile) {
+      error("Selecione um arquivo antes de enviar.");
+      return;
+    }
+
+    setIsSendingMedia(true);
+    try {
+      const uploaded = await posVenda.anexosHook.upload("pos_venda", posVenda.selectedPosVenda.id, selectedFile);
+      const downloadUrl = uploaded?.caminho ? await posVenda.anexosHook.getDownloadUrl(uploaded.caminho) : null;
+      if (!downloadUrl) {
+        throw new Error("Não foi possível gerar URL do arquivo.");
+      }
+
+      const digits = cliente.telefone.replace(/\D/g, "");
+      const whatsappType = mediaType === "pdf" ? "document" : mediaType;
+      const resp = await fetch("/api/integrations/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: digits,
+          mediaType: whatsappType,
+          link: downloadUrl,
+          caption: `Arquivo enviado pelo Pós-venda: ${posVenda.formData.observacoes || ""}`,
+        }),
+      });
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result.error || "Falha no envio");
+
+      await posVenda.addComunicacao({
+        pos_venda_id: posVenda.selectedPosVenda.id,
+        tipo: "WhatsApp",
+        descricao: `Arquivo enviado: ${selectedFile.name} (${mediaType})`,
+        resultado: `Enviado via WhatsApp - ${result.data?.messages?.[0]?.id || "ok"}`,
+        data: new Date().toISOString(),
+        usuario_id: posVenda.selectedPosVenda.usuario_id,
+      });
+      setSelectedFile(null);
+      success("Arquivo enviado com sucesso.");
+    } catch {
+      error("Não foi possível enviar o arquivo.");
+    } finally {
+      setIsSendingMedia(false);
+    }
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "—";
     return new Date(dateString).toLocaleDateString("pt-BR");
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
   };
 
   const formatDateTime = (dateString: string) => {
@@ -358,15 +582,15 @@ const PosVendaPage = () => {
                 <Input
                   id="cliente-search"
                   className="pl-8"
-                  placeholder="Buscar cliente por nome, telefone ou e-mail..."
+                  placeholder="Buscar por nome ou telefone..."
                   value={posVenda.clienteSearch}
                   onChange={(e) => {
                     const value = e.target.value;
                     posVenda.setClienteSearch(value);
                     if (value.trim()) {
-                      void posVenda.searchClientes(value);
+                      void posVenda.searchContatosByTelefone(value);
                     } else {
-                      posVenda.setClienteSearchResults([]);
+                      void posVenda.getAllClientes();
                     }
                   }}
                 />
@@ -378,9 +602,18 @@ const PosVendaPage = () => {
                       key={cliente.id}
                       className="flex cursor-pointer items-center justify-between px-3 py-2 hover:bg-muted"
                       onClick={() => {
-                        posVenda.setFormData((current) => ({ ...current, cliente_id: cliente.id }));
-                        posVenda.setClienteSearch(cliente.nome);
-                        posVenda.setClienteSearchResults([]);
+                         const selected = cliente as {
+                           id: string;
+                           nome: string;
+                           telefone: string;
+                           email: string;
+                           status: string;
+                           origem?: string;
+                           cliente_id?: string | null;
+                         };
+                         const clienteId = selected.cliente_id ?? selected.id;
+                         posVenda.setFormData((current) => ({ ...current, cliente_id: clienteId }));
+                         posVenda.setClienteSearch(selected.nome);
                       }}
                     >
                       <div>
@@ -488,9 +721,13 @@ const PosVendaPage = () => {
                 <MessageSquare className="mr-2 h-4 w-4" />
                 SMS
               </Button>
-              <Button type="button" variant="outline" onClick={handleCall}>
+              <Button type="button" variant="outline" size="sm" onClick={handleCall}>
                 <Phone className="mr-2 h-4 w-4" />
                 Ligar
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={handleEmail}>
+                <Mail className="mr-2 h-4 w-4" />
+                E-mail
               </Button>
             </div>
 
@@ -542,12 +779,40 @@ const PosVendaPage = () => {
                 {posVenda.selectedPosVenda.observacoes}
               </DialogDescription>
             </DialogHeader>
+
+            <div className="flex flex-wrap items-center gap-2 border-y py-3">
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={handleCall}>
+                  <Phone className="mr-1 h-4 w-4" /> 📞 Ligar
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => handleSendWhatsApp("cliente")}>
+                  <MessageSquare className="mr-1 h-4 w-4" /> 💬 WhatsApp
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleSMS}>
+                  <MessageSquare className="mr-1 h-4 w-4" /> ✉️ SMS
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
+                  <Copy className="mr-1 h-4 w-4" /> 📋 Copiar
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleMove}>
+                  <FolderInput className="mr-1 h-4 w-4" /> 📁 Mover
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => { posVenda.setIsFormOpen(true); posVenda.setIsDetailsOpen?.(false); posVenda.openEdit(posVenda.selectedPosVenda!); }}>
+                  <Pencil className="mr-1 h-4 w-4" /> ✏️ Editar
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleScheduleReturn}>
+                  <Calendar className="mr-1 h-4 w-4" /> 📅 Agendar retorno
+                </Button>
+              </div>
+            </div>
+
             <Tabs defaultValue="timeline" className="w-full">
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="timeline">Timeline</TabsTrigger>
                 <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
                 <TabsTrigger value="comunicacoes">Comunicação</TabsTrigger>
                 <TabsTrigger value="documentos">Docs</TabsTrigger>
+                <TabsTrigger value="enviar">Enviar</TabsTrigger>
                 <TabsTrigger value="anexos">Anexos</TabsTrigger>
               </TabsList>
 
@@ -768,6 +1033,126 @@ const PosVendaPage = () => {
                 )}
               </TabsContent>
 
+              <TabsContent value="enviar" className="space-y-4">
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant={mediaType === "image" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => { setMediaType("image"); setSelectedFile(null); setLinkValue(""); }}
+                    >
+                      <FileImage className="mr-1 h-4 w-4" /> Imagem
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={mediaType === "audio" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => { setMediaType("audio"); setSelectedFile(null); setLinkValue(""); }}
+                    >
+                      <FileAudio className="mr-1 h-4 w-4" /> Áudio
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={mediaType === "video" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => { setMediaType("video"); setSelectedFile(null); setLinkValue(""); }}
+                    >
+                      <FileVideo className="mr-1 h-4 w-4" /> Vídeo
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={mediaType === "pdf" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => { setMediaType("pdf"); setSelectedFile(null); setLinkValue(""); }}
+                    >
+                      <FileText className="mr-1 h-4 w-4" /> PDF
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={mediaType === "document" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => { setMediaType("document"); setSelectedFile(null); setLinkValue(""); }}
+                    >
+                      <Paperclip className="mr-1 h-4 w-4" /> Documento
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={mediaType === "link" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => { setMediaType("link"); setSelectedFile(null); setLinkValue(""); }}
+                    >
+                      <LinkIcon className="mr-1 h-4 w-4" /> Link
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={mediaType === "text" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => { setMediaType("text"); setSelectedFile(null); setLinkValue(""); }}
+                    >
+                      <FileText className="mr-1 h-4 w-4" /> Texto
+                    </Button>
+                  </div>
+
+                  {mediaType === "link" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="link-value">URL do link</Label>
+                      <Input
+                        id="link-value"
+                        value={linkValue}
+                        onChange={(e) => setLinkValue(e.target.value)}
+                        placeholder="https://..."
+                      />
+                    </div>
+                  )}
+
+                  {mediaType === "text" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="text-value">Texto da mensagem</Label>
+                      <Textarea
+                        id="text-value"
+                        value={linkValue}
+                        onChange={(e) => setLinkValue(e.target.value)}
+                        placeholder="Digite a mensagem para enviar via WhatsApp..."
+                        rows={3}
+                      />
+                    </div>
+                  )}
+
+                  {mediaType !== "link" && mediaType !== "text" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="file-upload">Arquivo selecionado</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="file-upload"
+                          type="file"
+                          accept={getAcceptForType(mediaType)}
+                          onChange={handleFileSelect}
+                        />
+                        {selectedFile && (
+                          <span className="text-xs text-muted-foreground">
+                            {selectedFile.name} ({formatFileSize(selectedFile.size)})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <Button
+                    type="button"
+                    onClick={handleUploadAndSendMedia}
+                    disabled={isSendingMedia || (!selectedFile && mediaType !== "link" && mediaType !== "text")}
+                    className="w-full"
+                  >
+                    {isSendingMedia ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enviando...</>
+                    ) : (
+                      <><Send className="mr-2 h-4 w-4" /> Enviar para o cliente</>
+                    )}
+                  </Button>
+                </div>
+              </TabsContent>
+
               <TabsContent value="anexos" className="space-y-4">
                 {posVenda.selectedPosVenda && (
                   <>
@@ -786,6 +1171,88 @@ const PosVendaPage = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mover registro</DialogTitle>
+            <DialogDescription>
+              Selecione outro cliente para mover este registro de pós-venda.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-8"
+                placeholder="Buscar cliente..."
+                value={posVenda.clienteSearch}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  posVenda.setClienteSearch(value);
+                  if (value.trim()) {
+                    void posVenda.searchContatosByTelefone(value);
+                  } else {
+                    void posVenda.getAllClientes();
+                  }
+                }}
+              />
+            </div>
+            <div className="max-h-48 overflow-y-auto rounded-md border">
+              {posVenda.clienteSearchResults.map((cliente) => (
+                <div
+                  key={cliente.id}
+                  className="flex cursor-pointer items-center justify-between px-3 py-2 hover:bg-muted"
+                  onClick={() => {
+                    posVenda.setFormData((current) => ({ ...current, cliente_id: cliente.id }));
+                    posVenda.setClienteSearch(cliente.nome);
+                  }}
+                >
+                  <div>
+                    <p className="text-sm font-medium">{cliente.nome}</p>
+                    <p className="text-xs text-muted-foreground">{cliente.telefone}</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{cliente.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmMove}>Confirmar movimentação</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Agendar retorno</DialogTitle>
+            <DialogDescription>
+              Defina a data e hora do próximo retorno para este registro.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="schedule-date">Data e hora</Label>
+              <Input
+                id="schedule-date"
+                type="datetime-local"
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScheduleOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmSchedule}>Agendar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={posVenda.isDeleteOpen} onOpenChange={posVenda.setIsDeleteOpen}>
         <DialogContent>

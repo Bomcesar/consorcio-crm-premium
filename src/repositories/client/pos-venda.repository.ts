@@ -86,7 +86,9 @@ function normalizePayload(payload: PosVendaInsert) {
     agenda_id: normalizeOptionalId(payload.agenda_id),
     status: sanitizeStatus(payload.status),
     priority: typeof payload.priority === "string" ? payload.priority : "normal",
-    satisfaction: typeof payload.satisfaction === "number" ? payload.satisfaction : 0,
+    satisfaction: typeof payload.satisfaction === "number" && Number.isFinite(payload.satisfaction)
+      ? Math.max(1, Math.min(5, Math.round(payload.satisfaction)))
+      : 3,
     next_contact_at: payload.next_contact_at ?? null,
     last_contact_at: payload.last_contact_at ?? null,
     channel: sanitizeChannel(payload.channel),
@@ -106,7 +108,9 @@ function normalizeUpdatePayload(payload: PosVendaUpdate) {
   const normalized: Record<string, unknown> = {
     status: sanitizeStatus(payload.status),
     priority: typeof payload.priority === "string" ? payload.priority : "normal",
-    satisfaction: typeof payload.satisfaction === "number" ? payload.satisfaction : 0,
+    satisfaction: typeof payload.satisfaction === "number" && Number.isFinite(payload.satisfaction)
+      ? Math.max(1, Math.min(5, Math.round(payload.satisfaction)))
+      : 3,
     channel: sanitizeChannel(payload.channel),
     needs_attention: typeof payload.needs_attention === "boolean" ? payload.needs_attention : false,
     observacoes: typeof payload.observacoes === "string" ? payload.observacoes : "",
@@ -170,6 +174,93 @@ export async function createPosVenda(payload: PosVendaInsert): Promise<PosVenda>
   }
   if (!data) throw new Error("Não foi possível salvar a ação de pós-venda.");
   return data as PosVenda;
+}
+
+export type ContatoOrigem = "cliente" | "lead" | "indicador" | "parceiro" | "recrutamento";
+
+export interface ContatoBusca {
+  id: string;
+  nome: string;
+  telefone: string;
+  email: string;
+  origem: ContatoOrigem;
+}
+
+export async function searchContatos(telefone: string): Promise<ContatoBusca[]> {
+  const user = await getAuthenticatedUser();
+  const supabase = createClient();
+  const digits = telefone.replace(/\D/g, "");
+  if (!digits) return [];
+  const pattern = `%${digits}%`;
+
+  const results: ContatoBusca[] = [];
+
+  const queries = [
+    { table: "clientes", origem: "cliente" as const },
+    { table: "leads", origem: "lead" as const },
+    { table: "indicadores", origem: "indicador" as const },
+    { table: "parceiros", origem: "parceiro" as const },
+    { table: "recrutamento", origem: "recrutamento" as const },
+  ];
+
+  for (const { table, origem } of queries) {
+    try {
+      const { data, error } = await supabase
+        .from(table)
+        .select("id, nome, telefone, email")
+        .or(`telefone.like.${pattern}`)
+        .eq("usuario_id", user.id);
+
+      if (error) {
+        console.error(`[PosVenda] searchContatos ${table}:`, error.message);
+        continue;
+      }
+
+      for (const row of (data ?? []) as { id: string; nome: string; telefone: string; email: string }[]) {
+        results.push({ id: row.id, nome: row.nome, telefone: row.telefone, email: row.email, origem });
+      }
+    } catch (err) {
+      console.error(`[PosVenda] searchContatos ${table} exception:`, err);
+    }
+  }
+
+  return results;
+}
+
+export async function convertToCliente(contato: ContatoBusca): Promise<string | null> {
+  const user = await getAuthenticatedUser();
+  const supabase = createClient();
+
+  if (contato.origem === "cliente") return contato.id;
+
+  const existing = await supabase
+    .from("clientes")
+    .select("id")
+    .eq("telefone", contato.telefone)
+    .eq("usuario_id", user.id)
+    .single();
+
+  if (!existing.error && existing.data) return (existing.data as { id: string }).id;
+
+  const { data, error } = await supabase
+    .from("clientes")
+    .insert({
+      nome: contato.nome,
+      telefone: contato.telefone,
+      email: contato.email || "",
+      observacoes: `Convertido de ${contato.origem} no módulo de pós-venda.`,
+      origem: contato.origem,
+      status: "Ativo",
+      usuario_id: user.id,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    logSupabaseError("convertToCliente", error);
+    return null;
+  }
+  return (data as { id: string }).id;
 }
 
 export async function updatePosVenda(id: string, payload: PosVendaUpdate): Promise<PosVenda> {

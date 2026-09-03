@@ -386,13 +386,18 @@ export default function ConfiguracoesPage() {
     setIsPermissoesLoading(true);
     try {
       const supabase = createClient();
-      const { data: grants } = await supabase
+      const { data: grants, error: grantsError } = await supabase
         .from("user_permission_grants")
         .select("permissao_id")
         .eq("usuario_id", usuario.id);
 
-      setUsuarioPermissoesId(usuario.id);
-      setPermissoesUsuario(grants?.map((g) => g.permissao_id) ?? []);
+      if (grantsError) {
+        console.error("[abrirPermissoes] error:", grantsError);
+        error("Não foi possível carregar as permissões do usuário.");
+      } else {
+        setUsuarioPermissoesId(usuario.id);
+        setPermissoesUsuario(grants?.map((g) => g.permissao_id) ?? []);
+      }
     } catch {
       error("Não foi possível carregar as permissões do usuário.");
     } finally {
@@ -451,18 +456,30 @@ export default function ConfiguracoesPage() {
       const jaTem = permissoesUsuario.includes(permissaoId);
 
       if (jaTem) {
-        await supabase
+        const { error: deleteError } = await supabase
           .from("user_permission_grants")
           .delete()
           .eq("usuario_id", usuarioPermissoesId)
           .eq("permissao_id", permissaoId);
 
+        if (deleteError) {
+          console.error("[togglePermissao] delete error:", deleteError);
+          error("Não foi possível remover a permissão.");
+          return;
+        }
+
         setPermissoesUsuario((prev) => prev.filter((id) => id !== permissaoId));
         success("Permissão removida.");
       } else {
-        await supabase
+        const { error: insertError } = await supabase
           .from("user_permission_grants")
           .insert({ usuario_id: usuarioPermissoesId, permissao_id: permissaoId });
+
+        if (insertError) {
+          console.error("[togglePermissao] insert error:", insertError);
+          error("Não foi possível adicionar a permissão.");
+          return;
+        }
 
         setPermissoesUsuario((prev) => [...prev, permissaoId]);
         success("Permissão adicionada.");

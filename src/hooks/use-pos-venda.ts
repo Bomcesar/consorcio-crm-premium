@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-import type { PosVenda, PosVendaInsert, PosVendaHistorico, PosVendaTarefa, PosVendaTarefaInsert, PosVendaTarefaUpdate, PosVendaComunicacao, PosVendaComunicacaoInsert, PosVendaComunicacaoUpdate, PosVendaWithRelations } from "@/repositories/client/pos-venda.repository";
+import { useAnexos } from "@/hooks/use-anexos";
+import type { PosVenda, PosVendaInsert, PosVendaUpdate, PosVendaHistorico, PosVendaTarefa, PosVendaTarefaInsert, PosVendaTarefaUpdate, PosVendaComunicacao, PosVendaComunicacaoInsert, PosVendaComunicacaoUpdate, PosVendaWithRelations } from "@/repositories/client/pos-venda.repository";
 
 const emptyForm: PosVendaInsert = {
   status: "Boas-vindas",
   priority: "normal",
-  satisfaction: 0,
+  satisfaction: 3,
   channel: "WhatsApp",
   needs_attention: false,
   observacoes: "",
@@ -21,6 +22,7 @@ const emptyForm: PosVendaInsert = {
 
 export function usePosVenda() {
   const { success, error } = useToast();
+  const anexosHook = useAnexos();
   const [posVendas, setPosVendas] = useState<PosVendaWithRelations[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -37,13 +39,73 @@ export function usePosVenda() {
   const [isTasksLoading, setIsTasksLoading] = useState(false);
   const [isCommsLoading, setIsCommsLoading] = useState(false);
   const [clienteSearch, setClienteSearch] = useState("");
-  const [clienteSearchResults, setClienteSearchResults] = useState<{ id: string; nome: string; telefone: string; status: string }[]>([]);
+  const [clienteSearchResults, setClienteSearchResults] = useState<{ id: string; nome: string; telefone: string; email: string; status: string }[]>([]);
   const [isClienteSearchLoading, setIsClienteSearchLoading] = useState(false);
 
   const errorRef = useRef(error);
   useEffect(() => {
     errorRef.current = error;
   }, [error]);
+
+   const getAllClientes = useCallback(async () => {
+    setIsClienteSearchLoading(true);
+    try {
+      const { getClientes } = await import("@/repositories/client/clientes.repository");
+      const data = await getClientes();
+      setClienteSearchResults(
+        data.map((c) => ({
+          id: c.id,
+          nome: c.nome,
+          telefone: c.telefone,
+          email: c.email,
+          status: c.status,
+        })),
+      );
+    } catch {
+      errorRef.current("Não foi possível carregar os clientes.");
+      setClienteSearchResults([]);
+    } finally {
+      setIsClienteSearchLoading(false);
+    }
+  }, []);
+
+   const searchContatosByTelefone = useCallback(async (telefone: string) => {
+    const trimmed = telefone.trim();
+    if (!trimmed) {
+      setClienteSearchResults([]);
+      return;
+    }
+    setIsClienteSearchLoading(true);
+    try {
+      const { searchContatos, convertToCliente } = await import("@/repositories/client/pos-venda.repository");
+      const resultados = await searchContatos(trimmed);
+      if (resultados.length === 0) {
+        setClienteSearchResults([]);
+        return;
+      }
+      setClienteSearchResults(
+        await Promise.all(
+          resultados.map(async (c) => {
+            const clienteId = await convertToCliente(c);
+            return {
+              id: c.id,
+              nome: c.nome,
+              telefone: c.telefone,
+              email: c.email,
+              status: clienteId ? "Ativo" : c.origem,
+              origem: c.origem,
+              cliente_id: clienteId,
+            };
+          }),
+        ),
+      );
+    } catch {
+      errorRef.current("Não foi possível buscar contatos.");
+      setClienteSearchResults([]);
+    } finally {
+      setIsClienteSearchLoading(false);
+    }
+  }, []);
 
   const loadPosVendas = useCallback(async () => {
     setIsLoading(true);
@@ -117,6 +179,7 @@ export function usePosVenda() {
           id: c.id,
           nome: c.nome,
           telefone: c.telefone,
+          email: c.email,
           status: c.status,
         })),
       );
@@ -128,16 +191,16 @@ export function usePosVenda() {
     }
   }, []);
 
-  const openCreate = () => {
-    setSelectedPosVenda(null);
-    setFormData(emptyForm);
-    setHistorico([]);
-    setTarefas([]);
-    setComunicacoes([]);
-    setClienteSearch("");
-    setClienteSearchResults([]);
-    setIsFormOpen(true);
-  };
+   const openCreate = () => {
+     setSelectedPosVenda(null);
+     setFormData(emptyForm);
+     setHistorico([]);
+     setTarefas([]);
+     setComunicacoes([]);
+     setClienteSearch("");
+     void getAllClientes();
+     setIsFormOpen(true);
+   };
 
   const openEdit = (posVenda: PosVenda) => {
     setSelectedPosVenda(posVenda);
@@ -161,7 +224,7 @@ export function usePosVenda() {
       updated_at: posVenda.updated_at,
       usuario_id: posVenda.usuario_id,
     });
-    setClienteSearchResults([]);
+    void getAllClientes();
     setIsFormOpen(true);
     setIsDetailsOpen(false);
     void loadHistorico(posVenda.id);
@@ -187,7 +250,7 @@ export function usePosVenda() {
       const payload: PosVendaInsert = {
         status: formData.status || "Boas-vindas",
         priority: formData.priority || "normal",
-        satisfaction: formData.satisfaction ?? 0,
+        satisfaction: formData.satisfaction ?? 3,
         channel: formData.channel || "WhatsApp",
         needs_attention: formData.needs_attention ?? false,
         observacoes: formData.observacoes?.trim() || "",
@@ -306,50 +369,64 @@ export function usePosVenda() {
     await loadPosVendas();
   };
 
+  const updatePosVenda = useCallback(async (id: string, payload: PosVendaUpdate) => {
+    const { updatePosVenda: updateRepo } = await import("@/repositories/client/pos-venda.repository");
+    const updated = await updateRepo(id, payload);
+    setPosVendas((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    if (selectedPosVenda?.id === updated.id) {
+      setSelectedPosVenda(updated);
+    }
+    return updated;
+  }, [selectedPosVenda]);
+
   useEffect(() => {
     void loadPosVendas();
   }, [loadPosVendas]);
 
   return {
-    posVendas,
-    isLoading,
-    isSaving,
-    errorMessage,
-    formData,
-    setFormData,
-    selectedPosVenda,
-    setSelectedPosVenda,
-    isFormOpen,
-    setIsFormOpen,
-    isDeleteOpen,
-    setIsDeleteOpen,
-    isDetailsOpen,
-    setIsDetailsOpen,
-    historico,
-    tarefas,
-    comunicacoes,
-    isHistoryLoading,
-    isTasksLoading,
-    isCommsLoading,
-    clienteSearch,
-    setClienteSearch,
-    clienteSearchResults,
-    setClienteSearchResults,
-    isClienteSearchLoading,
-    searchClientes,
-    openCreate,
-    openEdit,
-    openDelete,
-    handleSubmit,
-    handleDelete,
-    addHistorico,
-    addTarefa,
-    updateTarefa,
-    deleteTarefa,
-    addComunicacao,
-    refresh,
-    loadHistorico,
-    loadTarefas,
-    loadComunicacoes,
-  };
+     posVendas,
+     isLoading,
+     isSaving,
+     errorMessage,
+     formData,
+     setFormData,
+     selectedPosVenda,
+     setSelectedPosVenda,
+     isFormOpen,
+     setIsFormOpen,
+     isDeleteOpen,
+     setIsDeleteOpen,
+     isDetailsOpen,
+     setIsDetailsOpen,
+     historico,
+     tarefas,
+     comunicacoes,
+     isHistoryLoading,
+     isTasksLoading,
+     isCommsLoading,
+     clienteSearch,
+     setClienteSearch,
+     clienteSearchResults,
+     setClienteSearchResults,
+     isClienteSearchLoading,
+      searchClientes,
+      getAllClientes,
+      searchContatosByTelefone,
+     openCreate,
+     openEdit,
+     openDelete,
+     handleSubmit,
+     handleDelete,
+     addHistorico,
+     addTarefa,
+     updateTarefa,
+     deleteTarefa,
+     addComunicacao,
+     updatePosVenda,
+     refresh,
+     loadHistorico,
+     loadTarefas,
+     loadComunicacoes,
+     anexosHook,
+   };
 }

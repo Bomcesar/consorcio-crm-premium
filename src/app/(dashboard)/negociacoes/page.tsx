@@ -91,8 +91,8 @@ export default function NegociacoesPage() {
   const { list: listClientes } = useClientes();
   const [negociacoes, setNegociacoes] = useState<Negociacao[]>([]);
   const [filteredNegociacoes, setFilteredNegociacoes] = useState<Negociacao[]>([]);
-  const [leads, setLeads] = useState<{ id: string; nome: string }[]>([]);
-  const [clientes, setClientes] = useState<{ id: string; nome: string }[]>([]);
+  const [leads, setLeads] = useState<{ id: string; nome: string; telefone: string }[]>([]);
+  const [clientes, setClientes] = useState<{ id: string; nome: string; telefone: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -117,7 +117,7 @@ export default function NegociacoesPage() {
   const [tab, setTab] = useState("info");
   const [fileInputKey, setFileInputKey] = useState(0);
   const [isConvertOpen, setIsConvertOpen] = useState(false);
-  const [convertTarget, setConvertTarget] = useState<"parceiros" | "recrutamento" | "clientes">("clientes");
+  const [convertTarget, setConvertTarget] = useState<"parceiros" | "recrutamento" | "clientes" | "indicadores">("clientes");
   const [isConverting, setIsConverting] = useState(false);
 
   const supabase = createClient();
@@ -129,8 +129,8 @@ export default function NegociacoesPage() {
       const [negociacoesData, leadsData, clientesData] = await Promise.all([list(), listLeads(), listClientes()]);
       setNegociacoes(negociacoesData);
       setFilteredNegociacoes(negociacoesData);
-      setLeads(leadsData.map((l: { id: string; nome: string }) => ({ id: l.id, nome: l.nome })));
-      setClientes(clientesData.map((c: { id: string; nome: string }) => ({ id: c.id, nome: c.nome })));
+      setLeads(leadsData.map((l: { id: string; nome: string; telefone: string }) => ({ id: l.id, nome: l.nome, telefone: l.telefone })));
+      setClientes(clientesData.map((c: { id: string; nome: string; telefone: string }) => ({ id: c.id, nome: c.nome, telefone: c.telefone })));
     } catch {
       setErrorMessage("Não foi possível carregar as negociações.");
     } finally {
@@ -149,14 +149,21 @@ export default function NegociacoesPage() {
     }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      result = result.filter(
-        (n) =>
+      result = result.filter((n) => {
+        const lead = leads.find((l) => l.id === n.lead_id);
+        const cliente = clientes.find((c) => c.id === n.cliente_id);
+        return (
           n.titulo.toLowerCase().includes(q) ||
           n.observacoes.toLowerCase().includes(q) ||
           n.modalidade.toLowerCase().includes(q) ||
           n.proposta.toLowerCase().includes(q) ||
-          n.proxima_acao.toLowerCase().includes(q),
-      );
+          n.proxima_acao.toLowerCase().includes(q) ||
+          (lead?.nome?.toLowerCase().includes(q) ?? false) ||
+          (lead?.telefone?.toLowerCase().includes(q) ?? false) ||
+          (cliente?.nome?.toLowerCase().includes(q) ?? false) ||
+          (cliente?.telefone?.toLowerCase().includes(q) ?? false)
+        );
+      });
     }
     setFilteredNegociacoes(result);
   }, [searchQuery, etapaFilter, negociacoes]);
@@ -294,6 +301,26 @@ export default function NegociacoesPage() {
           usuario_id: user?.id || "",
         });
         if (supabaseError) throw supabaseError;
+      } else if (convertTarget === "indicadores") {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { error: supabaseError } = await supabase.from("indicadores").insert({
+          nome,
+          telefone,
+          email,
+          cidade: "",
+          estado: "",
+          cpf: "",
+          pix: "",
+          origem: origem || "Negociações",
+          status: "Ativo",
+          observacoes: observacoes || "Convertido de negociação",
+          ativo: true,
+          usuario_id: user?.id || "",
+          grupo_whatsapp: false,
+          link_grupo: "",
+          grupo_criado: false,
+        });
+        if (supabaseError) throw supabaseError;
       }
 
       success("Contato convertido com sucesso.");
@@ -313,21 +340,26 @@ export default function NegociacoesPage() {
 
     setIsSaving(true);
     try {
-      const payload = {
-        titulo: formData.titulo.trim(),
-        valor: Number(formData.valor) || 0,
-        etapa: formData.etapa,
-        probabilidade: Number(formData.probabilidade) || 0,
-        data_prevista: formData.data_prevista,
-        observacoes: formData.observacoes.trim(),
-        lead_id: formData.lead_id || undefined,
-        cliente_id: formData.cliente_id || null,
-        modalidade: formData.modalidade.trim(),
-        proposta: formData.proposta.trim(),
-        proxima_acao: formData.proxima_acao.trim(),
-        data_proxima_acao: formData.data_proxima_acao || null,
-      };
-      if (selectedNegociacao) {
+    const payload = {
+      titulo: formData.titulo.trim(),
+      valor: Number(formData.valor) || 0,
+      etapa: formData.etapa,
+      probabilidade: Number(formData.probabilidade) || 0,
+      data_prevista: formData.data_prevista,
+      observacoes: formData.observacoes.trim(),
+      cliente_id: formData.cliente_id || null,
+      modalidade: formData.modalidade.trim(),
+      proposta: formData.proposta.trim(),
+      proxima_acao: formData.proxima_acao.trim(),
+      data_proxima_acao: formData.data_proxima_acao || null,
+      ...(formData.lead_id ? { lead_id: formData.lead_id } : {}),
+    };
+    if (!selectedNegociacao && !formData.lead_id) {
+      error("Selecione uma lead antes de salvar.");
+      setIsSaving(false);
+      return;
+    }
+    if (selectedNegociacao) {
         const updated = await update(selectedNegociacao.id, payload);
         setNegociacoes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
         if (isDetailOpen && selectedNegociacao.id === updated.id) {
@@ -906,12 +938,13 @@ export default function NegociacoesPage() {
               <Label>Destino</Label>
               <select
                 value={convertTarget}
-                onChange={(e) => setConvertTarget(e.target.value as "parceiros" | "recrutamento" | "clientes")}
+                onChange={(e) => setConvertTarget(e.target.value as "parceiros" | "recrutamento" | "clientes" | "indicadores")}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="clientes">Cliente</option>
                 <option value="parceiros">Parceiro</option>
                 <option value="recrutamento">Recrutamento</option>
+                <option value="indicadores">Indicador</option>
               </select>
             </div>
           </div>

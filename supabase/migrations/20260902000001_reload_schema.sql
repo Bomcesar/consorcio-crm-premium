@@ -1,0 +1,1 @@
+NOTIFY postgrest, 'reload schema';
