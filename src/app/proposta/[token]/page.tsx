@@ -33,13 +33,13 @@ const formatPropostaTipo = (tipo: string) => {
 
 export default async function PropostaPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const proposta = (await getPropostaByToken(token)) as PropostaView | null;
+  const proposta = await getPropostaByToken(token);
 
   if (!proposta) {
     notFound();
   }
 
-  const link = generatePropostaLink(proposta as any);
+  const link = generatePropostaLink(proposta);
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
