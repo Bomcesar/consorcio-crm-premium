@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Eye, Calendar, Copy, CheckCircle2, Share2 } from "lucide-react";
+import { getPropostaByToken, generatePropostaLink } from "@/repositories/client/propostas.repository";
 
 interface PropostaView {
   id: string;
@@ -31,61 +31,15 @@ const formatPropostaTipo = (tipo: string) => {
   }
 };
 
-export default function PropostaPage({ params }: { params: { token: string } }) {
-  const { token } = params;
-  const [proposta, setProposta] = useState<PropostaView | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    const fetchProposta = async () => {
-      try {
-        const response = await fetch(`/api/propostas/${token}`);
-        if (!response.ok) {
-          if (response.status === 404) {
-            notFound();
-          }
-          throw new Error("Erro ao carregar proposta");
-        }
-        const data = (await response.json()) as PropostaView;
-        setProposta(data);
-      } catch {
-        notFound();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    void fetchProposta();
-  }, [token]);
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleWhatsAppShare = () => {
-    if (!proposta) return;
-    const text = encodeURIComponent(`${proposta.titulo}\n\n${proposta.conteudo}`);
-    window.open(`https://wa.me/?text=${text}`, "_blank");
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="mb-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-          <p className="text-sm text-muted-foreground">Carregando proposta...</p>
-        </div>
-      </div>
-    );
-  }
+export default async function PropostaPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const proposta = (await getPropostaByToken(token)) as PropostaView | null;
 
   if (!proposta) {
     notFound();
-    return null;
   }
+
+  const link = generatePropostaLink(proposta as any);
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -136,22 +90,21 @@ export default function PropostaPage({ params }: { params: { token: string } }) 
             </div>
 
             <div className="flex flex-wrap justify-center gap-3 border-t pt-4">
-              <Button onClick={handleCopy} variant="outline" size="sm">
-                {copied ? (
-                  <>
-                    <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
-                    Copiado!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="mr-2 h-4 w-4" />
-                    Copiar link
-                  </>
-                )}
+              <Button asChild variant="outline" size="sm">
+                <a href={link} target="_blank" rel="noopener noreferrer">
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copiar link
+                </a>
               </Button>
-              <Button onClick={handleWhatsAppShare} size="sm">
-                <Share2 className="mr-2 h-4 w-4" />
-                Compartilhar no WhatsApp
+              <Button asChild size="sm">
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`${proposta.titulo}\n\n${proposta.conteudo}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Compartilhar no WhatsApp
+                </a>
               </Button>
             </div>
           </CardContent>
