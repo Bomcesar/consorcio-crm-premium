@@ -42,6 +42,26 @@ const emptyForm: RecrutamentoInsert = {
   status: "Novo",
   observacoes: "",
   usuario_id: "",
+  tipo: "convite",
+  genero: "",
+  endereco: "",
+  equipe: "",
+  veio_por: "",
+  indicacao: false,
+  catho: false,
+  instagram: false,
+  outros: "",
+  trabalhou_vendas: false,
+  trabalhou_comissionado: false,
+  clt: false,
+  conhecimento_office: false,
+  entende_prospeccao: false,
+  facilidade_equipe: false,
+  disponibilidade_integral: false,
+  disponibilidade_finais_semana: false,
+  conhece_consorcios: false,
+  conhece_ademicon: false,
+  por_onde_conheceu: "",
 };
 
 export default function RecrutamentoPage() {
@@ -68,7 +88,7 @@ export default function RecrutamentoPage() {
     handleDelete,
   } = useRecrutamento();
 
-  const handleChange = (field: "nome" | "email" | "telefone" | "origem" | "status" | "observacoes", value: string) => {
+  const handleChange = (field: keyof RecrutamentoInsert, value: string | boolean) => {
     setFormData((current: RecrutamentoInsert) => ({ ...current, [field]: value }));
   };
 
@@ -134,8 +154,10 @@ export default function RecrutamentoPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome</TableHead>
-                    <TableHead>E-mail</TableHead>
-                    <TableHead>Telefone</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Gênero</TableHead>
+                    <TableHead>Equipe</TableHead>
+                    <TableHead>Vendas</TableHead>
                     <TableHead>Origem</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-[160px] text-right">Ações</TableHead>
@@ -145,8 +167,10 @@ export default function RecrutamentoPage() {
                   {filtered.map((candidato) => (
                     <TableRow key={candidato.id}>
                       <TableCell className="font-medium">{candidato.nome}</TableCell>
-                      <TableCell>{candidato.email}</TableCell>
-                      <TableCell>{candidato.telefone}</TableCell>
+                      <TableCell>{candidato.tipo === "ficha_completa" ? "Ficha completa" : "Convite"}</TableCell>
+                      <TableCell>{candidato.genero || "—"}</TableCell>
+                      <TableCell>{candidato.equipe || "—"}</TableCell>
+                      <TableCell>{candidato.trabalhou_vendas ? "Sim" : "Não"}</TableCell>
                       <TableCell>{candidato.origem || "—"}</TableCell>
                       <TableCell>
                         <Badge variant={candidato.status === "Novo" ? "secondary" : "success"}>
@@ -178,39 +202,129 @@ export default function RecrutamentoPage() {
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
+              <Label>Tipo de cadastro</Label>
+              <select
+                value={formData.tipo || "convite"}
+                onChange={(e) => handleChange("tipo", e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="convite">Convite para apresentação</option>
+                <option value="ficha_completa">Ficha cadastral completa</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="nome">Nome</Label>
               <Input id="nome" value={formData.nome} onChange={(e) => handleChange("nome", e.target.value)} required />
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input id="email" type="email" value={formData.email} onChange={(e) => handleChange("email", e.target.value)} required />
+
+            {formData.tipo === "ficha_completa" && (
+              <>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="genero">Gênero</Label>
+                    <Input id="genero" value={formData.genero} onChange={(e) => handleChange("genero", e.target.value)} placeholder="Ex: Masculino, Feminino" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="telefone">Telefone</Label>
+                    <Input id="telefone" value={formData.telefone} onChange={(e) => handleChange("telefone", e.target.value)} required />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input id="email" type="email" value={formData.email} onChange={(e) => handleChange("email", e.target.value)} required />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="endereco">Endereço</Label>
+                  <Input id="endereco" value={formData.endereco} onChange={(e) => handleChange("endereco", e.target.value)} placeholder="Rua, número, bairro, cidade" />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Veio por</Label>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={formData.indicacao} onChange={(e) => handleChange("indicacao", e.target.checked)} />
+                      Indicação
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={formData.catho} onChange={(e) => handleChange("catho", e.target.checked)} />
+                      Catho
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={formData.instagram} onChange={(e) => handleChange("instagram", e.target.checked)} />
+                      Instagram
+                    </label>
+                  </div>
+                  <Input value={formData.outros} onChange={(e) => handleChange("outros", e.target.value)} placeholder="Outros" />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="equipe">Equipe</Label>
+                  <Input id="equipe" value={formData.equipe} onChange={(e) => handleChange("equipe", e.target.value)} placeholder="Ex: Equipe de Vendas" />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Já trabalhou com vendas?</Label>
+                    <select value={formData.trabalhou_vendas ? "sim" : "nao"} onChange={(e) => handleChange("trabalhou_vendas", e.target.value === "sim")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      <option value="nao">Não</option>
+                      <option value="sim">Sim</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Já trabalhou comissionado?</Label>
+                    <select value={formData.trabalhou_comissionado ? "sim" : formData.clt ? "clt" : "nao"} onChange={(e) => { handleChange("trabalhou_comissionado", e.target.value === "sim"); handleChange("clt", e.target.value === "clt"); }} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      <option value="nao">Não</option>
+                      <option value="sim">Sim</option>
+                      <option value="clt">CLT</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Conhece o produto consórcios?</Label>
+                    <select value={formData.conhece_consorcios ? "sim" : "nao"} onChange={(e) => handleChange("conhece_consorcios", e.target.value === "sim")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      <option value="nao">Não</option>
+                      <option value="sim">Sim</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Conhece a Ademicon?</Label>
+                    <select value={formData.conhece_ademicon ? "sim" : "nao"} onChange={(e) => handleChange("conhece_ademicon", e.target.value === "sim")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      <option value="nao">Não</option>
+                      <option value="sim">Sim</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="por_onde_conheceu">Por onde conheceu a empresa?</Label>
+                  <Input id="por_onde_conheceu" value={formData.por_onde_conheceu} onChange={(e) => handleChange("por_onde_conheceu", e.target.value)} placeholder="Ex: Internet, indicação, evento" />
+                </div>
+              </>
+            )}
+
+            {formData.tipo === "convite" && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input id="email" type="email" value={formData.email} onChange={(e) => handleChange("email", e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="telefone">Telefone</Label>
+                  <Input id="telefone" value={formData.telefone} onChange={(e) => handleChange("telefone", e.target.value)} required />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="telefone">Telefone</Label>
-                <Input id="telefone" value={formData.telefone} onChange={(e) => handleChange("telefone", e.target.value)} required />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="origem">Origem</Label>
-                <Input id="origem" value={formData.origem} onChange={(e) => handleChange("origem", e.target.value)} placeholder="Ex: LinkedIn, Indicação" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <select id="status" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.status} onChange={(e) => handleChange("status", e.target.value)}>
-                  <option value="Novo">Novo</option>
-                  <option value="Em análise">Em análise</option>
-                  <option value="Entrevista">Entrevista</option>
-                  <option value="Aprovado">Aprovado</option>
-                  <option value="Reprovado">Reprovado</option>
-                </select>
-              </div>
-            </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="observacoes">Observações</Label>
               <Textarea id="observacoes" value={formData.observacoes} onChange={(e) => handleChange("observacoes", e.target.value)} />
             </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setIsFormOpen(false); setFormData(emptyForm); setSelected(null); }}>
                 Cancelar
@@ -232,8 +346,12 @@ export default function RecrutamentoPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
-            <Button variant="destructive" onClick={handleDelete}>Excluir</Button>
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Excluir
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

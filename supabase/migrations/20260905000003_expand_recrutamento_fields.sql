@@ -1,0 +1,28 @@
+BEGIN;
+
+ALTER TABLE public.recrutamento
+  ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'ficha_completa',
+  ADD COLUMN IF NOT EXISTS genero TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS endereco TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS equipe TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS veio_por TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS indicacao BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS catho BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS instagram BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS outros TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS trabalhou_vendas BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS trabalhou_comissionado BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS clt BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS conhecimento_office BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS entende_prospeccao BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS facilidade_equipe BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS disponibilidade_integral BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS disponibilidade_finais_semana BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS conhece_consorcios BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS conhece_ademicon BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS por_onde_conheceu TEXT NOT NULL DEFAULT '';
+
+CREATE INDEX IF NOT EXISTS recrutamento_tipo_idx ON public.recrutamento (tipo);
+CREATE INDEX IF NOT EXISTS recrutamento_status_idx ON public.recrutamento (status);
+
+COMMIT;
