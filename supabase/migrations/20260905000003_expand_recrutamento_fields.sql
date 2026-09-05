@@ -22,6 +22,56 @@ ALTER TABLE public.recrutamento
   ADD COLUMN IF NOT EXISTS conhece_ademicon BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS por_onde_conheceu TEXT NOT NULL DEFAULT '';
 
+DROP POLICY IF EXISTS "Authenticated users can view own recrutamento" ON public.recrutamento;
+DROP POLICY IF EXISTS "Authenticated users can insert own recrutamento" ON public.recrutamento;
+DROP POLICY IF EXISTS "Authenticated users can update own recrutamento" ON public.recrutamento;
+DROP POLICY IF EXISTS "Authenticated users can delete own recrutamento" ON public.recrutamento;
+
+CREATE POLICY "Authenticated users can view own recrutamento"
+  ON public.recrutamento FOR SELECT
+  USING (auth.uid() = usuario_id);
+
+CREATE POLICY "Authenticated users can insert own recrutamento"
+  ON public.recrutamento FOR INSERT
+  WITH CHECK (
+    auth.uid() = usuario_id
+    AND EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid()
+        AND profiles.perfil IN ('Administrador', 'Gestor')
+    )
+  );
+
+CREATE POLICY "Authenticated users can update own recrutamento"
+  ON public.recrutamento FOR UPDATE
+  USING (
+    auth.uid() = usuario_id
+    AND EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid()
+        AND profiles.perfil IN ('Administrador', 'Gestor')
+    )
+  )
+  WITH CHECK (
+    auth.uid() = usuario_id
+    AND EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid()
+        AND profiles.perfil IN ('Administrador', 'Gestor')
+    )
+  );
+
+CREATE POLICY "Authenticated users can delete own recrutamento"
+  ON public.recrutamento FOR DELETE
+  USING (
+    auth.uid() = usuario_id
+    AND EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid()
+        AND profiles.perfil IN ('Administrador', 'Gestor')
+    )
+  );
+
 CREATE INDEX IF NOT EXISTS recrutamento_tipo_idx ON public.recrutamento (tipo);
 CREATE INDEX IF NOT EXISTS recrutamento_status_idx ON public.recrutamento (status);
 
