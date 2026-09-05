@@ -25,7 +25,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useLeads } from "@/hooks/use-leads";
 import { useClientes } from "@/hooks/use-clientes";
-import { useNegociacoes } from "@/hooks/use-negociacoes";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
@@ -45,10 +44,13 @@ import {
   Upload,
   Link2,
   Video,
-  FileType,
+  Users,
+  Building2,
+  UserCheck,
+  Briefcase,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import type { Lead, LeadHistorico, LeadAnexo } from "@/repositories/client/leads.repository";
-import type { Negociacao } from "@/repositories/client/negociacoes.repository";
 
 const emptyForm = {
   nome: "",
@@ -75,7 +77,6 @@ export default function LeadsPage() {
   const { success, error } = useToast();
   const { list, create, update, remove, search, filterByStatus, getHistorico, addHistorico, getAnexos, addAnexo, removeAnexo } = useLeads();
   const clientesHook = useClientes();
-  const negociacoesHook = useNegociacoes();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,7 +85,6 @@ export default function LeadsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [isNegociacaoOpen, setIsNegociacaoOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [formData, setFormData] = useState<LeadFormData>(emptyForm);
   const [searchQuery, setSearchQuery] = useState("");
@@ -99,20 +99,9 @@ export default function LeadsPage() {
   const [isAnexosLoading, setIsAnexosLoading] = useState(false);
   const [tab, setTab] = useState("info");
   const [fileInputKey, setFileInputKey] = useState(0);
-  const [negociacaoForm, setNegociacaoForm] = useState({
-    titulo: "",
-    valor: "",
-    etapa: "Proposta" as Negociacao["etapa"],
-    probabilidade: "50",
-    data_prevista: "",
-    observacoes: "",
-    modalidade: "",
-    proposta: "",
-    proxima_acao: "",
-    data_proxima_acao: "",
-  });
-  const [negociacaoAnexos, setNegociacaoAnexos] = useState<{ id?: string; file?: File; url?: string; nome: string; tipo: "proposta" | "documento" | "pagamento" | "video"; tamanho?: number }[]>([]);
-  const [isNegociacaoSaving, setIsNegociacaoSaving] = useState(false);
+  const [isConvertOpen, setIsConvertOpen] = useState(false);
+  const [convertTarget, setConvertTarget] = useState<"clientes" | "indicadores" | "parceiros" | "recrutamento" | "negociacoes">("clientes");
+  const [isConverting, setIsConverting] = useState(false);
 
   const loadLeads = async () => {
     setIsLoading(true);
@@ -300,89 +289,116 @@ export default function LeadsPage() {
     }
   };
 
-  const handleAddNegociacaoAnexo = (file: File, tipo: "proposta" | "documento" | "pagamento" | "video") => {
-    setNegociacaoAnexos((prev) => [...prev, { file, nome: file.name, tipo, tamanho: file.size }]);
+  const openConvert = (lead: Lead) => {
+    setSelectedLead(lead);
+    setConvertTarget("clientes");
+    setIsConvertOpen(true);
   };
 
-  const handleRemoveNegociacaoAnexo = (index: number) => {
-    setNegociacaoAnexos((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleConvertToCliente = async () => {
+  const handleConvert = async () => {
     if (!selectedLead) return;
+    setIsConverting(true);
     try {
-      const cliente = await clientesHook.create({
-        nome: selectedLead.nome,
-        telefone: selectedLead.telefone,
-        email: selectedLead.email || "",
-        cpf_cnpj: "",
-        cidade: selectedLead.cidade,
-        estado: "",
-        status: "Ativo",
-        origem: selectedLead.origem || "",
-        observacoes: selectedLead.observacoes || "",
-      });
-      await update(selectedLead.id, { status: "Ganho" });
-      setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? { ...l, status: "Ganho" as Lead["status"] } : l)));
-      setSelectedLead((prev) => (prev ? { ...prev, status: "Ganho" as Lead["status"] } : prev));
-      success("Lead convertido para cliente com sucesso.");
-      setTimeout(() => {
-        window.location.href = `/clientes`;
-      }, 800);
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (convertTarget === "clientes") {
+        await clientesHook.create({
+          nome: selectedLead.nome,
+          telefone: selectedLead.telefone,
+          email: selectedLead.email || "",
+          cidade: selectedLead.cidade,
+          estado: "",
+          status: "Ativo",
+          origem: selectedLead.origem || "",
+          observacoes: selectedLead.observacoes || "",
+        });
+        await update(selectedLead.id, { status: "Ganho" });
+        setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? { ...l, status: "Ganho" as Lead["status"] } : l)));
+        setSelectedLead((prev) => (prev ? { ...prev, status: "Ganho" as Lead["status"] } : prev));
+        success("Lead convertido para cliente com sucesso.");
+      } else if (convertTarget === "indicadores") {
+        const { error: supabaseError } = await supabase.from("indicadores").insert({
+          nome: selectedLead.nome,
+          telefone: selectedLead.telefone,
+          email: selectedLead.email || "",
+          cidade: selectedLead.cidade,
+          estado: "",
+          cpf: "",
+          pix: "",
+          origem: selectedLead.origem || "",
+          status: "Ativo",
+          observacoes: selectedLead.observacoes || "",
+          ativo: true,
+          usuario_id: user?.id || "",
+          grupo_whatsapp: false,
+          link_grupo: "",
+          grupo_criado: false,
+        });
+        if (supabaseError) throw supabaseError;
+        await update(selectedLead.id, { status: "Ganho" });
+        setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? { ...l, status: "Ganho" as Lead["status"] } : l)));
+        setSelectedLead((prev) => (prev ? { ...prev, status: "Ganho" as Lead["status"] } : prev));
+        success("Lead convertido para indicador com sucesso.");
+      } else if (convertTarget === "parceiros") {
+        const { error: supabaseError } = await supabase.from("parceiros").insert({
+          nome: selectedLead.nome,
+          cnpj: "",
+          contato: selectedLead.nome,
+          email: selectedLead.email || "",
+          telefone: selectedLead.telefone,
+          tipo: "",
+          status: "Ativo",
+          observacoes: selectedLead.observacoes || "",
+          usuario_id: user?.id || "",
+        });
+        if (supabaseError) throw supabaseError;
+        await update(selectedLead.id, { status: "Ganho" });
+        setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? { ...l, status: "Ganho" as Lead["status"] } : l)));
+        setSelectedLead((prev) => (prev ? { ...prev, status: "Ganho" as Lead["status"] } : prev));
+        success("Lead convertido para parceiro com sucesso.");
+      } else if (convertTarget === "recrutamento") {
+        const { error: supabaseError } = await supabase.from("recrutamento").insert({
+          nome: selectedLead.nome,
+          email: selectedLead.email || "",
+          telefone: selectedLead.telefone,
+          origem: selectedLead.origem || "",
+          status: "Novo",
+          observacoes: selectedLead.observacoes || "",
+          usuario_id: user?.id || "",
+        });
+        if (supabaseError) throw supabaseError;
+        await update(selectedLead.id, { status: "Ganho" });
+        setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? { ...l, status: "Ganho" as Lead["status"] } : l)));
+        setSelectedLead((prev) => (prev ? { ...prev, status: "Ganho" as Lead["status"] } : prev));
+        success("Lead convertido para recrutamento com sucesso.");
+      } else if (convertTarget === "negociacoes") {
+        const { error: supabaseError } = await supabase.from("negociacoes").insert({
+          titulo: selectedLead.nome,
+          valor: Number(selectedLead.valor_estimado) || 0,
+          etapa: "Proposta",
+          probabilidade: Number(selectedLead.probabilidade) || 50,
+          data_prevista: new Date().toISOString().slice(0, 10),
+          observacoes: selectedLead.observacoes || "",
+          lead_id: selectedLead.id,
+          usuario_id: user?.id || "",
+          modalidade: "",
+          proposta: "",
+          proxima_acao: "",
+          data_proxima_acao: null,
+        });
+        if (supabaseError) throw supabaseError;
+        await update(selectedLead.id, { status: "Proposta" });
+        setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? { ...l, status: "Proposta" as Lead["status"] } : l)));
+        setSelectedLead((prev) => (prev ? { ...prev, status: "Proposta" as Lead["status"] } : prev));
+        success("Lead convertido para negociação com sucesso.");
+      }
+
+      setIsConvertOpen(false);
     } catch {
       error("Não foi possível converter o lead.");
-    }
-  };
-
-  const handleConvertToNegociacao = async () => {
-    if (!selectedLead) return;
-    setNegociacaoForm({
-      titulo: selectedLead.nome,
-      valor: String(selectedLead.valor_estimado ?? 0),
-      etapa: "Proposta",
-      probabilidade: String(selectedLead.probabilidade ?? 50),
-      data_prevista: "",
-      observacoes: selectedLead.observacoes || "",
-      modalidade: "",
-      proposta: "",
-      proxima_acao: "",
-      data_proxima_acao: "",
-    });
-    setNegociacaoAnexos([]);
-    setIsNegociacaoOpen(true);
-  };
-
-  const handleSaveNegociacao = async () => {
-    if (!selectedLead || isNegociacaoSaving) return;
-    setIsNegociacaoSaving(true);
-    try {
-      const negociacao = await negociacoesHook.create({
-        titulo: negociacaoForm.titulo || selectedLead.nome,
-        valor: Number(negociacaoForm.valor) || 0,
-        etapa: negociacaoForm.etapa,
-        probabilidade: Number(negociacaoForm.probabilidade) || 0,
-        data_prevista: negociacaoForm.data_prevista || new Date().toISOString().slice(0, 10),
-        observacoes: negociacaoForm.observacoes,
-        lead_id: selectedLead.id,
-        modalidade: negociacaoForm.modalidade,
-        proposta: negociacaoForm.proposta,
-        proxima_acao: negociacaoForm.proxima_acao,
-        data_proxima_acao: negociacaoForm.data_proxima_acao || null,
-      });
-      for (const item of negociacaoAnexos) {
-        if (item.file) {
-          await negociacoesHook.addAnexo(negociacao.id, item.file);
-        }
-      }
-      await update(selectedLead.id, { status: "Proposta" });
-      setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? { ...l, status: "Proposta" as Lead["status"] } : l)));
-      setSelectedLead((prev) => (prev ? { ...prev, status: "Proposta" as Lead["status"] } : prev));
-      setIsNegociacaoOpen(false);
-      success("Lead convertido para negociação com sucesso.");
-    } catch {
-      error("Não foi possível converter o lead para negociação.");
     } finally {
-      setIsNegociacaoSaving(false);
+      setIsConverting(false);
     }
   };
 
@@ -526,6 +542,14 @@ export default function LeadsPage() {
                           aria-label="Ligar"
                         >
                           <Phone className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openConvert(lead)}
+                          aria-label="Converter lead"
+                        >
+                          <UserCheck className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -714,112 +738,6 @@ export default function LeadsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isNegociacaoOpen} onOpenChange={setIsNegociacaoOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Converter para Negociação</DialogTitle>
-            <DialogDescription>Preencha os dados da negociação e anexe materiais.</DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="negociacao-titulo">Título</Label>
-              <Input id="negociacao-titulo" value={negociacaoForm.titulo} onChange={(e) => setNegociacaoForm((prev) => ({ ...prev, titulo: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="negociacao-valor">Valor</Label>
-              <Input id="negociacao-valor" value={negociacaoForm.valor} onChange={(e) => setNegociacaoForm((prev) => ({ ...prev, valor: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="negociacao-etapa">Etapa</Label>
-              <select id="negociacao-etapa" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={negociacaoForm.etapa} onChange={(e) => setNegociacaoForm((prev) => ({ ...prev, etapa: e.target.value as Negociacao["etapa"] }))}>
-                <option value="Proposta">Proposta</option>
-                <option value="Em análise">Em análise</option>
-                <option value="Negociação">Negociação</option>
-                <option value="Fechamento">Fechamento</option>
-                <option value="Ganho">Ganho</option>
-                <option value="Perdido">Perdido</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="negociacao-probabilidade">Probabilidade (%)</Label>
-              <Input id="negociacao-probabilidade" value={negociacaoForm.probabilidade} onChange={(e) => setNegociacaoForm((prev) => ({ ...prev, probabilidade: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="negociacao-data-prevista">Data Prevista</Label>
-              <Input id="negociacao-data-prevista" type="date" value={negociacaoForm.data_prevista} onChange={(e) => setNegociacaoForm((prev) => ({ ...prev, data_prevista: e.target.value }))} />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="negociacao-modalidade">Modalidade</Label>
-              <Input id="negociacao-modalidade" value={negociacaoForm.modalidade} onChange={(e) => setNegociacaoForm((prev) => ({ ...prev, modalidade: e.target.value }))} />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="negociacao-proposta">Proposta (URL)</Label>
-              <Input id="negociacao-proposta" value={negociacaoForm.proposta} onChange={(e) => setNegociacaoForm((prev) => ({ ...prev, proposta: e.target.value }))} placeholder="https://..." />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="negociacao-observacoes">Observações</Label>
-              <Textarea id="negociacao-observacoes" value={negociacaoForm.observacoes} onChange={(e) => setNegociacaoForm((prev) => ({ ...prev, observacoes: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="negociacao-proxima-acao">Próxima Ação</Label>
-              <Input id="negociacao-proxima-acao" value={negociacaoForm.proxima_acao} onChange={(e) => setNegociacaoForm((prev) => ({ ...prev, proxima_acao: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="negociacao-data-proxima-acao">Data Próxima Ação</Label>
-              <Input id="negociacao-data-proxima-acao" type="date" value={negociacaoForm.data_proxima_acao} onChange={(e) => setNegociacaoForm((prev) => ({ ...prev, data_proxima_acao: e.target.value }))} />
-            </div>
-
-            <div className="md:col-span-2 space-y-3">
-              <p className="text-sm font-medium">Anexos</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  id="negociacao-anexo-file"
-                  type="file"
-                  className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (!file) return;
-                    handleAddNegociacaoAnexo(file, "documento");
-                    event.target.value = "";
-                  }}
-                />
-                <Button type="button" size="sm" variant="outline" onClick={() => document.getElementById("negociacao-anexo-file")?.click()}>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Anexar arquivo
-                </Button>
-              </div>
-
-              {negociacaoAnexos.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum anexo adicionado.</p>
-              ) : (
-                <div className="space-y-2">
-                  {negociacaoAnexos.map((anexo, index) => (
-                    <div key={index} className="flex items-center justify-between rounded-lg border border-border/50 p-3">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium">{anexo.nome}</p>
-                          <p className="text-xs text-muted-foreground">{anexo.tipo}</p>
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="icon" onClick={() => handleRemoveNegociacaoAnexo(index)} aria-label="Remover anexo">
-                        <X className="h-4 w-4 text-red-600" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsNegociacaoOpen(false)}>Cancelar</Button>
-            <Button type="button" onClick={handleSaveNegociacao} disabled={isNegociacaoSaving}>
-              {isNegociacaoSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...</> : "Salvar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={isDetailOpen} onOpenChange={(open) => { if (!open) { setIsDetailOpen(false); setSelectedLead(null); } }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           {isLoadingDetail || !selectedLead ? (
@@ -1003,18 +921,49 @@ export default function LeadsPage() {
                     <Phone className="mr-2 h-4 w-4" />
                     Ligar
                   </Button>
-                  <Button variant="outline" onClick={handleConvertToCliente}>
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Converter para Cliente
-                  </Button>
-                  <Button variant="outline" onClick={handleConvertToNegociacao}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Converter para Negociação
+                  <Button variant="outline" onClick={() => openConvert(selectedLead)}>
+                    <UserCheck className="mr-2 h-4 w-4" />
+                    Converter contato
                   </Button>
                 </div>
               )}
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isConvertOpen} onOpenChange={setIsConvertOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Converter lead</DialogTitle>
+            <DialogDescription>
+              Selecione para qual módulo deseja converter o lead <strong>{selectedLead?.nome}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Destino</Label>
+              <select
+                value={convertTarget}
+                onChange={(e) => setConvertTarget(e.target.value as "clientes" | "indicadores" | "parceiros" | "recrutamento" | "negociacoes")}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="clientes">Cliente</option>
+                <option value="indicadores">Indicador</option>
+                <option value="parceiros">Parceiro</option>
+                <option value="recrutamento">Recrutamento</option>
+                <option value="negociacoes">Negociação</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsConvertOpen(false)} disabled={isConverting}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConvert} disabled={isConverting}>
+              {isConverting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Convertendo...</> : "Converter"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -48,6 +48,8 @@ export type TipoMaterialConsultor = "PDF" | "Imagem" | "Vídeo" | "Áudio" | "Do
 export type StatusMaterialConsultor = "Ativo" | "Inativo";
 export type StatusTreinamento = "Ativo" | "Inativo";
 export type StatusLinkUtil = "Ativo" | "Inativo";
+export type PropostaTipo = "Imovel" | "Veiculo" | "Servicos" | "Outros bens moveis";
+export type ValorTipo = "Cheio" | "Reduzida";
 
 export interface Database {
   public: {
@@ -863,6 +865,132 @@ export interface Database {
           tamanho?: number;
           usuario_id?: string;
           created_at?: string;
+        };
+      };
+      propostas: {
+        Row: {
+          id: string;
+          negociacao_id: string | null;
+          usuario_id: string;
+          titulo: string;
+          tipo: string;
+          conteudo: string;
+          link_token: string;
+          acessos: number;
+          ultima_visualizacao: string | null;
+          data_envio: string | null;
+          enviado_para: string | null;
+          enviado_canal: string | null;
+          status: string;
+          banner_caminho: string | null;
+          valor_parcela_cheia: string | null;
+          valor_parcela_reduzida: string | null;
+          follow_up_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          negociacao_id?: string | null;
+          usuario_id?: string;
+          titulo?: string;
+          tipo?: string;
+          conteudo?: string;
+          link_token?: string;
+          acessos?: number;
+          ultima_visualizacao?: string | null;
+          data_envio?: string | null;
+          enviado_para?: string | null;
+          enviado_canal?: string | null;
+          status?: string;
+          banner_caminho?: string | null;
+          valor_parcela_cheia?: string | null;
+          valor_parcela_reduzida?: string | null;
+          follow_up_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          negociacao_id?: string | null;
+          usuario_id?: string;
+          titulo?: string;
+          tipo?: string;
+          conteudo?: string;
+          link_token?: string;
+          acessos?: number;
+          ultima_visualizacao?: string | null;
+          data_envio?: string | null;
+          enviado_para?: string | null;
+          enviado_canal?: string | null;
+          status?: string;
+          banner_caminho?: string | null;
+          valor_parcela_cheia?: string | null;
+          valor_parcela_reduzida?: string | null;
+          follow_up_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      proposta_eventos: {
+        Row: {
+          id: string;
+          proposta_id: string;
+          evento: string;
+          detalhes: string | null;
+          ip_origem: string | null;
+          user_agent: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          proposta_id?: string;
+          evento?: string;
+          detalhes?: string | null;
+          ip_origem?: string | null;
+          user_agent?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          proposta_id?: string;
+          evento?: string;
+          detalhes?: string | null;
+          ip_origem?: string | null;
+          user_agent?: string | null;
+          created_at?: string;
+        };
+      };
+      proposta_followups: {
+        Row: {
+          id: string;
+          proposta_id: string;
+          usuario_id: string;
+          tipo: string;
+          canal: string;
+          observacao: string;
+          data_contato: string;
+          criado_em: string;
+        };
+        Insert: {
+          id?: string;
+          proposta_id?: string;
+          usuario_id?: string;
+          tipo?: string;
+          canal?: string;
+          observacao?: string;
+          data_contato?: string;
+          criado_em?: string;
+        };
+        Update: {
+          id?: string;
+          proposta_id?: string;
+          usuario_id?: string;
+          tipo?: string;
+          canal?: string;
+          observacao?: string;
+          data_contato?: string;
+          criado_em?: string;
         };
       };
        pos_venda: {

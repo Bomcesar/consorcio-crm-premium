@@ -39,9 +39,28 @@ import {
   CheckCircle2,
   X,
   UserCheck,
+  MessageSquare,
+  MessageCircle,
+  Phone,
+  Mail,
+  ExternalLink,
+  Copy,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Negociacao, NegociacaoHistorico, NegociacaoAnexo } from "@/repositories/client/negociacoes.repository";
+import type { Proposta } from "@/repositories/client/propostas.repository";
+import {
+  getPropostas,
+  createProposta,
+  updateProposta,
+  deleteProposta,
+  createPropostaFollowup,
+  getPropostaFollowups,
+  createPropostaReduzida,
+  generatePropostaLink,
+  generateConsorcioTemplate,
+  generateCartaCreditoTemplate,
+} from "@/repositories/client/propostas.repository";
 
 const pipelineStages = [
   "Novo",
@@ -91,8 +110,8 @@ export default function NegociacoesPage() {
   const { list: listClientes } = useClientes();
   const [negociacoes, setNegociacoes] = useState<Negociacao[]>([]);
   const [filteredNegociacoes, setFilteredNegociacoes] = useState<Negociacao[]>([]);
-  const [leads, setLeads] = useState<{ id: string; nome: string; telefone: string }[]>([]);
-  const [clientes, setClientes] = useState<{ id: string; nome: string; telefone: string }[]>([]);
+  const [leads, setLeads] = useState<{ id: string; nome: string; telefone: string; email: string }[]>([]);
+  const [clientes, setClientes] = useState<{ id: string; nome: string; telefone: string; email: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -120,6 +139,33 @@ export default function NegociacoesPage() {
   const [convertTarget, setConvertTarget] = useState<"parceiros" | "recrutamento" | "clientes" | "indicadores">("clientes");
   const [isConverting, setIsConverting] = useState(false);
 
+  const [contatoSearch, setContatoSearch] = useState("");
+  const [contatoResults, setContatoResults] = useState<{ id: string; nome: string; telefone: string; email: string; origem: string; type: "lead" | "cliente" | "indicador" }[]>([]);
+  const [isContatoSearchLoading, setIsContatoSearchLoading] = useState(false);
+
+  const [propostas, setPropostas] = useState<Proposta[]>([]);
+  const [isPropostasLoading, setIsPropostasLoading] = useState(false);
+  const [isPropostaDialogOpen, setIsPropostaDialogOpen] = useState(false);
+  const [isFollowupDialogOpen, setIsFollowupDialogOpen] = useState(false);
+  const [followupForm, setFollowupForm] = useState({ propostaId: "", tipo: "nao_fechou", canal: "whatsapp", observacao: "", valorParcelaReduzida: "" });
+  const [followups, setFollowups] = useState<{ id: string; tipo: string; canal: string; observacao: string; data_contato: string }[]>([]);
+  const [propostaForm, setPropostaForm] = useState<{ titulo: string; tipo: "Imovel" | "Veiculo" | "Servicos" | "Outros bens moveis"; valorTipo: "Cheio" | "Reduzida"; valor: string; administradora: string; numeroParcelas: string; valorEntrada: string; valorParcela: string; taxaAdministracao: string; banco: string; taxaJuros: string; prazo: string; observacoes: string; banner_caminho?: string | null }>({
+    titulo: "",
+    tipo: "Imovel",
+    valorTipo: "Cheio",
+    valor: "",
+    administradora: "",
+    numeroParcelas: "",
+    valorEntrada: "",
+    valorParcela: "",
+    taxaAdministracao: "",
+    banco: "",
+    taxaJuros: "",
+    prazo: "",
+    observacoes: "",
+    banner_caminho: null,
+  });
+
   const loadNegociacoes = async () => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -127,8 +173,8 @@ export default function NegociacoesPage() {
       const [negociacoesData, leadsData, clientesData] = await Promise.all([list(), listLeads(), listClientes()]);
       setNegociacoes(negociacoesData);
       setFilteredNegociacoes(negociacoesData);
-      setLeads(leadsData.map((l: { id: string; nome: string; telefone: string }) => ({ id: l.id, nome: l.nome, telefone: l.telefone })));
-      setClientes(clientesData.map((c: { id: string; nome: string; telefone: string }) => ({ id: c.id, nome: c.nome, telefone: c.telefone })));
+      setLeads(leadsData.map((l: { id: string; nome: string; telefone: string; email?: string }) => ({ id: l.id, nome: l.nome, telefone: l.telefone, email: l.email || "" })));
+      setClientes(clientesData.map((c: { id: string; nome: string; telefone: string; email?: string }) => ({ id: c.id, nome: c.nome, telefone: c.telefone, email: c.email || "" })));
     } catch {
       setErrorMessage("Não foi possível carregar as negociações.");
     } finally {
@@ -139,6 +185,50 @@ export default function NegociacoesPage() {
   useEffect(() => {
     void loadNegociacoes();
   }, []);
+
+  const searchContatosUnificados = async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setContatoResults([]);
+      return;
+    }
+    setIsContatoSearchLoading(true);
+    try {
+      const { searchLeads } = await import("@/repositories/client/leads.repository");
+      const { searchClientes } = await import("@/repositories/client/clientes.repository");
+      const { searchIndicadores } = await import("@/repositories/client/indicadores.repository");
+
+      const [leadsData, clientesData, indicadoresData] = await Promise.allSettled([
+        searchLeads(trimmed),
+        searchClientes(trimmed),
+        searchIndicadores(trimmed),
+      ]);
+
+      const results: { id: string; nome: string; telefone: string; email: string; origem: string; type: "lead" | "cliente" | "indicador" }[] = [];
+
+      if (leadsData.status === "fulfilled") {
+        leadsData.value.forEach((l) => {
+          results.push({ id: l.id, nome: l.nome, telefone: l.telefone, email: l.email || "", origem: "Lead", type: "lead" });
+        });
+      }
+      if (clientesData.status === "fulfilled") {
+        clientesData.value.forEach((c) => {
+          results.push({ id: c.id, nome: c.nome, telefone: c.telefone, email: c.email || "", origem: "Cliente", type: "cliente" });
+        });
+      }
+      if (indicadoresData.status === "fulfilled") {
+        indicadoresData.value.forEach((i) => {
+          results.push({ id: i.id, nome: i.nome, telefone: i.telefone, email: i.email || "", origem: "Indicador", type: "indicador" });
+        });
+      }
+
+      setContatoResults(results);
+    } catch {
+      setContatoResults([]);
+    } finally {
+      setIsContatoSearchLoading(false);
+    }
+  };
 
   useEffect(() => {
     let result = negociacoes;
@@ -208,12 +298,18 @@ export default function NegociacoesPage() {
     setIsHistoryLoading(true);
     setIsAnexosLoading(true);
     try {
-      const [hist, anex] = await Promise.all([getHistorico(negociacao.id), getAnexos(negociacao.id)]);
+      const [hist, anex, propostasData] = await Promise.all([
+        getHistorico(negociacao.id),
+        getAnexos(negociacao.id),
+        getPropostas(negociacao.id),
+      ]);
       setHistorico(hist);
       setAnexos(anex);
+      setPropostas(propostasData);
     } catch {
       setHistorico([]);
       setAnexos([]);
+      setPropostas([]);
     } finally {
       setIsLoadingDetail(false);
       setIsHistoryLoading(false);
@@ -394,6 +490,237 @@ export default function NegociacoesPage() {
     }
   };
 
+  const getContatoDaNegociacao = () => {
+    if (!selectedNegociacao) return null;
+    const lead = leads.find((l) => l.id === selectedNegociacao.lead_id);
+    const cliente = clientes.find((c) => c.id === selectedNegociacao.cliente_id);
+    const contato = cliente || lead;
+    return contato || null;
+  };
+
+  const selectContatoFromList = (id: string) => {
+    if (!id) return "";
+    return leads.find((l) => l.id === id)?.nome || clientes.find((c) => c.id === id)?.nome || "";
+  };
+
+  const handleWhatsAppContato = () => {
+    const contato = getContatoDaNegociacao();
+    if (!contato || !contato.telefone) {
+      error("Contato não encontrado ou sem telefone.");
+      return;
+    }
+    const digits = contato.telefone.replace(/\D/g, "");
+    if (!digits) {
+      error("Telefone inválido para WhatsApp.");
+      return;
+    }
+    const mensagem = `Olá ${contato.nome}, tudo bem? Estamos entrando em contato sobre sua negociação no CRM.`;
+    const link = `https://wa.me/55${digits}?text=${encodeURIComponent(mensagem)}`;
+    window.open(link, "_blank");
+  };
+
+  const handleSMSContato = () => {
+    const contato = getContatoDaNegociacao();
+    if (!contato || !contato.telefone) {
+      error("Contato não encontrado ou sem telefone.");
+      return;
+    }
+    const digits = contato.telefone.replace(/\D/g, "");
+    if (!digits) {
+      error("Telefone inválido para SMS.");
+      return;
+    }
+    window.location.href = `sms:+55${digits}?body=${encodeURIComponent("Olá, estamos entrando em contato sobre sua negociação.")}`;
+  };
+
+  const handleEmailContato = () => {
+    const contato = getContatoDaNegociacao();
+    if (!contato || !contato.email) {
+      error("Contato não encontrado ou sem e-mail.");
+      return;
+    }
+    window.location.href = `mailto:${contato.email}`;
+  };
+
+  const handleLigarContato = () => {
+    const contato = getContatoDaNegociacao();
+    if (!contato || !contato.telefone) {
+      error("Contato não encontrado ou sem telefone.");
+      return;
+    }
+    const digits = contato.telefone.replace(/\D/g, "");
+    if (!digits) {
+      error("Telefone inválido para ligação.");
+      return;
+    }
+    window.location.href = `tel:+55${digits}`;
+  };
+
+  const loadPropostas = async () => {
+    if (!selectedNegociacao) return;
+    setIsPropostasLoading(true);
+    try {
+      const data = await getPropostas(selectedNegociacao.id);
+      setPropostas(data);
+    } catch {
+      setPropostas([]);
+    } finally {
+      setIsPropostasLoading(false);
+    }
+  };
+
+  const handleGerarProposta = async () => {
+    if (!selectedNegociacao) return;
+    try {
+      const valor = Number(propostaForm.valor) || 0;
+      let conteudo = "";
+
+      if (propostaForm.tipo === "Imovel" || propostaForm.tipo === "Veiculo" || propostaForm.tipo === "Servicos" || propostaForm.tipo === "Outros bens moveis") {
+        conteudo = generateConsorcioTemplate({
+          titulo: propostaForm.titulo,
+          valor,
+          tipo: propostaForm.tipo,
+          valorTipo: propostaForm.valorTipo,
+          administradora: propostaForm.administradora,
+          numeroParcelas: Number(propostaForm.numeroParcelas) || 0,
+          valorEntrada: Number(propostaForm.valorEntrada) || 0,
+          valorParcela: Number(propostaForm.valorParcela) || 0,
+          taxaAdministracao: Number(propostaForm.taxaAdministracao) || 0,
+          observacoes: propostaForm.observacoes,
+        });
+      } else {
+        conteudo = generateCartaCreditoTemplate({
+          titulo: propostaForm.titulo,
+          valor,
+          tipo: propostaForm.tipo,
+          valorTipo: propostaForm.valorTipo,
+          administradora: propostaForm.administradora,
+          banco: propostaForm.banco,
+          taxaJuros: Number(propostaForm.taxaJuros) || 0,
+          numeroParcelas: Number(propostaForm.numeroParcelas) || 0,
+          valorParcela: Number(propostaForm.valorParcela) || 0,
+          prazo: Number(propostaForm.prazo) || 0,
+          observacoes: propostaForm.observacoes,
+        });
+      }
+
+      const created = await createProposta({
+        negociacao_id: selectedNegociacao.id,
+        titulo: propostaForm.titulo,
+        tipo: propostaForm.tipo,
+        conteudo,
+        status: "rascunho",
+        banner_caminho: propostaForm.banner_caminho || null,
+      });
+
+      setPropostas((prev) => [created, ...prev]);
+      setIsPropostaDialogOpen(false);
+      success("Proposta gerada com sucesso.");
+    } catch {
+      error("Não foi possível gerar a proposta.");
+    }
+  };
+
+  const handleSendProposta = async (propostaId: string, canal: "whatsapp" | "email" | "link") => {
+    const contato = getContatoDaNegociacao();
+    if (!contato) {
+      error("Nenhum contato associado a esta negociação.");
+      return;
+    }
+    try {
+      const proposta = propostas.find((p) => p.id === propostaId);
+      if (!proposta) return;
+
+      const link = generatePropostaLink(proposta);
+
+      if (canal === "whatsapp") {
+        const digits = contato.telefone.replace(/\D/g, "");
+        if (!digits) {
+          error("Telefone inválido para WhatsApp.");
+          return;
+        }
+        const mensagem = `${proposta.titulo}\n\nOlá ${contato.nome}, segue sua proposta:\n${link}`;
+        window.open(`https://wa.me/55${digits}?text=${encodeURIComponent(mensagem)}`, "_blank");
+      } else if (canal === "email") {
+        window.location.href = `mailto:${contato.email}?subject=${encodeURIComponent(proposta.titulo)}&body=${encodeURIComponent(`Olá ${contato.nome},\n\nSegue sua proposta:\n${link}`)}`;
+      } else if (canal === "link") {
+        await navigator.clipboard.writeText(link);
+        success("Link da proposta copiado para área de transferência.");
+      }
+
+      await updateProposta(propostaId, {
+        data_envio: new Date().toISOString(),
+        enviado_para: contato.nome,
+        enviado_canal: canal,
+        status: "enviada",
+      });
+
+      await loadPropostas();
+    } catch {
+      error("Não foi possível enviar a proposta.");
+    }
+  };
+
+  const handleCopyPropostaLink = async (proposta: Proposta) => {
+    try {
+      const link = generatePropostaLink(proposta);
+      await navigator.clipboard.writeText(link);
+      success("Link copiado.");
+    } catch {
+      error("Não foi possível copiar o link.");
+    }
+  };
+
+  const handleDeleteProposta = async (propostaId: string) => {
+    try {
+      await deleteProposta(propostaId);
+      setPropostas((prev) => prev.filter((p) => p.id !== propostaId));
+      success("Proposta excluída.");
+    } catch {
+      error("Não foi possível excluir a proposta.");
+    }
+  };
+
+  const openFollowup = (proposta: Proposta) => {
+    setFollowupForm({ propostaId: proposta.id, tipo: "nao_fechou", canal: "whatsapp", observacao: "", valorParcelaReduzida: "" });
+    setIsFollowupDialogOpen(true);
+  };
+
+  const handleSaveFollowup = async () => {
+    if (!followupForm.propostaId) return;
+    try {
+      await createPropostaFollowup(followupForm.propostaId, {
+        tipo: followupForm.tipo,
+        canal: followupForm.canal,
+        observacao: followupForm.observacao,
+      });
+
+      if (followupForm.tipo === "parcela_reduzida" && followupForm.valorParcelaReduzida) {
+        await createPropostaReduzida(followupForm.propostaId, {
+          valor_parcela_reduzida: Number(followupForm.valorParcelaReduzida),
+          observacoes: followupForm.observacao,
+        });
+      }
+
+      const followupsData = await getPropostaFollowups(followupForm.propostaId);
+      setFollowups(followupsData.map((f) => ({ id: f.id, tipo: f.tipo, canal: f.canal, observacao: f.observacao, data_contato: f.data_contato })));
+      setIsFollowupDialogOpen(false);
+      success("Follow-up registrado.");
+      await loadPropostas();
+    } catch {
+      error("Não foi possível registrar o follow-up.");
+    }
+  };
+
+  const loadFollowups = async (propostaId: string) => {
+    try {
+      const followupsData = await getPropostaFollowups(propostaId);
+      setFollowups(followupsData.map((f) => ({ id: f.id, tipo: f.tipo, canal: f.canal, observacao: f.observacao, data_contato: f.data_contato })));
+    } catch {
+      setFollowups([]);
+    }
+  };
+
   const handleAddHistorico = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedNegociacao || !historicoForm.descricao.trim()) return;
@@ -470,6 +797,21 @@ export default function NegociacoesPage() {
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+
+  const formatPropostaTipo = (tipo: string) => {
+    switch (tipo) {
+      case "Imovel":
+        return "Imóvel";
+      case "Veiculo":
+        return "Veículo";
+      case "Servicos":
+        return "Serviços";
+      case "Outros bens moveis":
+        return "Outros bens móveis";
+      default:
+        return tipo;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -652,26 +994,61 @@ export default function NegociacoesPage() {
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="lead_id">Lead</Label>
-                <select id="lead_id" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.lead_id} onChange={(e) => handleChange("lead_id", e.target.value)}>
-                  <option value="">Selecione</option>
-                  {leads.map((lead) => (
-                    <option key={lead.id} value={lead.id}>
-                      {lead.nome}
-                    </option>
-                  ))}
-                </select>
+                <Label htmlFor="lead_id">Lead / Cliente / Indicador</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="lead_id"
+                    placeholder="Buscar por nome ou telefone..."
+                    value={formData.lead_id ? (contatoResults.find((c) => c.id === formData.lead_id)?.nome || contatoSearch) : contatoSearch}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setContatoSearch(value);
+                      void searchContatosUnificados(value);
+                    }}
+                    className="pl-9"
+                  />
+                </div>
+                {contatoResults.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto rounded-md border">
+                    {contatoResults.map((contato) => (
+                      <div
+                        key={contato.id}
+                        className="flex cursor-pointer items-center justify-between px-3 py-2 hover:bg-muted"
+                        onClick={() => {
+                          if (contato.type === "lead") {
+                            setFormData((prev) => ({ ...prev, lead_id: contato.id, cliente_id: "" }));
+                          } else {
+                            setFormData((prev) => ({ ...prev, cliente_id: contato.id, lead_id: "" }));
+                          }
+                          setContatoSearch(contato.nome);
+                          setContatoResults([]);
+                        }}
+                      >
+                        <div>
+                          <p className="text-sm font-medium">{contato.nome}</p>
+                          <p className="text-xs text-muted-foreground">{contato.telefone}</p>
+                          {contato.email && <p className="text-xs text-muted-foreground">{contato.email}</p>}
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {contato.origem}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {formData.lead_id && !contatoResults.length && (
+                  <div className="flex items-center gap-2 rounded-md bg-muted/50 px-2 py-1">
+                    <span className="text-xs text-muted-foreground">Selecionado: </span>
+                    <span className="text-xs font-medium">
+                      {selectContatoFromList(formData.lead_id) || selectContatoFromList(formData.cliente_id) || "—"}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cliente_id">Cliente</Label>
-                <select id="cliente_id" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.cliente_id} onChange={(e) => handleChange("cliente_id", e.target.value)}>
-                  <option value="">Selecione</option>
-                  {clientes.map((cliente) => (
-                    <option key={cliente.id} value={cliente.id}>
-                      {cliente.nome}
-                    </option>
-                  ))}
-                </select>
+                <Label htmlFor="modalidade">Modalidade</Label>
+                <Input id="modalidade" value={formData.modalidade} onChange={(e) => handleChange("modalidade", e.target.value)} placeholder="Ex: Consórcio, Financiamento, Carta de Crédito" />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -740,6 +1117,8 @@ export default function NegociacoesPage() {
                 <Button variant={tab === "historico" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("historico")}>Histórico</Button>
                 <Button variant={tab === "anexos" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("anexos")}>Anexos</Button>
                 <Button variant={tab === "tarefas" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("tarefas")}>Tarefas</Button>
+                <Button variant={tab === "comunicacao" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("comunicacao")}>Comunicação</Button>
+                <Button variant={tab === "propostas" ? "secondary" : "ghost"} size="sm" onClick={() => { setTab("propostas"); if (selectedNegociacao) { void loadPropostas(); } }}>Propostas</Button>
               </div>
                {tab === "info" && (
                 <>
@@ -919,6 +1298,230 @@ export default function NegociacoesPage() {
                   )}
                 </div>
               )}
+              {tab === "comunicacao" && (
+                <div className="space-y-4">
+                  <div className="text-xs text-muted-foreground mb-2">
+                    {getContatoDaNegociacao() ? (
+                      <div className="flex items-center gap-2">
+                        <span>Contato: <strong>{getContatoDaNegociacao()?.nome}</strong></span>
+                        <span>{getContatoDaNegociacao()?.telefone}</span>
+                      </div>
+                    ) : (
+                      "Nenhum contato associado. Selecione um lead ou cliente na aba Informações."
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex flex-col items-center gap-2 h-auto py-4"
+                      onClick={handleWhatsAppContato}
+                    >
+                      <MessageSquare className="h-5 w-5 text-green-600" />
+                      <span>WhatsApp</span>
+                      <span className="text-xs">Abrir conversa no WhatsApp</span>
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex flex-col items-center gap-2 h-auto py-4"
+                      onClick={handleSMSContato}
+                    >
+                      <MessageCircle className="h-5 w-5 text-blue-600" />
+                      <span>SMS</span>
+                      <span className="text-xs">Enviar mensagem de texto</span>
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex flex-col items-center gap-2 h-auto py-4"
+                      onClick={handleEmailContato}
+                    >
+                      <Mail className="h-5 w-5 text-purple-600" />
+                      <span>E-mail</span>
+                      <span className="text-xs">Abrir cliente de e-mail</span>
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex flex-col items-center gap-2 h-auto py-4"
+                      onClick={handleLigarContato}
+                    >
+                      <Phone className="h-5 w-5 text-green-700" />
+                      <span>Ligar</span>
+                      <span className="text-xs">Iniciar ligação telefônica</span>
+                    </Button>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-medium mb-3">Compartilhar Proposta</h4>
+                    {propostas.length > 0 ? (
+                      <div className="space-y-2">
+                        {propostas.map((proposta) => (
+                          <div key={proposta.id} className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <p className="text-sm font-medium">{proposta.titulo}</p>
+                              <p className="text-xs text-muted-foreground">
+                                 {formatPropostaTipo(proposta.tipo)} • {proposta.acessos} visualização(es)
+                              </p>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleSendProposta(proposta.id, "whatsapp")}
+                                aria-label="Enviar por WhatsApp"
+                              >
+                                <MessageSquare className="h-4 w-4 text-green-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleSendProposta(proposta.id, "email")}
+                                aria-label="Enviar por e-mail"
+                              >
+                                <Mail className="h-4 w-4 text-purple-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleCopyPropostaLink(proposta)}
+                                aria-label="Copiar link"
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Nenhuma proposta gerada. Gere uma proposta na aba Propostas.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              {tab === "propostas" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium">Propostas de Consórcio e Crédito</h3>
+                    <Button size="sm" onClick={() => { setPropostaForm({ titulo: "", tipo: "Imovel", valorTipo: "Cheio", valor: "", administradora: "", numeroParcelas: "", valorEntrada: "", valorParcela: "", taxaAdministracao: "", banco: "", taxaJuros: "", prazo: "", observacoes: "" }); setIsPropostaDialogOpen(true); }}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Nova Proposta
+                    </Button>
+                  </div>
+
+                  {isPropostasLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : propostas.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhuma proposta gerada para esta negociação.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {propostas.map((proposta) => (
+                      <Card key={proposta.id} className="border-border/50">
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-base">{proposta.titulo}</CardTitle>
+                            <Badge variant={proposta.status === "enviada" ? "success" : proposta.status === "followup_enviado" ? "outline" : "secondary"}>
+                              {proposta.status === "enviada" ? "Enviada" : proposta.status === "followup_enviado" ? "Follow-up" : "Rascunho"}
+                            </Badge>
+                          </div>
+                          <CardDescription>
+                            {formatPropostaTipo(proposta.tipo)} • Gerada em {new Date(proposta.created_at).toLocaleDateString("pt-BR")}
+                          </CardDescription>
+                        </CardHeader>
+                        {proposta.banner_caminho && (
+                          <CardContent>
+                            <img src={proposta.banner_caminho} alt="Banner" className="w-full rounded-md border" />
+                          </CardContent>
+                        )}
+                        <CardContent>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Acessos</p>
+                              <p className="text-2xl font-bold">{proposta.acessos}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Última visualização</p>
+                              <p className="text-sm">
+                                {proposta.ultima_visualizacao
+                                  ? new Date(proposta.ultima_visualizacao).toLocaleString("pt-BR")
+                                  : "Nunca"}
+                              </p>
+                            </div>
+                          </div>
+                          {proposta.valor_parcela_cheia && (
+                            <div className="mt-2 text-xs text-muted-foreground">
+                              Parcela cheia: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(proposta.valor_parcela_cheia))}
+                            </div>
+                          )}
+                          {proposta.valor_parcela_reduzida && (
+                            <div className="mt-1 text-xs text-green-700">
+                              Parcela reduzida: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(proposta.valor_parcela_reduzida))}
+                            </div>
+                          )}
+                          {proposta.data_envio && (
+                            <div className="mt-3 text-xs text-muted-foreground">
+                              Enviada para: {proposta.enviado_para} via {proposta.enviado_canal}
+                              {" "}em {new Date(proposta.data_envio).toLocaleString("pt-BR")}
+                            </div>
+                          )}
+                        </CardContent>
+                        <CardContent className="flex flex-wrap gap-2 border-t pt-4">
+                          <Button size="sm" variant="outline" onClick={() => handleCopyPropostaLink(proposta)}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copiar link
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleSendProposta(proposta.id, "whatsapp")}>
+                            <MessageSquare className="mr-2 h-4 w-4" />
+                            Enviar WhatsApp
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleSendProposta(proposta.id, "email")}>
+                            <Mail className="mr-2 h-4 w-4" />
+                            Enviar E-mail
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => window.open(generatePropostaLink(proposta), "_blank", "noopener,noreferrer")}>
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Visualizar
+                          </Button>
+                          <Button size="sm" variant="secondary" onClick={() => openFollowup(proposta)}>
+                            <History className="mr-2 h-4 w-4" />
+                            Follow-up
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleDeleteProposta(proposta.id)}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Excluir
+                          </Button>
+                        </CardContent>
+                        {followups.length > 0 && proposta.id === followupForm.propostaId && (
+                          <CardContent className="border-t">
+                            <p className="text-xs font-medium mb-2">Follow-ups</p>
+                            <div className="space-y-2">
+                              {followups.map((f) => (
+                                <div key={f.id} className="rounded-md border p-2 text-xs">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-medium">{f.tipo === "nao_fechou" ? "Não fechou" : f.tipo === "parcela_reduzida" ? "Parcela reduzida" : f.tipo}</span>
+                                    <span className="text-muted-foreground">{new Date(f.data_contato).toLocaleString("pt-BR")}</span>
+                                  </div>
+                                  {f.observacao && <p className="mt-1 text-muted-foreground">{f.observacao}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        )}
+                      </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </DialogContent>
@@ -957,6 +1560,260 @@ export default function NegociacoesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+
+      <Dialog open={isPropostaDialogOpen} onOpenChange={setIsPropostaDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gerar Nova Proposta</DialogTitle>
+            <DialogDescription>
+              Crie uma proposta de consórcio ou carta de crédito para o cliente desta negociação.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Tipo de Proposta</Label>
+              <select
+                value={propostaForm.tipo}
+                onChange={(e) => setPropostaForm((prev) => ({ ...prev, tipo: e.target.value as "Imovel" | "Veiculo" | "Servicos" | "Outros bens moveis" }))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="Imovel">Imóvel</option>
+                <option value="Veiculo">Veículo</option>
+                <option value="Servicos">Serviços</option>
+                <option value="Outros bens moveis">Outros bens móveis</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Tipo de Valor</Label>
+              <select
+                value={propostaForm.valorTipo}
+                onChange={(e) => setPropostaForm((prev) => ({ ...prev, valorTipo: e.target.value as "Cheio" | "Reduzida" }))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="Cheio">Cheio</option>
+                <option value="Reduzida">Reduzida</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="p-titulo">Título</Label>
+              <Input
+                id="p-titulo"
+                value={propostaForm.titulo}
+                onChange={(e) => setPropostaForm((prev) => ({ ...prev, titulo: e.target.value }))}
+                placeholder="Ex: Proposta Consórcio 2025"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Banner da proposta (imagem)</Label>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    setPropostaForm((prev) => ({ ...prev, banner_caminho: reader.result as string }));
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+              {propostaForm.banner_caminho && (
+                <img src={propostaForm.banner_caminho} alt="Banner" className="mt-2 max-h-32 rounded-md border" />
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="p-valor">Valor (R$)</Label>
+                <Input
+                  id="p-valor"
+                  type="number"
+                  step="0.01"
+                  value={propostaForm.valor}
+                  onChange={(e) => setPropostaForm((prev) => ({ ...prev, valor: e.target.value }))}
+                  placeholder="0,00"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="p-administradora">Administradora</Label>
+                <Input
+                  id="p-administradora"
+                  value={propostaForm.administradora}
+                  onChange={(e) => setPropostaForm((prev) => ({ ...prev, administradora: e.target.value }))}
+                  placeholder="Ex: BMG Consórcios"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="p-valor-tipo">Tipo de Valor</Label>
+              <select
+                value={propostaForm.valorTipo}
+                onChange={(e) => setPropostaForm((prev) => ({ ...prev, valorTipo: e.target.value as "Cheio" | "Reduzida" }))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="Cheio">Cheio</option>
+                <option value="Reduzida">Reduzida</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="p-banco">Banco / Administradora</Label>
+                <Input
+                  id="p-banco"
+                  value={propostaForm.administradora}
+                  onChange={(e) => setPropostaForm((prev) => ({ ...prev, administradora: e.target.value }))}
+                  placeholder="Ex: BMG Consórcios"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="p-parcelas">Número de Parcelas</Label>
+                <Input
+                  id="p-parcelas"
+                  type="number"
+                  value={propostaForm.numeroParcelas}
+                  onChange={(e) => setPropostaForm((prev) => ({ ...prev, numeroParcelas: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="p-entrada">Valor de Entrada (R$)</Label>
+                <Input
+                  id="p-entrada"
+                  type="number"
+                  step="0.01"
+                  value={propostaForm.valorEntrada}
+                  onChange={(e) => setPropostaForm((prev) => ({ ...prev, valorEntrada: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="p-parcela">Valor da Parcela (R$)</Label>
+                <Input
+                  id="p-parcela"
+                  type="number"
+                  step="0.01"
+                  value={propostaForm.valorParcela}
+                  onChange={(e) => setPropostaForm((prev) => ({ ...prev, valorParcela: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="p-taxa-adm">Taxa de Administração / Juros (%)</Label>
+                <Input
+                  id="p-taxa-adm"
+                  type="number"
+                  step="0.01"
+                  value={propostaForm.taxaAdministracao}
+                  onChange={(e) => setPropostaForm((prev) => ({ ...prev, taxaAdministracao: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="p-prazo">Prazo (meses)</Label>
+              <Input
+                id="p-prazo"
+                type="number"
+                value={propostaForm.prazo}
+                onChange={(e) => setPropostaForm((prev) => ({ ...prev, prazo: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="p-observacoes">Observações</Label>
+              <Textarea
+                id="p-observacoes"
+                value={propostaForm.observacoes}
+                onChange={(e) => setPropostaForm((prev) => ({ ...prev, observacoes: e.target.value }))}
+                placeholder="Observações adicionais para a proposta..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPropostaDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleGerarProposta}>
+              Gerar Proposta
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isFollowupDialogOpen} onOpenChange={setIsFollowupDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar follow-up da proposta</DialogTitle>
+            <DialogDescription>Registre o resultado do contato e, se quiser, gere uma nova proposta com parcela reduzida.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Tipo de follow-up</Label>
+              <select
+                value={followupForm.tipo}
+                onChange={(e) => setFollowupForm((prev) => ({ ...prev, tipo: e.target.value }))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="nao_fechou">Cliente não fechou</option>
+                <option value="parcela_reduzida">Oferecer parcela reduzida</option>
+                <option value="interessado">Interessado</option>
+                <option value="agendado">Agendado</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Canal</Label>
+              <select
+                value={followupForm.canal}
+                onChange={(e) => setFollowupForm((prev) => ({ ...prev, canal: e.target.value }))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="whatsapp">WhatsApp</option>
+                <option value="email">E-mail</option>
+                <option value="sms">SMS</option>
+                <option value="ligacao">Ligação</option>
+              </select>
+            </div>
+
+            {followupForm.tipo === "parcela_reduzida" && (
+              <div className="space-y-2">
+                <Label htmlFor="followup-valor-parcela">Valor da parcela reduzida (R$)</Label>
+                <Input
+                  id="followup-valor-parcela"
+                  type="number"
+                  step="0.01"
+                  value={followupForm.valorParcelaReduzida}
+                  onChange={(e) => setFollowupForm((prev) => ({ ...prev, valorParcelaReduzida: e.target.value }))}
+                  placeholder="0,00"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="followup-observacao">Observação</Label>
+              <Textarea
+                id="followup-observacao"
+                value={followupForm.observacao}
+                onChange={(e) => setFollowupForm((prev) => ({ ...prev, observacao: e.target.value }))}
+                placeholder="Descreva o resultado do contato..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsFollowupDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveFollowup}>Salvar follow-up</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+     </div>
   );
 }

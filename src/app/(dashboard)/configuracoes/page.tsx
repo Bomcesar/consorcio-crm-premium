@@ -341,8 +341,12 @@ export default function ConfiguracoesPage() {
       setIsCreatingUsuario(false);
       setSenha("");
       setUsuarioForm({ nome: "", email: "", perfil: "Consultor", ativo: true });
-    } catch {
-      error(isCreatingUsuario ? "Não foi possível criar o usuário." : "Não foi possível atualizar o usuário.");
+    } catch (err) {
+      console.error("[handleUsuarioSubmit] error:", err);
+      const errMsg = err instanceof Error ? err.message : "Erro desconhecido";
+      error(isCreatingUsuario
+        ? `Não foi possível criar o usuário: ${errMsg}`
+        : `Não foi possível atualizar o usuário: ${errMsg}`);
     } finally {
       setIsUsuarioSaving(false);
     }

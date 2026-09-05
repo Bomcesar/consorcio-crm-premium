@@ -11,7 +11,13 @@ export async function createUsuarioAction(
   nome: string,
   perfil: Perfil
 ): Promise<Usuario> {
-  const supabase = createAdminClient();
+  let supabase;
+  try {
+    supabase = createAdminClient();
+  } catch (adminErr) {
+    console.error("[createUsuarioAction] createAdminClient error:", adminErr);
+    throw new Error("Não foi possível inicializar o cliente de administrador. Verifique as variáveis de ambiente.");
+  }
 
   const { data, error } = await supabase.auth.admin.createUser({
     email,

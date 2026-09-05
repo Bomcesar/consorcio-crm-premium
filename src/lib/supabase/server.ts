@@ -32,14 +32,18 @@ export function createAdminClient() {
   const secretKey = process.env.SUPABASE_SECRET_KEY;
   const adminKey = serviceRoleKey || secretKey;
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
   if (!adminKey) {
     throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY for admin operations.");
   }
 
-  console.log("[createAdminClient] using=" + (serviceRoleKey ? "SUPABASE_SERVICE_ROLE_KEY" : "SUPABASE_SECRET_KEY") + " length=" + adminKey.length);
+  if (!supabaseUrl) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL for admin operations.");
+  }
 
   return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseUrl,
     adminKey,
     {
       auth: {
