@@ -196,6 +196,9 @@ export function generateConsorcioTemplate(dados: {
   valorParcela?: number;
   taxaAdministracao?: number;
   observacoes?: string;
+  segmento?: string;
+  grupo?: string;
+  cota?: string;
 }): string {
   const valorTotal = dados.valor;
   const entrada = dados.valorEntrada ?? 0;
@@ -203,26 +206,25 @@ export function generateConsorcioTemplate(dados: {
   const parcelas = dados.numeroParcelas ?? 12;
   const parcela = dados.valorParcela ?? restante / parcelas;
   const taxa = dados.taxaAdministracao ?? 0;
-  const tipoLabel = dados.tipo === "Imovel" ? "Imóvel" : dados.tipo === "Veiculo" ? "Veículo" : dados.tipo === "Servicos" ? "Serviços" : "Outros bens móveis";
+  const tipoLabel = dados.tipo === "Imovel" ? "Imóveis" : dados.tipo === "Veiculo" ? "Veículos" : dados.tipo === "Servicos" ? "Serviços" : "Outros bens móveis";
 
   return `# PROPOSTA DE CONSÓRCIO - ${tipoLabel.toUpperCase()}
 
 **Administradora:** ${dados.administradora || "Não especificada"}
 **Título da Proposta:** ${dados.titulo}
 
-**TIPO DE BEM:** ${tipoLabel}
-**VALOR DO BEM:** R$ ${valorTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+**SEGMENTO:** ${dados.segmento || tipoLabel}
+**GRUPO:** ${dados.grupo || "Não informado"}
+**COTA:** ${dados.cota || "Não informada"}
 
-**ENTRADA:** R$ ${entrada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-**SALDO RESTANTE:** R$ ${restante.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+**VALOR DO CRÉDITO:** R$ ${valorTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
 
-**NÚMERO DE PARCELAS:** ${parcelas}
-**VALOR DE CADA PARCELA:** R$ ${parcela.toFixed(2)}
+**VALOR DE PARCELA CHEIA:** R$ ${parcela.toFixed(2)}
+**VALOR DE PARCELA REDUZIDA:** R$ ${parcela.toFixed(2)}
+**PRAZO:** ${parcelas} meses
+**TAXA:** ${taxa}%
 
-**TAXA DE ADMINISTRAÇÃO:** ${taxa}%
-**VALOR TOTAL A PAGAR:** R$ ${(valorTotal + (valorTotal * taxa / 100)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-
-${dados.observacoes ? `**Observações:**\n${dados.observacoes}\n` : ""}
+${dados.observacoes ? `**Observação:**\n${dados.observacoes}\n` : ""}
 
 ---
 *Proposta gerada automaticamente pelo CRM Consórcio Premium*
@@ -243,12 +245,15 @@ export function generateCartaCreditoTemplate(dados: {
   valorParcela?: number;
   prazo?: number;
   observacoes?: string;
+  segmento?: string;
+  grupo?: string;
+  cota?: string;
 }): string {
   const parcelas = dados.numeroParcelas ?? 12;
   const parcela = dados.valorParcela ?? dados.valor / parcelas;
-  const juros = dados.taxaJuros ?? 0;
+  const taxa = dados.taxaJuros ?? 0;
   const prazo = dados.prazo ?? 0;
-  const tipoLabel = dados.tipo === "Imovel" ? "Imóvel" : dados.tipo === "Veiculo" ? "Veículo" : dados.tipo === "Servicos" ? "Serviços" : "Outros bens móveis";
+  const tipoLabel = dados.tipo === "Imovel" ? "Imóveis" : dados.tipo === "Veiculo" ? "Veículos" : dados.tipo === "Servicos" ? "Serviços" : "Outros bens móveis";
 
   return `# CARTA DE CRÉDITO CONSIGNADO - ${tipoLabel.toUpperCase()}
 
@@ -257,15 +262,18 @@ export function generateCartaCreditoTemplate(dados: {
 **Cliente:** ${dados.clienteNome || "Não especificado"}
 **Título da Proposta:** ${dados.titulo}
 
-**TIPO DE BEM:** ${tipoLabel}
-**VALOR DO BEM:** R$ ${dados.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+**SEGMENTO:** ${dados.segmento || tipoLabel}
+**GRUPO:** ${dados.grupo || "Não informado"}
+**COTA:** ${dados.cota || "Não informada"}
 
-**TAXA DE JUROS:** ${juros}% a.a.
-**NÚMERO DE PARCELAS:** ${parcelas}
-**VALOR DE CADA PARCELA:** R$ ${parcela.toFixed(2)}
-**PRAZO TOTAL:** ${prazo} meses
+**VALOR DO CRÉDITO:** R$ ${dados.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
 
-${dados.observacoes ? `**Observações:**\n${dados.observacoes}\n` : ""}
+**VALOR DE PARCELA CHEIA:** R$ ${parcela.toFixed(2)}
+**VALOR DE PARCELA REDUZIDA:** R$ ${parcela.toFixed(2)}
+**PRAZO:** ${prazo} meses
+**TAXA:** ${taxa}%
+
+${dados.observacoes ? `**Observação:**\n${dados.observacoes}\n` : ""}
 
 ---
 *Carta de crédito gerada automaticamente pelo CRM Consórcio Premium*

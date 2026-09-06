@@ -63,6 +63,7 @@ import {
   generateConsorcioTemplate,
   generateCartaCreditoTemplate,
 } from "@/repositories/client/propostas.repository";
+import { updateNegociacao } from "@/repositories/client/negociacoes.repository";
 
 const dealStageLabels: Record<DealStage, string> = {
   NOVO_LEAD: 'Novo Lead',
@@ -113,7 +114,7 @@ const pipelineStages = [
   "Venda",
 ] as const;
 
-const emptyForm = {
+  const emptyForm = {
   titulo: "",
   valor: "",
   etapa: "Novo" as Negociacao["etapa"],
@@ -133,7 +134,6 @@ const emptyForm = {
   tipo_carta: "NOVA_COTA" as Deal['tipoCarta'],
   administradora: "",
   tipo_bem: "IMOVEL" as Deal['tipoBem'],
-  comissao_estimada: "",
 };
 
 type NegociacaoFormData = typeof emptyForm;
@@ -207,7 +207,7 @@ export default function NegociacoesPage() {
   const [isFollowupDialogOpen, setIsFollowupDialogOpen] = useState(false);
   const [followupForm, setFollowupForm] = useState({ propostaId: "", tipo: "nao_fechou", canal: "whatsapp", observacao: "", valorParcelaReduzida: "" });
   const [followups, setFollowups] = useState<{ id: string; tipo: string; canal: string; observacao: string; data_contato: string }[]>([]);
-  const [propostaForm, setPropostaForm] = useState<{ titulo: string; tipo: "Imovel" | "Veiculo" | "Servicos" | "Outros bens moveis"; valorTipo: "Cheio" | "Reduzida"; valor: string; administradora: string; numeroParcelas: string; valorEntrada: string; valorParcela: string; taxaAdministracao: string; banco: string; taxaJuros: string; prazo: string; observacoes: string; banner_caminho?: string | null }>({
+  const [propostaForm, setPropostaForm] = useState<{ titulo: string; tipo: "Imovel" | "Veiculo" | "Servicos" | "Outros bens moveis"; valorTipo: "Cheio" | "Reduzida"; valor: string; administradora: string; numeroParcelas: string; valorEntrada: string; valorParcela: string; taxaAdministracao: string; banco: string; taxaJuros: string; prazo: string; observacoes: string; banner_caminho?: string | null; segmento?: string; grupo?: string; cota?: string }>({
     titulo: "",
     tipo: "Imovel",
     valorTipo: "Cheio",
@@ -222,7 +222,15 @@ export default function NegociacoesPage() {
     prazo: "",
     observacoes: "",
     banner_caminho: null,
+    segmento: "",
+    grupo: "",
+    cota: "",
   });
+
+  const comissaoCalculada = useMemo(() => {
+    const valor = Number(propostaForm.valor) || 0;
+    return valor * 0.02;
+  }, [propostaForm.valor]);
 
   const loadNegociacoes = async () => {
     setIsLoading(true);
@@ -430,7 +438,6 @@ export default function NegociacoesPage() {
       tipo_carta: (negociacao.tipo_carta as Deal['tipoCarta']) || "NOVA_COTA",
       administradora: negociacao.administradora || "",
       tipo_bem: (negociacao.tipo_bem as Deal['tipoBem']) || "IMOVEL",
-      comissao_estimada: String(negociacao.comissao_estimada ?? 0),
     });
     setIsFormOpen(true);
   };
@@ -604,7 +611,6 @@ export default function NegociacoesPage() {
       tipo_carta: formData.tipo_carta,
       administradora: formData.administradora.trim(),
       tipo_bem: formData.tipo_bem,
-      comissao_estimada: Number(formData.comissao_estimada) || 0,
       ...(formData.lead_id ? { lead_id: formData.lead_id } : {}),
     };
     if (!selectedNegociacao && !formData.lead_id) {
@@ -731,6 +737,7 @@ export default function NegociacoesPage() {
     if (!selectedNegociacao) return;
     try {
       const valor = Number(propostaForm.valor) || 0;
+      const comissao = valor * 0.02;
       let conteudo = "";
 
       if (propostaForm.tipo === "Imovel" || propostaForm.tipo === "Veiculo" || propostaForm.tipo === "Servicos" || propostaForm.tipo === "Outros bens moveis") {
@@ -745,6 +752,9 @@ export default function NegociacoesPage() {
           valorParcela: Number(propostaForm.valorParcela) || 0,
           taxaAdministracao: Number(propostaForm.taxaAdministracao) || 0,
           observacoes: propostaForm.observacoes,
+          segmento: propostaForm.segmento,
+          grupo: propostaForm.grupo,
+          cota: propostaForm.cota,
         });
       } else {
         conteudo = generateCartaCreditoTemplate({
@@ -759,6 +769,9 @@ export default function NegociacoesPage() {
           valorParcela: Number(propostaForm.valorParcela) || 0,
           prazo: Number(propostaForm.prazo) || 0,
           observacoes: propostaForm.observacoes,
+          segmento: propostaForm.segmento,
+          grupo: propostaForm.grupo,
+          cota: propostaForm.cota,
         });
       }
 
@@ -769,6 +782,10 @@ export default function NegociacoesPage() {
         conteudo,
         status: "rascunho",
         banner_caminho: propostaForm.banner_caminho || null,
+      });
+
+      await updateNegociacao(selectedNegociacao.id, {
+        comissao_estimada: comissao,
       });
 
       setPropostas((prev) => [created, ...prev]);
@@ -1340,10 +1357,6 @@ export default function NegociacoesPage() {
                 <Label htmlFor="administradora">Administradora</Label>
                 <Input id="administradora" value={formData.administradora} onChange={(e) => handleChange("administradora", e.target.value)} placeholder="Ex: Ademicon" />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="comissao_estimada">Comissão Estimada (R$)</Label>
-                <Input id="comissao_estimada" type="number" step="0.01" value={formData.comissao_estimada} onChange={(e) => handleChange("comissao_estimada", e.target.value)} placeholder="0,00" />
-              </div>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -1704,7 +1717,7 @@ export default function NegociacoesPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium">Propostas de Consórcio e Crédito</h3>
-                    <Button size="sm" onClick={() => { setPropostaForm({ titulo: "", tipo: "Imovel", valorTipo: "Cheio", valor: "", administradora: "", numeroParcelas: "", valorEntrada: "", valorParcela: "", taxaAdministracao: "", banco: "", taxaJuros: "", prazo: "", observacoes: "" }); setIsPropostaDialogOpen(true); }}>
+                    <Button size="sm" onClick={() => { setPropostaForm({ titulo: "", tipo: "Imovel", valorTipo: "Cheio", valor: "", administradora: "", numeroParcelas: "", valorEntrada: "", valorParcela: "", taxaAdministracao: "", banco: "", taxaJuros: "", prazo: "", observacoes: "", segmento: "", grupo: "", cota: "" }); setIsPropostaDialogOpen(true); }}>
                       <Plus className="mr-2 h-4 w-4" />
                       Nova Proposta
                     </Button>
@@ -1847,10 +1860,6 @@ export default function NegociacoesPage() {
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">Tipo de Carta</p>
                   <p className="text-sm">{selectedDeal.tipoCarta === 'CONTEMPLADA' ? 'Contemplada' : 'Nova Cota'}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">Comissão Estimada</p>
-                  <p className="text-sm">{formatCurrency(selectedDeal.comissaoEstimada)}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">Valor de Entrada/Lance</p>
@@ -2026,6 +2035,41 @@ export default function NegociacoesPage() {
               </select>
             </div>
 
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="p-segmento">Segmento</Label>
+                <select
+                  id="p-segmento"
+                  value={propostaForm.segmento || propostaForm.tipo}
+                  onChange={(e) => setPropostaForm((prev) => ({ ...prev, segmento: e.target.value }))}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="Imovel">Imóveis</option>
+                  <option value="Veiculo">Veículos</option>
+                  <option value="Servicos">Serviços</option>
+                  <option value="Outros bens moveis">Outros bens móveis</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="p-grupo">Grupo</Label>
+                <Input
+                  id="p-grupo"
+                  value={propostaForm.grupo || ""}
+                  onChange={(e) => setPropostaForm((prev) => ({ ...prev, grupo: e.target.value }))}
+                  placeholder="Ex: Grupo 1234"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="p-cota">Cota</Label>
+                <Input
+                  id="p-cota"
+                  value={propostaForm.cota || ""}
+                  onChange={(e) => setPropostaForm((prev) => ({ ...prev, cota: e.target.value }))}
+                  placeholder="Ex: Cota 001"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="p-banco">Banco / Administradora</Label>
@@ -2069,14 +2113,14 @@ export default function NegociacoesPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="p-taxa-adm">Taxa de Administração / Juros (%)</Label>
-                <Input
-                  id="p-taxa-adm"
-                  type="number"
-                  step="0.01"
-                  value={propostaForm.taxaAdministracao}
-                  onChange={(e) => setPropostaForm((prev) => ({ ...prev, taxaAdministracao: e.target.value }))}
-                />
+                  <Label htmlFor="p-taxa-adm">Taxa (%)</Label>
+                  <Input
+                    id="p-taxa-adm"
+                    type="number"
+                    step="0.01"
+                    value={propostaForm.taxaAdministracao}
+                    onChange={(e) => setPropostaForm((prev) => ({ ...prev, taxaAdministracao: e.target.value }))}
+                  />
               </div>
             </div>
 
