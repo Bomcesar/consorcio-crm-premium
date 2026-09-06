@@ -44,6 +44,10 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser> {
 
   const perfil = profile.perfil as string | undefined;
 
+  if (typeof window !== "undefined") {
+    localStorage.setItem("user_perfil", perfil ?? "");
+  }
+
   let permissoes: string[] = [];
   if (perfil === "Administrador" || perfil === "Gestor") {
     const grantsResult = await withTimeout(

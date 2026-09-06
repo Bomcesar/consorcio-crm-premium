@@ -42,7 +42,16 @@ export async function createRecrutamento(payload: RecrutamentoInsert): Promise<R
     .select()
     .single();
 
-  if (error || !data) throw new Error("Não foi possível salvar o candidato.");
+  if (error) {
+    console.error("[Recrutamento] create error", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+    throw new Error("Não foi possível salvar o candidato.");
+  }
+  if (!data) throw new Error("Não foi possível salvar o candidato.");
   return data as Recrutamento;
 }
 
@@ -57,7 +66,16 @@ export async function updateRecrutamento(id: string, payload: RecrutamentoUpdate
     .select()
     .single();
 
-  if (error || !data) throw new Error("Não foi possível atualizar o candidato.");
+  if (error) {
+    console.error("[Recrutamento] update error", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+    throw new Error("Não foi possível atualizar o candidato.");
+  }
+  if (!data) throw new Error("Não foi possível atualizar o candidato.");
   return data as Recrutamento;
 }
 

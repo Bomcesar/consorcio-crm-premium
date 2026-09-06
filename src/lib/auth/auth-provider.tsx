@@ -64,8 +64,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       retryRef.current = 0;
     });
 
+    const handleFocus = async () => {
+      if (!sessionStorage.getItem("auth_refreshing")) {
+        sessionStorage.setItem("auth_refreshing", "true");
+        await refresh();
+        sessionStorage.removeItem("auth_refreshing");
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+
     return () => {
       subscription.unsubscribe();
+      window.removeEventListener("focus", handleFocus);
     };
   }, []);
 

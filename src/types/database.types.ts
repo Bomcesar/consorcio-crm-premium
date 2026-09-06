@@ -1791,7 +1791,11 @@ export interface Database {
           updated_at: string;
           tipo: string;
           genero: string;
+          idade: number | null;
+          cpf: string;
+          rg: string;
           endereco: string;
+          cidade: string;
           equipe: string;
           veio_por: string;
           indicacao: boolean;
@@ -1809,6 +1813,8 @@ export interface Database {
           conhece_consorcios: boolean;
           conhece_ademicon: boolean;
           por_onde_conheceu: string;
+          linkedin: string;
+          telegram: string;
         };
         Insert: {
           id?: string;
@@ -1823,7 +1829,11 @@ export interface Database {
           updated_at?: string;
           tipo?: string;
           genero?: string;
+          idade?: number | null;
+          cpf?: string;
+          rg?: string;
           endereco?: string;
+          cidade?: string;
           equipe?: string;
           veio_por?: string;
           indicacao?: boolean;
@@ -1841,6 +1851,8 @@ export interface Database {
           conhece_consorcios?: boolean;
           conhece_ademicon?: boolean;
           por_onde_conheceu?: string;
+          linkedin?: string;
+          telegram?: string;
         };
         Update: {
           id?: string;
@@ -1855,7 +1867,11 @@ export interface Database {
           updated_at?: string;
           tipo?: string;
           genero?: string;
+          idade?: number | null;
+          cpf?: string;
+          rg?: string;
           endereco?: string;
+          cidade?: string;
           equipe?: string;
           veio_por?: string;
           indicacao?: boolean;
@@ -1873,6 +1889,8 @@ export interface Database {
           conhece_consorcios?: boolean;
           conhece_ademicon?: boolean;
           por_onde_conheceu?: string;
+          linkedin?: string;
+          telegram?: string;
         };
       };
       user_permissions: {

@@ -12,7 +12,11 @@ const emptyForm: RecrutamentoInsert = {
   usuario_id: "",
   tipo: "convite",
   genero: "",
+  idade: null,
+  cpf: "",
+  rg: "",
   endereco: "",
+  cidade: "",
   equipe: "",
   veio_por: "",
   indicacao: false,
@@ -30,6 +34,8 @@ const emptyForm: RecrutamentoInsert = {
   conhece_consorcios: false,
   conhece_ademicon: false,
   por_onde_conheceu: "",
+  linkedin: "",
+  telegram: "",
 };
 
 export function useRecrutamento() {
@@ -87,7 +93,11 @@ export function useRecrutamento() {
       updated_at: item.updated_at,
       tipo: item.tipo,
       genero: item.genero,
+      idade: item.idade,
+      cpf: item.cpf,
+      rg: item.rg,
       endereco: item.endereco,
+      cidade: item.cidade,
       equipe: item.equipe,
       veio_por: item.veio_por,
       indicacao: item.indicacao,
@@ -105,6 +115,8 @@ export function useRecrutamento() {
       conhece_consorcios: item.conhece_consorcios,
       conhece_ademicon: item.conhece_ademicon,
       por_onde_conheceu: item.por_onde_conheceu,
+      linkedin: item.linkedin,
+      telegram: item.telegram,
     });
     setIsFormOpen(true);
   };
@@ -130,7 +142,11 @@ export function useRecrutamento() {
         usuario_id: formData.usuario_id,
         tipo: formData.tipo,
         genero: formData.genero?.trim() || "",
+        idade: formData.idade,
+        cpf: formData.cpf?.trim() || "",
+        rg: formData.rg?.trim() || "",
         endereco: formData.endereco?.trim() || "",
+        cidade: formData.cidade?.trim() || "",
         equipe: formData.equipe?.trim() || "",
         veio_por: formData.veio_por?.trim() || "",
         indicacao: formData.indicacao,
@@ -148,6 +164,8 @@ export function useRecrutamento() {
         conhece_consorcios: formData.conhece_consorcios,
         conhece_ademicon: formData.conhece_ademicon,
         por_onde_conheceu: formData.por_onde_conheceu?.trim() || "",
+        linkedin: formData.linkedin?.trim() || "",
+        telegram: formData.telegram?.trim() || "",
       };
 
       console.log("[Recrutamento] submit payload", payload);
