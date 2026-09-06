@@ -45,9 +45,11 @@ import {
   Mail,
   ExternalLink,
   Copy,
+  Archive,
 } from "lucide-react";
+import type { Deal, DealStage, DealStatus, DealDocumentCheckItem } from "@/types/deal";
 import { createClient } from "@/lib/supabase/client";
-import type { Negociacao, NegociacaoHistorico, NegociacaoAnexo } from "@/repositories/client/negociacoes.repository";
+import type { Negociacao, NegociacaoHistorico, NegociacaoAnexo, NegociacaoUpdate } from "@/repositories/client/negociacoes.repository";
 import type { Proposta } from "@/repositories/client/propostas.repository";
 import {
   getPropostas,
@@ -61,6 +63,45 @@ import {
   generateConsorcioTemplate,
   generateCartaCreditoTemplate,
 } from "@/repositories/client/propostas.repository";
+
+const dealStageLabels: Record<DealStage, string> = {
+  NOVO_LEAD: 'Novo Lead',
+  QUALIFICACAO: 'Qualificação',
+  PROPOSTA_ENVIADA: 'Proposta Enviada',
+  NEGOCIACAO_COMERCIAL: 'Negociação Comercial',
+  COLETA_DOCUMENTOS: 'Coleta de Documentos',
+  ANALISE_BEM_CREDITO: 'Análise de Bem/Crédito',
+  ASSINATURA_ALIENACAO: 'Assinatura/Alienação',
+  AGUARDANDO_LIQUIDACAO: 'Aguardando Liquidação',
+  CONCLUIDO_SUCESSO: 'Concluído com Sucesso',
+};
+
+const dealStatusLabels: Record<DealStatus, string> = {
+  ATIVO: 'Ativo',
+  PERDIDO_DESISTENCIA: 'Perdido/Desistência',
+  RECUSADO_ADMINISTRADORA: 'Recusado pela Administradora',
+  EM_ESPERA: 'Em Espera',
+};
+
+const defaultDocumentChecklist: DealDocumentCheckItem[] = [
+  { id: "doc-pessoais", label: "Documentos Pessoais (RG/CNH e CPF) do Comprador", checado: false },
+  { id: "comp-residencia", label: "Comprovante de Residência Atualizado", checado: false },
+  { id: "renda-bancos", label: "Comprovante de Renda / Extratos Bancários", checado: false },
+  { id: "doc-vendedor", label: "Documentação do Vendedor (Se carta contemplada/bem de terceiro)", checado: false },
+  { id: "certidoes-bem", label: "Certidões Negativas do Bem (Imóvel/Veículo)", checado: false },
+];
+
+const kanbanStages: DealStage[] = [
+  'NOVO_LEAD',
+  'QUALIFICACAO',
+  'PROPOSTA_ENVIADA',
+  'NEGOCIACAO_COMERCIAL',
+  'COLETA_DOCUMENTOS',
+  'ANALISE_BEM_CREDITO',
+  'ASSINATURA_ALIENACAO',
+  'AGUARDANDO_LIQUIDACAO',
+  'CONCLUIDO_SUCESSO',
+];
 
 const pipelineStages = [
   "Novo",
@@ -85,6 +126,14 @@ const emptyForm = {
   proposta: "",
   proxima_acao: "",
   data_proxima_acao: "",
+  status: "ATIVO",
+  cliente_nome: "",
+  valor_carta: "",
+  valor_lance_entrada: "",
+  tipo_carta: "NOVA_COTA" as Deal['tipoCarta'],
+  administradora: "",
+  tipo_bem: "IMOVEL" as Deal['tipoBem'],
+  comissao_estimada: "",
 };
 
 type NegociacaoFormData = typeof emptyForm;
@@ -112,6 +161,9 @@ export default function NegociacoesPage() {
   const [filteredNegociacoes, setFilteredNegociacoes] = useState<Negociacao[]>([]);
   const [leads, setLeads] = useState<{ id: string; nome: string; telefone: string; email: string }[]>([]);
   const [clientes, setClientes] = useState<{ id: string; nome: string; telefone: string; email: string }[]>([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [activeDeals, setActiveDeals] = useState<Deal[]>([]);
+  const [archivedDeals, setArchivedDeals] = useState<Deal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -142,6 +194,12 @@ export default function NegociacoesPage() {
   const [contatoSearch, setContatoSearch] = useState("");
   const [contatoResults, setContatoResults] = useState<{ id: string; nome: string; telefone: string; email: string; origem: string; type: "lead" | "cliente" | "indicador" }[]>([]);
   const [isContatoSearchLoading, setIsContatoSearchLoading] = useState(false);
+
+  const [viewMode, setViewMode] = useState<"kanban" | "archived">("kanban");
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [isDealDetailOpen, setIsDealDetailOpen] = useState(false);
+  const [dealChecklist, setDealChecklist] = useState<DealDocumentCheckItem[]>(defaultDocumentChecklist);
+  const [isSavingChecklist, setIsSavingChecklist] = useState(false);
 
   const [propostas, setPropostas] = useState<Proposta[]>([]);
   const [isPropostasLoading, setIsPropostasLoading] = useState(false);
@@ -175,6 +233,35 @@ export default function NegociacoesPage() {
       setFilteredNegociacoes(negociacoesData);
       setLeads(leadsData.map((l: { id: string; nome: string; telefone: string; email?: string }) => ({ id: l.id, nome: l.nome, telefone: l.telefone, email: l.email || "" })));
       setClientes(clientesData.map((c: { id: string; nome: string; telefone: string; email?: string }) => ({ id: c.id, nome: c.nome, telefone: c.telefone, email: c.email || "" })));
+
+      const mappedDeals: Deal[] = negociacoesData.map((n) => {
+        const lead = leadsData.find((l) => l.id === n.lead_id);
+        const cliente = clientesData.find((c) => c.id === n.cliente_id);
+        const clienteNome = (cliente?.nome || lead?.nome || n.titulo || "").trim();
+        const status = (n.status as DealStatus) || "ATIVO";
+        const documentosChecklist = Array.isArray(n.documentos_checklist)
+          ? (n.documentos_checklist as DealDocumentCheckItem[])
+          : defaultDocumentChecklist;
+
+        return {
+          id: n.id,
+          clienteNome,
+          etapa: (n.etapa as DealStage) || 'NOVO_LEAD',
+          status,
+          valorCarta: Number(n.valor || 0),
+          valorLanceEntrada: Number(n.valor_lance_entrada || 0),
+          tipoCarta: (n.tipo_carta as Deal['tipoCarta']) || 'NOVA_COTA',
+          administradora: n.administradora || "",
+          tipoBem: (n.tipo_bem as Deal['tipoBem']) || 'IMOVEL',
+          comissaoEstimada: Number(n.comissao_estimada || 0),
+          documentosChecklist,
+          updatedAt: new Date(n.updated_at || n.created_at || Date.now()),
+        };
+      });
+
+      setDeals(mappedDeals);
+      setActiveDeals(mappedDeals.filter((d) => d.status === 'ATIVO'));
+      setArchivedDeals(mappedDeals.filter((d) => d.status !== 'ATIVO'));
     } catch {
       setErrorMessage("Não foi possível carregar as negociações.");
     } finally {
@@ -185,6 +272,61 @@ export default function NegociacoesPage() {
   useEffect(() => {
     void loadNegociacoes();
   }, []);
+
+  useEffect(() => {
+    let result = negociacoes;
+    if (etapaFilter !== "todos") {
+      result = result.filter((n) => n.etapa === etapaFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter((n) => {
+        const lead = leads.find((l) => l.id === n.lead_id);
+        const cliente = clientes.find((c) => c.id === n.cliente_id);
+        return (
+          n.titulo.toLowerCase().includes(q) ||
+          n.observacoes.toLowerCase().includes(q) ||
+          n.modalidade.toLowerCase().includes(q) ||
+          n.proposta.toLowerCase().includes(q) ||
+          n.proxima_acao.toLowerCase().includes(q) ||
+          (lead?.nome?.toLowerCase().includes(q) ?? false) ||
+          (lead?.telefone?.toLowerCase().includes(q) ?? false) ||
+          (cliente?.nome?.toLowerCase().includes(q) ?? false) ||
+          (cliente?.telefone?.toLowerCase().includes(q) ?? false)
+        );
+      });
+    }
+    setFilteredNegociacoes(result);
+  }, [searchQuery, etapaFilter, negociacoes]);
+
+  const openDealDetail = (deal: Deal) => {
+    setSelectedDeal(deal);
+    setDealChecklist(deal.documentosChecklist && deal.documentosChecklist.length > 0 ? deal.documentosChecklist : defaultDocumentChecklist);
+    setIsDealDetailOpen(true);
+  };
+
+  const handleToggleChecklistItem = (id: string) => {
+    setDealChecklist((prev) => prev.map((item) => (item.id === id ? { ...item, checado: !item.checado } : item)));
+  };
+
+  const handleSaveChecklist = async () => {
+    if (!selectedDeal) return;
+    setIsSavingChecklist(true);
+    try {
+      const { updateNegociacao } = await import("@/repositories/client/negociacoes.repository");
+      await updateNegociacao(selectedDeal.id, {
+        documentos_checklist: dealChecklist as unknown as NegociacaoUpdate["documentos_checklist"],
+      });
+      setDeals((prev) => prev.map((d) => (d.id === selectedDeal.id ? { ...d, documentosChecklist: dealChecklist } : d)));
+      setActiveDeals((prev) => prev.map((d) => (d.id === selectedDeal.id ? { ...d, documentosChecklist: dealChecklist } : d)));
+      setArchivedDeals((prev) => prev.map((d) => (d.id === selectedDeal.id ? { ...d, documentosChecklist: dealChecklist } : d)));
+      success("Checklist atualizado.");
+    } catch {
+      error("Não foi possível salvar o checklist.");
+    } finally {
+      setIsSavingChecklist(false);
+    }
+  };
 
   const searchContatosUnificados = async (query: string) => {
     const trimmed = query.trim();
@@ -281,6 +423,14 @@ export default function NegociacoesPage() {
       proposta: negociacao.proposta,
       proxima_acao: negociacao.proxima_acao,
       data_proxima_acao: negociacao.data_proxima_acao || "",
+      status: negociacao.status || "ATIVO",
+      cliente_nome: negociacao.cliente_nome || "",
+      valor_carta: String(negociacao.valor_carta ?? negociacao.valor ?? 0),
+      valor_lance_entrada: String(negociacao.valor_lance_entrada ?? 0),
+      tipo_carta: (negociacao.tipo_carta as Deal['tipoCarta']) || "NOVA_COTA",
+      administradora: negociacao.administradora || "",
+      tipo_bem: (negociacao.tipo_bem as Deal['tipoBem']) || "IMOVEL",
+      comissao_estimada: String(negociacao.comissao_estimada ?? 0),
     });
     setIsFormOpen(true);
   };
@@ -447,6 +597,14 @@ export default function NegociacoesPage() {
       proposta: formData.proposta.trim(),
       proxima_acao: formData.proxima_acao.trim(),
       data_proxima_acao: formData.data_proxima_acao || null,
+      status: formData.status,
+      cliente_nome: formData.cliente_nome.trim(),
+      valor_carta: Number(formData.valor_carta) || Number(formData.valor) || 0,
+      valor_lance_entrada: Number(formData.valor_lance_entrada) || 0,
+      tipo_carta: formData.tipo_carta,
+      administradora: formData.administradora.trim(),
+      tipo_bem: formData.tipo_bem,
+      comissao_estimada: Number(formData.comissao_estimada) || 0,
       ...(formData.lead_id ? { lead_id: formData.lead_id } : {}),
     };
     if (!selectedNegociacao && !formData.lead_id) {
@@ -798,6 +956,30 @@ export default function NegociacoesPage() {
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
+  const formatDealStageLabel = (stage: DealStage) => dealStageLabels[stage] || stage;
+
+  const getDealsByStage = (stage: DealStage) => {
+    if (viewMode === "kanban") {
+      return activeDeals.filter((d) => d.etapa === stage);
+    }
+    return [];
+  };
+
+  const archivedByStatus = useMemo(() => {
+    const grouped: Record<DealStatus, Deal[]> = {
+      ATIVO: [],
+      PERDIDO_DESISTENCIA: [],
+      RECUSADO_ADMINISTRADORA: [],
+      EM_ESPERA: [],
+    };
+    archivedDeals.forEach((deal) => {
+      if (grouped[deal.status]) {
+        grouped[deal.status].push(deal);
+      }
+    });
+    return grouped;
+  }, [archivedDeals]);
+
   const formatPropostaTipo = (tipo: string) => {
     switch (tipo) {
       case "Imovel":
@@ -820,10 +1002,20 @@ export default function NegociacoesPage() {
           <h2 className="text-2xl font-bold tracking-tight">Negociações</h2>
           <p className="text-sm text-muted-foreground">Pipeline de vendas e propostas em andamento</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nova Negociação
-        </Button>
+        <div className="flex gap-2">
+          <Button variant={viewMode === "kanban" ? "default" : "outline"} onClick={() => setViewMode("kanban")}>
+            <Handshake className="mr-2 h-4 w-4" />
+            Kanban
+          </Button>
+          <Button variant={viewMode === "archived" ? "default" : "outline"} onClick={() => setViewMode("archived")}>
+            <Archive className="mr-2 h-4 w-4" />
+            Arquivados
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nova Negociação
+          </Button>
+        </div>
       </div>
 
       {errorMessage ? (
@@ -834,126 +1026,175 @@ export default function NegociacoesPage() {
         </Card>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {pipelineStages.map((stage) => {
-          const stageNegociacoes = filteredNegociacoes.filter((n) => n.etapa === stage);
-          const stageValue = stageNegociacoes.reduce((sum, n) => sum + Number(n.valor || 0), 0);
-          return (
-            <Card key={stage} className="border-border/50 bg-card/70">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{stage}</CardTitle>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{stageNegociacoes.length} negociação(ões)</span>
-                  <span className="text-xs font-medium">{formatCurrency(stageValue)}</span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {stageNegociacoes.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Nenhuma negociação nesta etapa.</p>
-                ) : (
-                  stageNegociacoes.slice(0, 5).map((negociacao) => (
-                    <div
-                      key={negociacao.id}
-                      className="cursor-pointer rounded-lg border border-border/50 p-3 transition hover:border-primary/40"
-                      onClick={() => openDetail(negociacao)}
-                    >
-                      <p className="text-sm font-medium">{negociacao.titulo}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(Number(negociacao.valor))}</p>
-                      <div className="mt-2 flex items-center justify-between">
-                        <Badge variant="outline" className="text-xs">{negociacao.etapa}</Badge>
-                        <span className="text-xs text-muted-foreground">{negociacao.probabilidade}%</span>
+      {viewMode === "kanban" && (
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {kanbanStages.map((stage) => {
+            const stageDeals = getDealsByStage(stage);
+            const stageValue = stageDeals.reduce((sum, d) => sum + d.valorCarta, 0);
+            return (
+              <Card key={stage} className="w-80 shrink-0 border-border/50 bg-card/70">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{formatDealStageLabel(stage)}</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{stageDeals.length} negociação(ões)</span>
+                    <span className="text-xs font-medium">{formatCurrency(stageValue)}</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {stageDeals.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Nenhuma negociação nesta etapa.</p>
+                  ) : (
+                    stageDeals.map((deal) => (
+                      <div
+                        key={deal.id}
+                        className="cursor-pointer rounded-lg border border-border/50 p-3 transition hover:border-primary/40"
+                        onClick={() => openDealDetail(deal)}
+                      >
+                        <p className="text-sm font-medium">{deal.clienteNome}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(deal.valorCarta)}</p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <Badge variant="outline" className="text-xs">{deal.tipoCarta === 'CONTEMPLADA' ? 'Contemplada' : 'Nova Cota'}</Badge>
+                          <span className="text-xs text-muted-foreground">{deal.etapa}</span>
+                        </div>
+                        {deal.etapa === 'COLETA_DOCUMENTOS' && (
+                          <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                            <Paperclip className="h-3 w-3" />
+                            {deal.documentosChecklist.filter((item) => item.checado).length}/{deal.documentosChecklist.length}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Todas as negociações</CardTitle>
-          <CardDescription>
-            {filteredNegociacoes.length > 0 ? `${filteredNegociacoes.length} negociação(ões) encontrada(s)` : "Nenhuma negociação cadastrada ainda."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Pesquisar por título, proposta..."
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <select
-              value={etapaFilter}
-              onChange={(event) => setEtapaFilter(event.target.value)}
-              className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="todos">Todas</option>
-              {etapasOptions.map((etapa) => (
-                <option key={etapa} value={etapa}>
-                  {etapa}
-                </option>
-              ))}
-            </select>
-          </div>
+      {viewMode === "archived" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Negociações Arquivadas</CardTitle>
+            <CardDescription>Negociações fora do fluxo ativo do Kanban</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {(Object.keys(archivedByStatus) as DealStatus[]).map((status) => {
+              const deals = archivedByStatus[status];
+              if (deals.length === 0) return null;
+              return (
+                <div key={status}>
+                  <h3 className="mb-2 text-sm font-medium text-muted-foreground">{dealStatusLabels[status]} ({deals.length})</h3>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {deals.map((deal) => (
+                      <div
+                        key={deal.id}
+                        className="cursor-pointer rounded-lg border border-border/50 p-4 transition hover:border-primary/40"
+                        onClick={() => openDealDetail(deal)}
+                      >
+                        <p className="text-sm font-medium">{deal.clienteNome}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(deal.valorCarta)}</p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <Badge variant="outline" className="text-xs">{deal.tipoCarta === 'CONTEMPLADA' ? 'Contemplada' : 'Nova Cota'}</Badge>
+                          <span className="text-xs text-muted-foreground">{formatDealStageLabel(deal.etapa)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {archivedDeals.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nenhuma negociação arquivada.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      {viewMode === "kanban" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Todas as negociações</CardTitle>
+            <CardDescription>
+              {filteredNegociacoes.length > 0 ? `${filteredNegociacoes.length} negociação(ões) encontrada(s)` : "Nenhuma negociação cadastrada ainda."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative w-full sm:max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Pesquisar por título, proposta..."
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <select
+                value={etapaFilter}
+                onChange={(event) => setEtapaFilter(event.target.value)}
+                className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="todos">Todas</option>
+                {etapasOptions.map((etapa) => (
+                  <option key={etapa} value={etapa}>
+                    {etapa}
+                  </option>
+                ))}
+              </select>
             </div>
-          ) : filteredNegociacoes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma negociação cadastrada ainda.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Título</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Etapa</TableHead>
-                    <TableHead>Probabilidade</TableHead>
-                    <TableHead>Data Prevista</TableHead>
-                    <TableHead className="w-[100px] text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredNegociacoes.map((negociacao) => (
-                    <TableRow key={negociacao.id}>
-                      <TableCell className="font-medium">{negociacao.titulo}</TableCell>
-                      <TableCell>{formatCurrency(Number(negociacao.valor))}</TableCell>
-                      <TableCell>
-                        <Badge variant={negociacao.etapa === "Venda" ? "success" : negociacao.etapa === "Perdido" ? "destructive" : "secondary"}>
-                          {negociacao.etapa}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{negociacao.probabilidade}%</TableCell>
-                      <TableCell>{new Date(negociacao.data_prevista).toLocaleDateString("pt-BR")}</TableCell>
-                      <TableCell className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => openDetail(negociacao)} aria-label="Ver detalhes">
-                          <Handshake className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(negociacao)} aria-label="Editar">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => openDelete(negociacao)} aria-label="Excluir">
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
-                      </TableCell>
+
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredNegociacoes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma negociação cadastrada ainda.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Título</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Etapa</TableHead>
+                      <TableHead>Probabilidade</TableHead>
+                      <TableHead>Data Prevista</TableHead>
+                      <TableHead className="w-[100px] text-right">Ações</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredNegociacoes.map((negociacao) => (
+                      <TableRow key={negociacao.id}>
+                        <TableCell className="font-medium">{negociacao.titulo}</TableCell>
+                        <TableCell>{formatCurrency(Number(negociacao.valor))}</TableCell>
+                        <TableCell>
+                          <Badge variant={negociacao.etapa === "Venda" ? "success" : negociacao.etapa === "Perdido" ? "destructive" : "secondary"}>
+                            {negociacao.etapa}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{negociacao.probabilidade}%</TableCell>
+                        <TableCell>{new Date(negociacao.data_prevista).toLocaleDateString("pt-BR")}</TableCell>
+                        <TableCell className="flex justify-end gap-2">
+                          <Button variant="ghost" size="icon" onClick={() => openDetail(negociacao)} aria-label="Ver detalhes">
+                            <Handshake className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(negociacao)} aria-label="Editar">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => openDelete(negociacao)} aria-label="Excluir">
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -1049,6 +1290,59 @@ export default function NegociacoesPage() {
               <div className="space-y-2">
                 <Label htmlFor="modalidade">Modalidade</Label>
                 <Input id="modalidade" value={formData.modalidade} onChange={(e) => handleChange("modalidade", e.target.value)} placeholder="Ex: Consórcio, Financiamento, Carta de Crédito" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <select id="status" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.status} onChange={(e) => handleChange("status", e.target.value)}>
+                  <option value="ATIVO">Ativo</option>
+                  <option value="PERDIDO_DESISTENCIA">Perdido/Desistência</option>
+                  <option value="RECUSADO_ADMINISTRADORA">Recusado pela Administradora</option>
+                  <option value="EM_ESPERA">Em Espera</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cliente_nome">Nome do Cliente</Label>
+                <Input id="cliente_nome" value={formData.cliente_nome} onChange={(e) => handleChange("cliente_nome", e.target.value)} placeholder="Nome do cliente" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="valor_carta">Valor da Carta (R$)</Label>
+                <Input id="valor_carta" type="number" step="0.01" value={formData.valor_carta} onChange={(e) => handleChange("valor_carta", e.target.value)} placeholder="0,00" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="valor_lance_entrada">Valor de Entrada/Lance (R$)</Label>
+                <Input id="valor_lance_entrada" type="number" step="0.01" value={formData.valor_lance_entrada} onChange={(e) => handleChange("valor_lance_entrada", e.target.value)} placeholder="0,00" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="tipo_carta">Tipo de Carta</Label>
+                <select id="tipo_carta" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.tipo_carta} onChange={(e) => handleChange("tipo_carta", e.target.value)}>
+                  <option value="NOVA_COTA">Nova Cota</option>
+                  <option value="CONTEMPLADA">Contemplada</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tipo_bem">Tipo de Bem</Label>
+                <select id="tipo_bem" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.tipo_bem} onChange={(e) => handleChange("tipo_bem", e.target.value)}>
+                  <option value="IMOVEL">Imóvel</option>
+                  <option value="VEICULO">Veículo</option>
+                  <option value="PESADOS">Pesados</option>
+                  <option value="SERVICOS">Serviços</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="administradora">Administradora</Label>
+                <Input id="administradora" value={formData.administradora} onChange={(e) => handleChange("administradora", e.target.value)} placeholder="Ex: Ademicon" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="comissao_estimada">Comissão Estimada (R$)</Label>
+                <Input id="comissao_estimada" type="number" step="0.01" value={formData.comissao_estimada} onChange={(e) => handleChange("comissao_estimada", e.target.value)} placeholder="0,00" />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1520,6 +1814,75 @@ export default function NegociacoesPage() {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDealDetailOpen} onOpenChange={(open) => { if (!open) { setIsDealDetailOpen(false); setSelectedDeal(null); } }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          {!selectedDeal ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>{selectedDeal.clienteNome}</DialogTitle>
+                <DialogDescription>
+                  {formatDealStageLabel(selectedDeal.etapa)} • {formatCurrency(selectedDeal.valorCarta)} • {dealStatusLabels[selectedDeal.status]}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Administradora</p>
+                  <p className="text-sm">{selectedDeal.administradora || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Tipo de Bem</p>
+                  <p className="text-sm">{selectedDeal.tipoBem || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Tipo de Carta</p>
+                  <p className="text-sm">{selectedDeal.tipoCarta === 'CONTEMPLADA' ? 'Contemplada' : 'Nova Cota'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Comissão Estimada</p>
+                  <p className="text-sm">{formatCurrency(selectedDeal.comissaoEstimada)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Valor de Entrada/Lance</p>
+                  <p className="text-sm">{formatCurrency(selectedDeal.valorLanceEntrada)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Atualizado</p>
+                  <p className="text-sm">{selectedDeal.updatedAt.toLocaleString("pt-BR")}</p>
+                </div>
+              </div>
+
+              {selectedDeal.etapa === 'COLETA_DOCUMENTOS' && (
+                <div className="mt-4 space-y-2 border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Checklist de Documentos</h4>
+                    <Button size="sm" onClick={handleSaveChecklist} disabled={isSavingChecklist}>
+                      {isSavingChecklist ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Salvar Checklist
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {dealChecklist.map((item) => (
+                      <label key={item.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={item.checado}
+                          onChange={() => handleToggleChecklistItem(item.id)}
+                        />
+                        {item.label}
+                      </label>
+                    ))}
+                  </div>
                 </div>
               )}
             </>
