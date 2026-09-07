@@ -88,6 +88,13 @@ export async function addNegociacaoHistorico(negociacaoId: string, payload: { ti
   return data as NegociacaoHistorico;
 }
 
+export async function deleteNegociacaoHistorico(id: string): Promise<void> {
+  const user = await getAuthenticatedUser();
+  const supabase = createClient();
+  const { error } = await supabase.from("negociacao_historico").delete().eq("id", id).eq("usuario_id", user.id);
+  if (error) throw new Error("Não foi possível remover histórico.");
+}
+
 export async function getNegociacaoAnexos(negociacaoId: string): Promise<NegociacaoAnexo[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();

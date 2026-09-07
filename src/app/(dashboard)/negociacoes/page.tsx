@@ -34,9 +34,14 @@ import {
   Pencil,
   Trash2,
   Loader2,
+  Circle,
+  CheckCircle2,
+  ListTodo,
+  Clock,
 } from "lucide-react";
 import type { Deal, DealStage, DealStatus, DealDocumentCheckItem } from "@/types/deal";
 import type { Negociacao, NegociacaoUpdate } from "@/repositories/client/negociacoes.repository";
+import type { NegociacaoHistorico } from "@/repositories/client/negociacoes.repository";
 import { updateNegociacao } from "@/repositories/client/negociacoes.repository";
 
 const dealStageLabels: Record<DealStage, string> = {
@@ -150,11 +155,47 @@ const dealStageToEtapa = (stage: DealStage): string => {
   return map[stage];
 };
 
+function dealToNegociacao(deal: Deal): Negociacao {
+  return {
+    id: deal.id,
+    titulo: deal.clienteNome,
+    valor: deal.valorCredito,
+    etapa: dealStageToEtapa(deal.etapa) as Negociacao['etapa'],
+    probabilidade: 0,
+    data_prevista: "",
+    observacoes: "",
+    lead_id: "",
+    cliente_id: "",
+    usuario_id: "",
+    modalidade: "",
+    proposta: "",
+    proxima_acao: "",
+    data_proxima_acao: null,
+    status: deal.status,
+    cliente_nome: deal.clienteNome,
+    valor_credito: deal.valorCredito,
+    grupo: deal.grupo,
+    cota: deal.cota,
+    prazo: deal.prazo,
+    taxa: deal.taxa,
+    valor_lance_entrada: deal.valorLanceEntrada,
+    tipo_carta_credito: deal.tipoCartaCredito,
+    parcela_cheia: deal.parcelaCheia,
+    parcela_reduzida: deal.parcelaReduzida,
+    administradora: deal.administradora,
+    tipo_bem: deal.tipoBem,
+    comissao_estimada_em_porcentagem: deal.comissaoEstimadaEmPorcentagem,
+    documentos_dados_cadastrais_checklist: deal.documentosDadosCadastraisChecklist,
+    created_at: "",
+    updated_at: "",
+  };
+}
+
 type NegociacaoFormData = typeof emptyForm;
 
 export default function NegociacoesPage() {
   const { success, error } = useToast();
-  const { create, update, remove } = useNegociacoes();
+  const { create, update, remove, getHistorico } = useNegociacoes();
   const leadsHook = useLeads();
   const clientesHook = useClientes();
   const [negociacoes, setNegociacoes] = useState<Negociacao[]>([]);
@@ -176,6 +217,11 @@ export default function NegociacoesPage() {
   const [isDealDetailOpen, setIsDealDetailOpen] = useState(false);
   const [dealChecklist, setDealChecklist] = useState<DealDocumentCheckItem[]>(defaultDocumentChecklist);
   const [isSavingChecklist, setIsSavingChecklist] = useState(false);
+  const [dealHistory, setDealHistory] = useState<NegociacaoHistorico[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [newTaskTipo, setNewTaskTipo] = useState("Tarefa");
+  const [newTaskDesc, setNewTaskDesc] = useState("");
+  const [isAddingTask, setIsAddingTask] = useState(false);
 
   const handleChange = (field: keyof NegociacaoFormData, value: string | boolean | number | null) => {
     setFormData((current: NegociacaoFormData) => ({ ...current, [field]: value }));
@@ -312,7 +358,49 @@ export default function NegociacoesPage() {
   const openDealDetail = (deal: Deal) => {
     setSelectedDeal(deal);
     setDealChecklist(deal.documentosDadosCadastraisChecklist && deal.documentosDadosCadastraisChecklist.length > 0 ? deal.documentosDadosCadastraisChecklist : defaultDocumentChecklist);
+    setNewTaskTipo("Tarefa");
+    setNewTaskDesc("");
     setIsDealDetailOpen(true);
+    setIsLoadingHistory(true);
+    getHistorico(deal.id).then((history) => {
+      setDealHistory(history);
+      setIsLoadingHistory(false);
+    });
+  };
+
+  const loadDealHistory = async (dealId: string) => {
+    setIsLoadingHistory(true);
+    const history = await getHistorico(dealId);
+    setDealHistory(history);
+    setIsLoadingHistory(false);
+  };
+
+  const handleAddTask = async () => {
+    if (!newTaskDesc.trim() || !selectedDeal) return;
+    setIsAddingTask(true);
+    try {
+      const { getNegociacaoHistorico, addNegociacaoHistorico } = await import("@/repositories/client/negociacoes.repository");
+      await addNegociacaoHistorico(selectedDeal.id, { tipo: newTaskTipo, descricao: newTaskDesc.trim() });
+      const updated = await getNegociacaoHistorico(selectedDeal.id);
+      setDealHistory(updated);
+      setNewTaskDesc("");
+      success("Tarefa adicionada.");
+    } catch {
+      error("Não foi possível adicionar a tarefa.");
+    } finally {
+      setIsAddingTask(false);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      const { deleteNegociacaoHistorico } = await import("@/repositories/client/negociacoes.repository");
+      await deleteNegociacaoHistorico(taskId);
+      setDealHistory((prev) => prev.filter((t) => t.id !== taskId));
+      success("Tarefa removida.");
+    } catch {
+      error("Não foi possível remover a tarefa.");
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -473,7 +561,7 @@ export default function NegociacoesPage() {
                                </Button>
                              </DropdownMenuTrigger>
                              <DropdownMenuContent align="end">
-<DropdownMenuItem onClick={() => { setIsDealDetailOpen(false); setSelectedDeal(null); openEdit(deal as unknown as Negociacao); }}>
+<DropdownMenuItem onClick={() => { setIsDealDetailOpen(false); setSelectedDeal(null); openEdit(dealToNegociacao(deal)); }}>
                                   <Pencil className="mr-2 h-4 w-4" />
                                   Editar
                                 </DropdownMenuItem>
@@ -540,7 +628,7 @@ export default function NegociacoesPage() {
                                </Button>
                              </DropdownMenuTrigger>
                              <DropdownMenuContent align="end">
-<DropdownMenuItem onClick={() => { setIsDealDetailOpen(false); setSelectedDeal(null); openEdit(deal as unknown as Negociacao); }}>
+<DropdownMenuItem onClick={() => { setIsDealDetailOpen(false); setSelectedDeal(null); openEdit(dealToNegociacao(deal)); }}>
                                   <Pencil className="mr-2 h-4 w-4" />
                                   Editar
                                 </DropdownMenuItem>
@@ -732,7 +820,7 @@ export default function NegociacoesPage() {
                       </Button>
                     </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                 <DropdownMenuItem onClick={() => { setIsDealDetailOpen(false); setSelectedDeal(null); openEdit(selectedDeal as unknown as Negociacao); }}>
+                                 <DropdownMenuItem onClick={() => { setIsDealDetailOpen(false); setSelectedDeal(null); openEdit(dealToNegociacao(selectedDeal!)); }}>
                         <Pencil className="mr-2 h-4 w-4" />
                         Editar
                       </DropdownMenuItem>
@@ -814,6 +902,79 @@ export default function NegociacoesPage() {
                   </div>
                 </div>
               )}
+
+              <div className="mt-4 space-y-3 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    <ListTodo className="h-4 w-4" />
+                    Tarefas e Atividades
+                    <Badge variant="secondary" className="ml-1 text-xs">{dealHistory.length}</Badge>
+                  </h4>
+                  {selectedDeal.etapa !== 'CONCLUIDO_SUCESSO' && selectedDeal.etapa !== 'ENVIAR_PARA_POS_VENDA' && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Etapa: {formatDealStageLabel(selectedDeal.etapa)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <select
+                    className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    value={newTaskTipo}
+                    onChange={(e) => setNewTaskTipo(e.target.value)}
+                  >
+                    <option value="Tarefa">Tarefa</option>
+                    <option value="Ligação">Ligação</option>
+                    <option value="E-mail">E-mail</option>
+                    <option value="Reunião">Reunião</option>
+                    <option value="Documento">Documento</option>
+                    <option value="Observação">Observação</option>
+                  </select>
+                  <Input
+                    placeholder="Descreva a tarefa ou atividade..."
+                    value={newTaskDesc}
+                    onChange={(e) => setNewTaskDesc(e.target.value)}
+                    className="flex-1"
+                    onKeyDown={(e) => { if (e.key === "Enter") handleAddTask(); }}
+                  />
+                  <Button size="sm" onClick={handleAddTask} disabled={isAddingTask || !newTaskDesc.trim()}>
+                    {isAddingTask ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  </Button>
+                </div>
+
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {isLoadingHistory ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : dealHistory.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-2">Nenhuma tarefa registrada.</p>
+                  ) : (
+                    dealHistory.map((task) => (
+                      <div key={task.id} className="flex items-start gap-2 text-sm p-2 rounded-md bg-muted/30 hover:bg-muted/50 transition">
+                        <Circle className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs shrink-0">{task.tipo}</Badge>
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {new Date(task.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs leading-relaxed break-words">{task.descricao}</p>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteTask(task.id)}
+                          className="text-muted-foreground hover:text-destructive shrink-0"
+                          title="Remover"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </>
           )}
         </DialogContent>
