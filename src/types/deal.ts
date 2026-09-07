@@ -1,15 +1,17 @@
 export type DealStage =
   | 'NOVO_LEAD'
-  | 'QUALIFICACAO'
+  | 'QUALIFICANDO'
   | 'PROPOSTA_ENVIADA'
-  | 'NEGOCIACAO_COMERCIAL'
+  | 'EM_NEGOCIACAO'
   | 'COLETA_DOCUMENTOS'
+  | 'DADOS_CADASTRAIS'
   | 'ANALISE_BEM_CREDITO'
   | 'ASSINATURA_ALIENACAO'
-  | 'AGUARDANDO_LIQUIDACAO'
-  | 'CONCLUIDO_SUCESSO';
+  | 'AGUARDANDO_PAGAMENTO'
+  | 'CONCLUIDO_SUCESSO'
+  | 'ENVIAR_PARA_POS_VENDA';
 
-export type DealStatus = 'ATIVO' | 'PERDIDO_DESISTENCIA' | 'RECUSADO_ADMINISTRADORA' | 'EM_ESPERA';
+export type DealStatus = 'ATIVO' | 'PERDIDO_DESISTENCIA' | 'RECUSADO_ADMINISTRADORA' | 'DEIXOU_PARA_DEPOIS';
 
 export interface DealDocumentCheckItem {
   id: string;
@@ -22,12 +24,18 @@ export interface Deal {
   clienteNome: string;
   etapa: DealStage;
   status: DealStatus;
-  valorCarta: number;
+  valorCredito: number;
+  grupo: number;
+  cota: number;
+  prazo: number;
+  taxa: number;
   valorLanceEntrada: number;
-  tipoCarta: 'NOVA_COTA' | 'CONTEMPLADA';
+  tipoCartaCredito: 'NOVA_COTA' | 'CONTEMPLADA';
+  parcelaCheia: number;
+  parcelaReduzida: number;
   administradora: string;
-  tipoBem: 'IMOVEL' | 'VEICULO' | 'PESADOS' | 'SERVICOS';
-  comissaoEstimada: number;
-  documentosChecklist: DealDocumentCheckItem[];
+  tipoBem: 'IMOVEL' | 'VEICULO' | 'OUTRO_BENS_MOVEIS' | 'SERVICOS';
+  comissaoEstimadaEmPorcentagem: number;
+  documentosDadosCadastraisChecklist: DealDocumentCheckItem[];
   updatedAt: Date;
 }
