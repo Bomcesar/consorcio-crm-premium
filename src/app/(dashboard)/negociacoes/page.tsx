@@ -321,12 +321,11 @@ export default function NegociacoesPage() {
 
     setIsSaving(true);
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         titulo: formData.titulo.trim(),
         valor: Number(formData.valor) || 0,
         etapa: dealStageToEtapa(formData.etapa) as Negociacao['etapa'],
         probabilidade: Number(formData.probabilidade) || 0,
-        data_prevista: formData.data_prevista,
         observacoes: formData.observacoes.trim(),
         cliente_id: formData.cliente_id || null,
         modalidade: formData.modalidade.trim(),
@@ -348,6 +347,10 @@ export default function NegociacoesPage() {
         tipo_bem: formData.tipo_bem,
         ...(formData.lead_id ? { lead_id: formData.lead_id } : {}),
       };
+
+      if (formData.data_prevista) {
+        payload.data_prevista = formData.data_prevista;
+      }
 
       if (selectedNegociacao) {
         const updated = await update(selectedNegociacao.id, payload);

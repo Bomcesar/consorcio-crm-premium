@@ -49,7 +49,7 @@ export async function updateNegociacao(id: string, payload: NegociacaoUpdate): P
   const supabase = createClient();
   const base = supabase.from("negociacoes").update(payload).eq("id", id);
   const query = isAdminOrGestor(user) ? base : base.eq("usuario_id", user.id);
-  const { data, error } = await query.select().single();
+  const { data, error } = await query.select("id,titulo,valor,etapa,probabilidade,data_prevista,observacoes,lead_id,cliente_id,usuario_id,modalidade,proposta,proxima_acao,data_proxima_acao,status,cliente_nome,valor_credito,grupo,cota,prazo,taxa,valor_lance_entrada,tipo_carta_credito,parcela_cheia,parcela_reduzida,administradora,tipo_bem,comissao_estimada_em_porcentagem,documentos_dados_cadastrais_checklist,created_at,updated_at").single();
   if (error || !data) throw new Error("Não foi possível atualizar a negociação.");
   return data as Negociacao;
 }
