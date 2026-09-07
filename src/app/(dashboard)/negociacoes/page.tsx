@@ -437,26 +437,28 @@ export default function NegociacoesPage() {
       if (communicationFile) {
         const formData = new FormData();
         formData.append("file", communicationFile);
-        formData.append("to", numero);
-        formData.append("message", communicationMessage.trim());
+        formData.append("bucket", "crm-files");
+        formData.append("path", `negociacoes/${selectedDeal.id}/${Date.now()}_${communicationFile.name}`);
         
-        // Upload file and get URL
         const uploadResponse = await fetch("/api/integrations/storage/upload", {
           method: "POST",
           body: formData,
         });
         
         if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          console.error("[Negociacoes] Upload failed", uploadResponse.status, errorText);
           throw new Error("Falha ao enviar arquivo.");
         }
         
         const uploadData = await uploadResponse.json();
         const mediaType = communicationType === 'pdf' ? 'document' : 
                          communicationType === 'imagem' ? 'image' :
-                         communicationType === 'video' ? 'video' : 'document';
+                         communicationType === 'video' ? 'video' : 
+                         communicationType === 'audio' ? 'audio' : 'document';
         
-        payload.mediaType = mediaType;
-        payload.link = uploadData.url;
+        payload.mediaType = mediaType as 'document' | 'image' | 'video' | 'audio';
+        payload.link = uploadData.data?.url || uploadData.url;
         payload.caption = communicationMessage.trim();
         delete payload.message;
       }
@@ -468,6 +470,8 @@ export default function NegociacoesPage() {
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[Negociacoes] WhatsApp failed", response.status, errorText);
         throw new Error("Falha ao enviar mensagem.");
       }
 
@@ -486,8 +490,9 @@ export default function NegociacoesPage() {
       
       handleCloseCommunication();
       success("Mensagem enviada com sucesso!");
-    } catch {
-      error("Não foi possível enviar a mensagem.");
+    } catch (err) {
+      console.error("[Negociacoes] Erro ao enviar comunicação:", err);
+      error(err instanceof Error ? err.message : "Não foi possível enviar a mensagem.");
     } finally {
       setIsSendingCommunication(false);
     }
