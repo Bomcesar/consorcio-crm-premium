@@ -110,6 +110,8 @@ type NegociacaoFormData = typeof emptyForm;
 export default function NegociacoesPage() {
   const { success, error } = useToast();
   const { create, update, remove } = useNegociacoes();
+  const leadsHook = useLeads();
+  const clientesHook = useClientes();
   const [negociacoes, setNegociacoes] = useState<Negociacao[]>([]);
   const [leads, setLeads] = useState<{ id: string; nome: string; telefone: string; email: string }[]>([]);
   const [clientes, setClientes] = useState<{ id: string; nome: string; telefone: string; email: string }[]>([]);
@@ -138,8 +140,7 @@ export default function NegociacoesPage() {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const leadsHook = useLeads();
-      const clientesHook = useClientes();
+      const { getNegociacoes } = await import("@/repositories/client/negociacoes.repository");
       const [negociacoesData, leadsData, clientesData] = await Promise.all([getNegociacoes(), leadsHook.list(), clientesHook.list()]);
       setNegociacoes(negociacoesData);
       setLeads(leadsData.map((l) => ({ id: l.id, nome: l.nome, telefone: l.telefone, email: l.email || "" })));
