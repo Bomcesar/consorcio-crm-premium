@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { useAgenda } from "@/hooks/use-agenda";
 import { useToast } from "@/hooks/use-toast";
+import { useLeads } from "@/hooks/use-leads";
+import { useClientes } from "@/hooks/use-clientes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,6 +33,8 @@ import {
   Trash2,
   Loader2,
   Calendar,
+  Search,
+  Phone,
 } from "lucide-react";
 import type {
   AgendaEvento,
@@ -91,6 +95,8 @@ type FollowupFormData = AgendaFollowupInsert;
 export default function AgendaPage() {
   const { success, error } = useToast();
   const agenda = useAgenda();
+  const leadsHook = useLeads();
+  const clientesHook = useClientes();
   const [activeTab, setActiveTab] = useState<"eventos" | "tarefas" | "followups">("eventos");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -115,6 +121,9 @@ export default function AgendaPage() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [phoneQuery, setPhoneQuery] = useState("");
+  const [phoneResults, setPhoneResults] = useState<{ id: string; nome: string; telefone: string; tipo: "lead" | "cliente" }[]>([]);
+  const [isSearchingPhone, setIsSearchingPhone] = useState(false);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -127,6 +136,36 @@ export default function AgendaPage() {
       setErrorMessage("Não foi possível carregar a agenda.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSearchPhone = async (query: string) => {
+    setPhoneQuery(query);
+    if (!query.trim()) {
+      setPhoneResults([]);
+      return;
+    }
+    setIsSearchingPhone(true);
+    try {
+      const leads = await leadsHook.list();
+      const clientes = await clientesHook.list();
+      const q = query.trim().toLowerCase();
+      const results: { id: string; nome: string; telefone: string; tipo: "lead" | "cliente" }[] = [];
+      leads.forEach((lead) => {
+        if (lead.telefone && lead.telefone.includes(q)) {
+          results.push({ id: lead.id, nome: lead.nome, telefone: lead.telefone, tipo: "lead" });
+        }
+      });
+      clientes.forEach((cliente) => {
+        if (cliente.telefone && cliente.telefone.includes(q)) {
+          results.push({ id: cliente.id, nome: cliente.nome, telefone: cliente.telefone, tipo: "cliente" });
+        }
+      });
+      setPhoneResults(results);
+    } catch {
+      setPhoneResults([]);
+    } finally {
+      setIsSearchingPhone(false);
     }
   };
 
@@ -697,10 +736,106 @@ export default function AgendaPage() {
                   value={eventoForm.data_fim}
                   onChange={(e) => setEventoForm({ ...eventoForm, data_fim: e.target.value })}
                   required
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                 />
+               </div>
+             </div>
+             <div className="space-y-2">
+               <Label htmlFor="tarefa-busca-telefone">Buscar Telefone no CRM</Label>
+               <div className="relative">
+                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                 <Input
+                   id="tarefa-busca-telefone"
+                   placeholder="Digite o telefone para buscar..."
+                   value={phoneQuery}
+                   onChange={(e) => handleSearchPhone(e.target.value)}
+                   className="pl-9"
+                 />
+               </div>
+               {isSearchingPhone && (
+                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                   <Loader2 className="h-3 w-3 animate-spin" />
+                   Buscando...
+                 </div>
+               )}
+               {!isSearchingPhone && phoneResults.length > 0 && (
+                 <div className="max-h-40 overflow-y-auto rounded-md border bg-background">
+                   {phoneResults.map((result) => (
+                     <button
+                       key={result.id}
+                       type="button"
+                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50"
+                       onClick={() => {
+                         setTarefaForm({
+                           ...tarefaForm,
+                           cliente_id: result.tipo === "cliente" ? result.id : null,
+                           lead_id: result.tipo === "lead" ? result.id : null,
+                         });
+                         setPhoneQuery(result.telefone);
+                         setPhoneResults([]);
+                       }}
+                     >
+                       <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                       <span className="flex-1 truncate">{result.nome}</span>
+                       <Badge variant="outline" className="text-xs">
+                         {result.tipo === "lead" ? "Lead" : "Cliente"}
+                       </Badge>
+                     </button>
+                   ))}
+                 </div>
+               )}
+               {!isSearchingPhone && phoneQuery && phoneResults.length === 0 && (
+                 <p className="text-xs text-muted-foreground">Nenhum contato encontrado com esse telefone.</p>
+               )}
+             </div>
+             <div className="space-y-2">
+               <Label htmlFor="evento-busca-telefone">Buscar Telefone no CRM</Label>
+               <div className="relative">
+                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                 <Input
+                   id="evento-busca-telefone"
+                   placeholder="Digite o telefone para buscar..."
+                   value={phoneQuery}
+                   onChange={(e) => handleSearchPhone(e.target.value)}
+                   className="pl-9"
+                 />
+               </div>
+               {isSearchingPhone && (
+                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                   <Loader2 className="h-3 w-3 animate-spin" />
+                   Buscando...
+                 </div>
+               )}
+               {!isSearchingPhone && phoneResults.length > 0 && (
+                 <div className="max-h-40 overflow-y-auto rounded-md border bg-background">
+                   {phoneResults.map((result) => (
+                     <button
+                       key={result.id}
+                       type="button"
+                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50"
+                       onClick={() => {
+                         setEventoForm({
+                           ...eventoForm,
+                           cliente_id: result.tipo === "cliente" ? result.id : null,
+                           lead_id: result.tipo === "lead" ? result.id : null,
+                         });
+                         setPhoneQuery(result.telefone);
+                         setPhoneResults([]);
+                       }}
+                     >
+                       <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                       <span className="flex-1 truncate">{result.nome}</span>
+                       <Badge variant="outline" className="text-xs">
+                         {result.tipo === "lead" ? "Lead" : "Cliente"}
+                       </Badge>
+                     </button>
+                   ))}
+                 </div>
+               )}
+               {!isSearchingPhone && phoneQuery && phoneResults.length === 0 && (
+                 <p className="text-xs text-muted-foreground">Nenhum contato encontrado com esse telefone.</p>
+               )}
+             </div>
+             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="evento-tipo">Tipo</Label>
                 <select
