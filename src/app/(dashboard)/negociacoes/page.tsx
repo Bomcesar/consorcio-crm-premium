@@ -360,8 +360,8 @@ export default function NegociacoesPage() {
       setFormData(emptyForm);
       setSelectedNegociacao(null);
       await loadNegociacoes();
-    } catch {
-      // erro tratado no hook
+    } catch (err) {
+      console.error("Erro ao salvar negociação:", err);
     } finally {
       setIsSaving(false);
     }
