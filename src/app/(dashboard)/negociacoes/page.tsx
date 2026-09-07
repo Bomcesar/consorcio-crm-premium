@@ -275,17 +275,17 @@ export default function NegociacoesPage() {
   const openEdit = (negociacao: Negociacao) => {
     setSelectedNegociacao(negociacao);
     setFormData({
-      titulo: negociacao.titulo,
+      titulo: negociacao.titulo || "",
       valor: String(negociacao.valor ?? 0),
       etapa: etapaToDealStage(negociacao.etapa),
       probabilidade: String(negociacao.probabilidade ?? 0),
       data_prevista: negociacao.data_prevista || "",
-      observacoes: negociacao.observacoes,
-      lead_id: negociacao.lead_id,
+      observacoes: negociacao.observacoes || "",
+      lead_id: negociacao.lead_id || "",
       cliente_id: negociacao.cliente_id || "",
-      modalidade: negociacao.modalidade,
-      proposta: negociacao.proposta,
-      proxima_acao: negociacao.proxima_acao,
+      modalidade: negociacao.modalidade || "",
+      proposta: negociacao.proposta || "",
+      proxima_acao: negociacao.proxima_acao || "",
       data_proxima_acao: negociacao.data_proxima_acao || "",
       status: (negociacao.status as DealStatus) || "ATIVO",
       cliente_nome: negociacao.cliente_nome || "",
