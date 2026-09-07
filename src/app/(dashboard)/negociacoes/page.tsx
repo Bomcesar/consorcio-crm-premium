@@ -473,14 +473,14 @@ export default function NegociacoesPage() {
                                </Button>
                              </DropdownMenuTrigger>
                              <DropdownMenuContent align="end">
-                               <DropdownMenuItem onClick={() => openEdit(deal as unknown as Negociacao)}>
-                                 <Pencil className="mr-2 h-4 w-4" />
-                                 Editar
-                               </DropdownMenuItem>
-                               <DropdownMenuItem onClick={() => openDelete(deal as unknown as Negociacao)}>
-                                 <Trash2 className="mr-2 h-4 w-4" />
-                                 Excluir
-                               </DropdownMenuItem>
+<DropdownMenuItem onClick={() => { setIsDealDetailOpen(false); setSelectedDeal(null); openEdit(deal as unknown as Negociacao); }}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setIsDealDetailOpen(false); setSelectedDeal(null); openDelete(deal as unknown as Negociacao); }}>
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Excluir
+                                </DropdownMenuItem>
                              </DropdownMenuContent>
                            </DropdownMenu>
                          </div>
@@ -540,14 +540,14 @@ export default function NegociacoesPage() {
                                </Button>
                              </DropdownMenuTrigger>
                              <DropdownMenuContent align="end">
-                               <DropdownMenuItem onClick={() => openEdit(deal as unknown as Negociacao)}>
-                                 <Pencil className="mr-2 h-4 w-4" />
-                                 Editar
-                               </DropdownMenuItem>
-                               <DropdownMenuItem onClick={() => openDelete(deal as unknown as Negociacao)}>
-                                 <Trash2 className="mr-2 h-4 w-4" />
-                                 Excluir
-                               </DropdownMenuItem>
+<DropdownMenuItem onClick={() => { setIsDealDetailOpen(false); setSelectedDeal(null); openEdit(deal as unknown as Negociacao); }}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setIsDealDetailOpen(false); setSelectedDeal(null); openDelete(deal as unknown as Negociacao); }}>
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Excluir
+                                </DropdownMenuItem>
                              </DropdownMenuContent>
                            </DropdownMenu>
                          </div>
@@ -731,16 +731,16 @@ export default function NegociacoesPage() {
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEdit(selectedDeal as unknown as Negociacao)}>
+                              <DropdownMenuContent align="end">
+                                 <DropdownMenuItem onClick={() => { setIsDealDetailOpen(false); setSelectedDeal(null); openEdit(selectedDeal as unknown as Negociacao); }}>
                         <Pencil className="mr-2 h-4 w-4" />
                         Editar
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => openDelete(selectedDeal as unknown as Negociacao)}>
+                      <DropdownMenuItem onClick={() => { setIsDealDetailOpen(false); setSelectedDeal(null); openDelete(selectedDeal as unknown as Negociacao); }}>
                         <Trash2 className="mr-2 h-4 w-4" />
                         Excluir
                       </DropdownMenuItem>
-                    </DropdownMenuContent>
+                              </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
               </DialogHeader>
