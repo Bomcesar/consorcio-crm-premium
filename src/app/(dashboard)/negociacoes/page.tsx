@@ -276,10 +276,10 @@ export default function NegociacoesPage() {
     setSelectedNegociacao(negociacao);
     setFormData({
       titulo: negociacao.titulo,
-      valor: String(negociacao.valor),
+      valor: String(negociacao.valor ?? 0),
       etapa: etapaToDealStage(negociacao.etapa),
-      probabilidade: String(negociacao.probabilidade),
-      data_prevista: negociacao.data_prevista,
+      probabilidade: String(negociacao.probabilidade ?? 0),
+      data_prevista: negociacao.data_prevista || "",
       observacoes: negociacao.observacoes,
       lead_id: negociacao.lead_id,
       cliente_id: negociacao.cliente_id || "",
