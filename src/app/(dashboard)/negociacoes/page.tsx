@@ -105,6 +105,46 @@ const emptyForm = {
   tipo_bem: "IMOVEL" as Deal['tipoBem'],
 };
 
+const etapaToDealStage = (etapa: string): DealStage => {
+  const map: Record<string, DealStage> = {
+    NOVO_LEAD: 'NOVO_LEAD',
+    QUALIFICANDO: 'QUALIFICANDO',
+    PROPOSTA_ENVIADA: 'PROPOSTA_ENVIADA',
+    EM_NEGOCIACAO: 'EM_NEGOCIACAO',
+    COLETA_DOCUMENTOS: 'COLETA_DOCUMENTOS',
+    DADOS_CADASTRAIS: 'DADOS_CADASTRAIS',
+    ANALISE_BEM_CREDITO: 'ANALISE_BEM_CREDITO',
+    ASSINATURA_ALIENACAO: 'ASSINATURA_ALIENACAO',
+    AGUARDANDO_PAGAMENTO: 'AGUARDANDO_PAGAMENTO',
+    CONCLUIDO_SUCESSO: 'CONCLUIDO_SUCESSO',
+    ENVIAR_PARA_POS_VENDA: 'ENVIAR_PARA_POS_VENDA',
+    'Prospecção': 'NOVO_LEAD',
+    'Qualificação': 'QUALIFICANDO',
+    'Proposta': 'PROPOSTA_ENVIADA',
+    'Negociação': 'EM_NEGOCIACAO',
+    'Fechamento': 'ASSINATURA_ALIENACAO',
+    'Venda': 'CONCLUIDO_SUCESSO',
+  };
+  return map[etapa] || 'NOVO_LEAD';
+};
+
+const dealStageToEtapa = (stage: DealStage): string => {
+  const map: Record<DealStage, string> = {
+    NOVO_LEAD: 'Prospecção',
+    QUALIFICANDO: 'Qualificação',
+    PROPOSTA_ENVIADA: 'Proposta',
+    EM_NEGOCIACAO: 'Negociação',
+    COLETA_DOCUMENTOS: 'Negociação',
+    DADOS_CADASTRAIS: 'Negociação',
+    ANALISE_BEM_CREDITO: 'Fechamento',
+    ASSINATURA_ALIENACAO: 'Fechamento',
+    AGUARDANDO_PAGAMENTO: 'Fechamento',
+    CONCLUIDO_SUCESSO: 'Venda',
+    ENVIAR_PARA_POS_VENDA: 'Venda',
+  };
+  return map[stage];
+};
+
 type NegociacaoFormData = typeof emptyForm;
 
 export default function NegociacoesPage() {
@@ -141,7 +181,9 @@ export default function NegociacoesPage() {
     setErrorMessage(null);
     try {
       const { getNegociacoes } = await import("@/repositories/client/negociacoes.repository");
-      const [negociacoesData, leadsData, clientesData] = await Promise.all([getNegociacoes(), leadsHook.list(), clientesHook.list()]);
+      const negociacoesData = await getNegociacoes();
+      const leadsData = await leadsHook.list();
+      const clientesData = await clientesHook.list();
       setNegociacoes(negociacoesData);
       setLeads(leadsData.map((l) => ({ id: l.id, nome: l.nome, telefone: l.telefone, email: l.email || "" })));
       setClientes(clientesData.map((c) => ({ id: c.id, nome: c.nome, telefone: c.telefone, email: c.email || "" })));
@@ -151,14 +193,13 @@ export default function NegociacoesPage() {
         const cliente = clientesData.find((c) => c.id === n.cliente_id);
         const clienteNome = (cliente?.nome || lead?.nome || n.titulo || "").trim();
         const status = (n.status as DealStatus) || "ATIVO";
-        const documentosChecklist = Array.isArray(n.documentos_dados_cadastrais_checklist)
-          ? (n.documentos_dados_cadastrais_checklist as DealDocumentCheckItem[])
-          : defaultDocumentChecklist;
+        const rawChecklist = (n as unknown as { documentos_dados_cadastrais_checklist?: DealDocumentCheckItem[] }).documentos_dados_cadastrais_checklist;
+        const documentosChecklist = Array.isArray(rawChecklist) ? rawChecklist : defaultDocumentChecklist;
 
         return {
           id: n.id,
           clienteNome,
-          etapa: (n.etapa as DealStage) || 'NOVO_LEAD',
+          etapa: etapaToDealStage(n.etapa),
           status,
           valorCredito: Number(n.valor_credito || n.valor || 0),
           grupo: Number(n.grupo || 0),
@@ -180,8 +221,10 @@ export default function NegociacoesPage() {
       setDeals(mappedDeals);
       setActiveDeals(mappedDeals.filter((d) => d.status === 'ATIVO'));
       setArchivedDeals(mappedDeals.filter((d) => d.status !== 'ATIVO'));
-    } catch {
-      setErrorMessage("Não foi possível carregar as negociações.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível carregar as negociações.";
+      setErrorMessage(message);
+      console.error("Erro ao carregar negociações:", err);
     } finally {
       setIsLoading(false);
     }
@@ -229,7 +272,7 @@ export default function NegociacoesPage() {
     setFormData({
       titulo: negociacao.titulo,
       valor: String(negociacao.valor),
-      etapa: negociacao.etapa as DealStage,
+      etapa: etapaToDealStage(negociacao.etapa),
       probabilidade: String(negociacao.probabilidade),
       data_prevista: negociacao.data_prevista,
       observacoes: negociacao.observacoes,
@@ -276,7 +319,7 @@ export default function NegociacoesPage() {
       const payload = {
         titulo: formData.titulo.trim(),
         valor: Number(formData.valor) || 0,
-        etapa: formData.etapa as Negociacao['etapa'],
+        etapa: dealStageToEtapa(formData.etapa) as Negociacao['etapa'],
         probabilidade: Number(formData.probabilidade) || 0,
         data_prevista: formData.data_prevista,
         observacoes: formData.observacoes.trim(),

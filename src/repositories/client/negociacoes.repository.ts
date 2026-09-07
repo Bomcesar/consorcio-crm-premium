@@ -9,7 +9,7 @@ export type NegociacaoHistorico = Database["public"]["Tables"]["negociacao_histo
 export type NegociacaoAnexo = Database["public"]["Tables"]["anexos"]["Row"];
 
 function negociacaoBaseQuery(supabase: ReturnType<typeof createClient>) {
-  return supabase.from("negociacoes").select("*");
+  return supabase.from("negociacoes").select("id,titulo,valor,etapa,probabilidade,data_prevista,observacoes,lead_id,cliente_id,usuario_id,modalidade,proposta,proxima_acao,data_proxima_acao,status,cliente_nome,valor_credito,grupo,cota,prazo,taxa,valor_lance_entrada,tipo_carta_credito,parcela_cheia,parcela_reduzida,administradora,tipo_bem,comissao_estimada_em_porcentagem,documentos_dados_cadastrais_checklist,created_at,updated_at");
 }
 
 export async function getNegociacoes(): Promise<Negociacao[]> {
