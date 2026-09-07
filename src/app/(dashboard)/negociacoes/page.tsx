@@ -20,15 +20,20 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Plus,
+  Handshake,
+  Paperclip,
+  Archive,
+  MoreHorizontal,
   Pencil,
   Trash2,
   Loader2,
-  Handshake,
-  Paperclip,
-  CheckCircle2,
-  X,
-  Archive,
 } from "lucide-react";
 import type { Deal, DealStage, DealStatus, DealDocumentCheckItem } from "@/types/deal";
 import type { Negociacao, NegociacaoUpdate } from "@/repositories/client/negociacoes.repository";
@@ -441,32 +446,57 @@ export default function NegociacoesPage() {
                     <span className="text-xs font-medium">{formatCurrency(stageValue)}</span>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  {stageDeals.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Nenhuma negociação nesta etapa.</p>
-                  ) : (
-                    stageDeals.map((deal) => (
-                      <div
-                        key={deal.id}
-                        className="cursor-pointer rounded-lg border border-border/50 p-3 transition hover:border-primary/40"
-                        onClick={() => openDealDetail(deal)}
-                      >
-                        <p className="text-sm font-medium">{deal.clienteNome}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(deal.valorCredito)}</p>
-                        <div className="mt-2 flex items-center justify-between">
-                          <Badge variant="outline" className="text-xs">{deal.tipoCartaCredito === 'CONTEMPLADA' ? 'Contemplada' : 'Nova Cota'}</Badge>
-                          <span className="text-xs text-muted-foreground">{deal.grupo}/{deal.cota}</span>
-                        </div>
-                        {deal.etapa === 'COLETA_DOCUMENTOS' && (
-                          <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-                            <Paperclip className="h-3 w-3" />
-                            {deal.documentosDadosCadastraisChecklist.filter((item) => item.checado).length}/{deal.documentosDadosCadastraisChecklist.length}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </CardContent>
+                 <CardContent className="space-y-2">
+                   {stageDeals.length === 0 ? (
+                     <p className="text-xs text-muted-foreground">Nenhuma negociação nesta etapa.</p>
+                   ) : (
+                     stageDeals.map((deal) => (
+                       <div
+                         key={deal.id}
+                         className="rounded-lg border border-border/50 p-3 transition hover:border-primary/40"
+                       >
+                         <div className="flex items-start justify-between gap-2">
+                           <div
+                             className="flex-1 cursor-pointer"
+                             onClick={() => openDealDetail(deal)}
+                           >
+                             <p className="text-sm font-medium">{deal.clienteNome}</p>
+                             <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(deal.valorCredito)}</p>
+                           </div>
+                           <DropdownMenu>
+                             <DropdownMenuTrigger asChild>
+                               <Button variant="ghost" size="icon" className="h-8 w-8">
+                                 <MoreHorizontal className="h-4 w-4" />
+                               </Button>
+                             </DropdownMenuTrigger>
+                             <DropdownMenuContent align="end">
+                               <DropdownMenuItem onClick={() => openEdit(deal as unknown as Negociacao)}>
+                                 <Pencil className="mr-2 h-4 w-4" />
+                                 Editar
+                               </DropdownMenuItem>
+                               <DropdownMenuItem onClick={() => openDelete(deal as unknown as Negociacao)}>
+                                 <Trash2 className="mr-2 h-4 w-4" />
+                                 Excluir
+                               </DropdownMenuItem>
+                             </DropdownMenuContent>
+                           </DropdownMenu>
+                         </div>
+                         <div onClick={() => openDealDetail(deal)}>
+                           <div className="mt-2 flex items-center justify-between">
+                             <Badge variant="outline" className="text-xs">{deal.tipoCartaCredito === 'CONTEMPLADA' ? 'Contemplada' : 'Nova Cota'}</Badge>
+                             <span className="text-xs text-muted-foreground">{deal.grupo}/{deal.cota}</span>
+                           </div>
+                           {deal.etapa === 'COLETA_DOCUMENTOS' && (
+                             <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                               <Paperclip className="h-3 w-3" />
+                               {deal.documentosDadosCadastraisChecklist.filter((item) => item.checado).length}/{deal.documentosDadosCadastraisChecklist.length}
+                             </div>
+                           )}
+                         </div>
+                       </div>
+                     ))
+                   )}
+                 </CardContent>
               </Card>
             );
           })}
@@ -487,20 +517,45 @@ export default function NegociacoesPage() {
                 <div key={status}>
                   <h3 className="mb-2 text-sm font-medium text-muted-foreground">{dealStatusLabels[status]} ({deals.length})</h3>
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {deals.map((deal) => (
-                      <div
-                        key={deal.id}
-                        className="cursor-pointer rounded-lg border border-border/50 p-4 transition hover:border-primary/40"
-                        onClick={() => openDealDetail(deal)}
-                      >
-                        <p className="text-sm font-medium">{deal.clienteNome}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(deal.valorCredito)}</p>
-                        <div className="mt-2 flex items-center justify-between">
-                          <Badge variant="outline" className="text-xs">{deal.tipoCartaCredito === 'CONTEMPLADA' ? 'Contemplada' : 'Nova Cota'}</Badge>
-                          <span className="text-xs text-muted-foreground">{formatDealStageLabel(deal.etapa)}</span>
-                        </div>
-                      </div>
-                    ))}
+                     {deals.map((deal) => (
+                       <div
+                         key={deal.id}
+                         className="rounded-lg border border-border/50 p-4 transition hover:border-primary/40"
+                       >
+                         <div className="flex items-start justify-between gap-2">
+                           <div
+                             className="flex-1 cursor-pointer"
+                             onClick={() => openDealDetail(deal)}
+                           >
+                             <p className="text-sm font-medium">{deal.clienteNome}</p>
+                             <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(deal.valorCredito)}</p>
+                           </div>
+                           <DropdownMenu>
+                             <DropdownMenuTrigger asChild>
+                               <Button variant="ghost" size="icon" className="h-8 w-8">
+                                 <MoreHorizontal className="h-4 w-4" />
+                               </Button>
+                             </DropdownMenuTrigger>
+                             <DropdownMenuContent align="end">
+                               <DropdownMenuItem onClick={() => openEdit(deal as unknown as Negociacao)}>
+                                 <Pencil className="mr-2 h-4 w-4" />
+                                 Editar
+                               </DropdownMenuItem>
+                               <DropdownMenuItem onClick={() => openDelete(deal as unknown as Negociacao)}>
+                                 <Trash2 className="mr-2 h-4 w-4" />
+                                 Excluir
+                               </DropdownMenuItem>
+                             </DropdownMenuContent>
+                           </DropdownMenu>
+                         </div>
+                         <div onClick={() => openDealDetail(deal)}>
+                           <div className="mt-2 flex items-center justify-between">
+                             <Badge variant="outline" className="text-xs">{deal.tipoCartaCredito === 'CONTEMPLADA' ? 'Contemplada' : 'Nova Cota'}</Badge>
+                             <span className="text-xs text-muted-foreground">{formatDealStageLabel(deal.etapa)}</span>
+                           </div>
+                         </div>
+                       </div>
+                     ))}
                   </div>
                 </div>
               );
@@ -660,10 +715,31 @@ export default function NegociacoesPage() {
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle>{selectedDeal.clienteNome}</DialogTitle>
-                <DialogDescription>
-                  {formatDealStageLabel(selectedDeal.etapa)} • {formatCurrency(selectedDeal.valorCredito)} • {dealStatusLabels[selectedDeal.status]}
-                </DialogDescription>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <DialogTitle>{selectedDeal.clienteNome}</DialogTitle>
+                    <DialogDescription>
+                      {formatDealStageLabel(selectedDeal.etapa)} • {formatCurrency(selectedDeal.valorCredito)} • {dealStatusLabels[selectedDeal.status]}
+                    </DialogDescription>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openEdit(selectedDeal as unknown as Negociacao)}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openDelete(selectedDeal as unknown as Negociacao)}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Excluir
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </DialogHeader>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
