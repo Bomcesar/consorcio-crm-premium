@@ -38,6 +38,12 @@ import {
   CheckCircle2,
   ListTodo,
   Clock,
+  MessageSquare,
+  Send,
+  FileText,
+  Image,
+  Video,
+  Music,
 } from "lucide-react";
 import type { Deal, DealStage, DealStatus, DealDocumentCheckItem } from "@/types/deal";
 import type { Negociacao, NegociacaoUpdate } from "@/repositories/client/negociacoes.repository";
@@ -223,6 +229,11 @@ export default function NegociacoesPage() {
   const [newTaskTipo, setNewTaskTipo] = useState("Tarefa");
   const [newTaskDesc, setNewTaskDesc] = useState("");
   const [isAddingTask, setIsAddingTask] = useState(false);
+  const [isCommunicationOpen, setIsCommunicationOpen] = useState(false);
+  const [communicationType, setCommunicationType] = useState<string>("");
+  const [communicationMessage, setCommunicationMessage] = useState("");
+  const [communicationFile, setCommunicationFile] = useState<File | null>(null);
+  const [isSendingCommunication, setIsSendingCommunication] = useState(false);
 
   const handleChange = (field: keyof NegociacaoFormData, value: string | boolean | number | null) => {
     setFormData((current: NegociacaoFormData) => ({ ...current, [field]: value }));
@@ -378,6 +389,103 @@ export default function NegociacoesPage() {
     setIsLoadingHistory(false);
   };
 
+  const getDealPhone = () => {
+    if (!selectedDeal) return "";
+    const lead = leads.find((l) => l.id === selectedDeal.id);
+    const cliente = clientes.find((c) => c.id === selectedDeal.id);
+    return (cliente?.telefone || lead?.telefone || "").replace(/\D/g, "");
+  };
+
+  const handleQuickCommunication = (type: string) => {
+    if (!selectedDeal) return;
+    setCommunicationType(type);
+    setCommunicationMessage("");
+    setCommunicationFile(null);
+    setIsCommunicationOpen(true);
+  };
+
+  const handleCloseCommunication = () => {
+    setIsCommunicationOpen(false);
+    setCommunicationType("");
+    setCommunicationMessage("");
+    setCommunicationFile(null);
+  };
+
+  const handleSendCommunication = async () => {
+    if (!selectedDeal || !communicationMessage.trim() && !communicationFile) return;
+    setIsSendingCommunication(true);
+    try {
+      const phone = getDealPhone();
+      if (!phone) {
+        error("Telefone do cliente não encontrado.");
+        return;
+      }
+
+      const numero = `55${phone}`;
+      const payload: Record<string, unknown> = {
+        to: numero,
+        message: communicationMessage.trim(),
+      };
+
+      if (communicationFile) {
+        const formData = new FormData();
+        formData.append("file", communicationFile);
+        formData.append("to", numero);
+        formData.append("message", communicationMessage.trim());
+        
+        // Upload file and get URL
+        const uploadResponse = await fetch("/api/integrations/storage/upload", {
+          method: "POST",
+          body: formData,
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error("Falha ao enviar arquivo.");
+        }
+        
+        const uploadData = await uploadResponse.json();
+        const mediaType = communicationType === 'pdf' ? 'document' : 
+                         communicationType === 'imagem' ? 'image' :
+                         communicationType === 'video' ? 'video' : 'document';
+        
+        payload.mediaType = mediaType;
+        payload.link = uploadData.url;
+        payload.caption = communicationMessage.trim();
+        delete payload.message;
+      }
+
+      const response = await fetch("/api/integrations/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error("Falha ao enviar mensagem.");
+      }
+
+      // Adicionar ao histórico
+      const { addNegociacaoHistorico, getNegociacaoHistorico } = await import("@/repositories/client/negociacoes.repository");
+      await addNegociacaoHistorico(selectedDeal.id, {
+        tipo: communicationType === 'aprovacao' ? 'E-mail' : 
+              communicationType === 'pdf' ? 'Documento' :
+              communicationType === 'imagem' ? 'Observação' :
+              communicationType === 'audio' ? 'Ligação' :
+              communicationType === 'video' ? 'Reunião' : 'Tarefa',
+        descricao: `Enviado via WhatsApp: ${communicationMessage || communicationType}`,
+      });
+      const updated = await getNegociacaoHistorico(selectedDeal.id);
+      setDealHistory(updated);
+      
+      handleCloseCommunication();
+      success("Mensagem enviada com sucesso!");
+    } catch {
+      error("Não foi possível enviar a mensagem.");
+    } finally {
+      setIsSendingCommunication(false);
+    }
+  };
+
   const handleAddTask = async () => {
     if (!newTaskDesc.trim() || !selectedDeal) return;
     setIsAddingTask(true);
@@ -396,10 +504,12 @@ export default function NegociacoesPage() {
   };
 
   const handleDeleteTask = async (taskId: string) => {
+    if (!selectedDeal) return;
     try {
-      const { deleteNegociacaoHistorico } = await import("@/repositories/client/negociacoes.repository");
+      const { deleteNegociacaoHistorico, getNegociacaoHistorico } = await import("@/repositories/client/negociacoes.repository");
       await deleteNegociacaoHistorico(taskId);
-      setDealHistory((prev) => prev.filter((t) => t.id !== taskId));
+      const updated = await getNegociacaoHistorico(selectedDeal.id);
+      setDealHistory(updated);
       success("Tarefa removida.");
     } catch {
       error("Não foi possível remover a tarefa.");
@@ -880,6 +990,63 @@ export default function NegociacoesPage() {
                 </div>
               </div>
 
+              <div className="mt-4 space-y-2 border-t pt-4">
+                <h4 className="text-sm font-medium flex items-center gap-2">
+                  <Send className="h-4 w-4" />
+                  Ações Rápidas
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => handleQuickCommunication("proposta")}
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    Enviar Proposta
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleQuickCommunication("aprovacao")}
+                  >
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Enviar para Aprovação
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleQuickCommunication("pdf")}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Enviar PDF
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleQuickCommunication("imagem")}
+                  >
+                    <Image className="mr-2 h-4 w-4" />
+                    Enviar Imagem
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleQuickCommunication("audio")}
+                  >
+                    <Music className="mr-2 h-4 w-4" />
+                    Enviar Áudio
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleQuickCommunication("video")}
+                  >
+                    <Video className="mr-2 h-4 w-4" />
+                    Enviar Vídeo
+                  </Button>
+                </div>
+              </div>
+
               {selectedDeal.etapa === 'COLETA_DOCUMENTOS' && (
                 <div className="mt-4 space-y-2 border-t pt-4">
                   <div className="flex items-center justify-between">
@@ -976,6 +1143,69 @@ export default function NegociacoesPage() {
                   )}
                 </div>
               </div>
+
+              <Dialog open={isCommunicationOpen} onOpenChange={setIsCommunicationOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Enviar Comunicação</DialogTitle>
+                    <DialogDescription>
+                      Enviar mensagem ou arquivo para o cliente via WhatsApp.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Tipo de Mídia</Label>
+                      <select
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm mt-1"
+                        value={communicationType}
+                        onChange={(e) => setCommunicationType(e.target.value)}
+                      >
+                        <option value="">Selecione...</option>
+                        <option value="proposta">Proposta</option>
+                        <option value="aprovacao">Enviar para Aprovação</option>
+                        <option value="pdf">PDF</option>
+                        <option value="imagem">Imagem</option>
+                        <option value="audio">Áudio</option>
+                        <option value="video">Vídeo</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Mensagem</Label>
+                      <Textarea
+                        placeholder="Digite sua mensagem..."
+                        value={communicationMessage}
+                        onChange={(e) => setCommunicationMessage(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    {communicationType && communicationType !== 'proposta' && communicationType !== 'aprovacao' && (
+                      <div>
+                        <Label>Arquivo</Label>
+                        <Input
+                          type="file"
+                          accept={
+                            communicationType === 'pdf' ? '.pdf' :
+                            communicationType === 'imagem' ? 'image/*' :
+                            communicationType === 'audio' ? 'audio/*' :
+                            communicationType === 'video' ? 'video/*' : '*'
+                          }
+                          onChange={(e) => setCommunicationFile(e.target.files?.[0] || null)}
+                          className="mt-1"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={handleCloseCommunication}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleSendCommunication} disabled={isSendingCommunication || (!communicationMessage.trim() && !communicationFile)}>
+                      {isSendingCommunication ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                      Enviar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </>
           )}
         </DialogContent>
