@@ -137,8 +137,8 @@ export default function NegociacoesPage() {
     setErrorMessage(null);
     try {
       const { getNegociacoes } = await import("@/repositories/client/negociacoes.repository");
-      const { listLeads } = await import("@/hooks/use-leads");
-      const { listClientes } = await import("@/hooks/use-clientes");
+      const { list: listLeads } = await import("@/hooks/use-leads");
+      const { list: listClientes } = await import("@/hooks/use-clientes");
       const [negociacoesData, leadsData, clientesData] = await Promise.all([getNegociacoes(), listLeads(), listClientes()]);
       setNegociacoes(negociacoesData);
       setLeads(leadsData.map((l) => ({ id: l.id, nome: l.nome, telefone: l.telefone, email: l.email || "" })));
