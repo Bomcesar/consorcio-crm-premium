@@ -195,7 +195,7 @@ export default function NegociacoesPage() {
   const [contatoResults, setContatoResults] = useState<{ id: string; nome: string; telefone: string; email: string; origem: string; type: "lead" | "cliente" | "indicador" }[]>([]);
   const [isContatoSearchLoading, setIsContatoSearchLoading] = useState(false);
 
-  const [viewMode, setViewMode] = useState<"kanban" | "archived">("kanban");
+  const [viewMode, setViewMode] = useState<"kanban" | "table" | "archived">("kanban");
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [isDealDetailOpen, setIsDealDetailOpen] = useState(false);
   const [dealChecklist, setDealChecklist] = useState<DealDocumentCheckItem[]>(defaultDocumentChecklist);
@@ -1024,6 +1024,9 @@ export default function NegociacoesPage() {
             <Handshake className="mr-2 h-4 w-4" />
             Kanban
           </Button>
+          <Button variant={viewMode === "table" ? "default" : "outline"} onClick={() => setViewMode("table")}>
+            Tabela
+          </Button>
           <Button variant={viewMode === "archived" ? "default" : "outline"} onClick={() => setViewMode("archived")}>
             <Archive className="mr-2 h-4 w-4" />
             Arquivados
@@ -1128,7 +1131,7 @@ export default function NegociacoesPage() {
         </Card>
       )}
 
-      {viewMode === "kanban" && (
+      {viewMode === "table" && (
         <Card>
           <CardHeader>
             <CardTitle>Todas as negociações</CardTitle>
