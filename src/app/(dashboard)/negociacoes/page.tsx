@@ -428,70 +428,42 @@ export default function NegociacoesPage() {
         return;
       }
 
-      const numero = `55${phone}`;
-      const payload: Record<string, unknown> = {
-        to: numero,
-        message: communicationMessage.trim(),
-      };
+      const numero = phone.replace(/\D/g, "");
+      let mensagemFinal = communicationMessage.trim();
 
       if (communicationFile) {
         const formData = new FormData();
         formData.append("file", communicationFile);
         formData.append("bucket", "crm-files");
         formData.append("path", `negociacoes/${selectedDeal.id}/${Date.now()}_${communicationFile.name}`);
-        
+
         const uploadResponse = await fetch("/api/integrations/storage/upload", {
           method: "POST",
           body: formData,
         });
-        
+
         if (!uploadResponse.ok) {
           const errorText = await uploadResponse.text();
           console.error("[Negociacoes] Upload failed", uploadResponse.status, errorText);
-          throw new Error("Falha ao enviar arquivo.");
+          error("Falha ao enviar arquivo.");
+          return;
         }
-        
+
         const uploadData = await uploadResponse.json();
-        const mediaType = communicationType === 'pdf' ? 'document' : 
-                         communicationType === 'imagem' ? 'image' :
-                         communicationType === 'video' ? 'video' : 
-                         communicationType === 'audio' ? 'audio' : 'document';
-        
-        payload.mediaType = mediaType as 'document' | 'image' | 'video' | 'audio';
-        payload.link = uploadData.data?.url || uploadData.url;
-        payload.caption = communicationMessage.trim();
-        delete payload.message;
+        const arquivoUrl = uploadData.data?.url || uploadData.url;
+        const nomeTipo =
+          communicationType === 'pdf' ? 'PDF' :
+          communicationType === 'imagem' ? 'imagem' :
+          communicationType === 'audio' ? 'áudio' :
+          communicationType === 'video' ? 'vídeo' : 'arquivo';
+
+        mensagemFinal = `${mensagemFinal ? mensagemFinal + '\n\n' : ''}📎 ${nomeTipo}:\n${arquivoUrl}`;
       }
 
-      const response = await fetch("/api/integrations/whatsapp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const texto = encodeURIComponent(mensagemFinal || "Olá!");
+      const link = `https://wa.me/55${numero}?text=${texto}`;
+      window.open(link, "_blank");
 
-      if (!response.ok) {
-        let errorMessage = "Falha ao enviar mensagem.";
-        try {
-          const errorData = await response.json();
-          console.error("[Negociacoes] WhatsApp failed", response.status, errorData);
-          if (errorData && typeof errorData === 'object' && 'error' in errorData) {
-            const rawError = (errorData as { error?: string }).error || "";
-            if (rawError.includes("Configuração do WhatsApp incompleta")) {
-              errorMessage = "WhatsApp não configurado. Configure WHATSAPP_API_URL, WHATSAPP_API_TOKEN e WHATSAPP_PHONE_NUMBER_ID.";
-            } else if (rawError) {
-              errorMessage = rawError;
-            }
-          } else if (typeof errorData === 'string') {
-            errorMessage = errorData;
-          }
-        } catch {
-          const errorText = await response.text();
-          console.error("[Negociacoes] WhatsApp failed text", response.status, errorText);
-        }
-        throw new Error(errorMessage);
-      }
-
-      // Adicionar ao histórico
       const { addNegociacaoHistorico, getNegociacaoHistorico } = await import("@/repositories/client/negociacoes.repository");
       await addNegociacaoHistorico(selectedDeal.id, {
         tipo: communicationType === 'aprovacao' ? 'E-mail' : 
@@ -499,13 +471,13 @@ export default function NegociacoesPage() {
               communicationType === 'imagem' ? 'Observação' :
               communicationType === 'audio' ? 'Ligação' :
               communicationType === 'video' ? 'Reunião' : 'Tarefa',
-        descricao: `Enviado via WhatsApp: ${communicationMessage || communicationType}`,
+        descricao: `Aberto WhatsApp para envio: ${mensagemFinal || communicationType}`,
       });
       const updated = await getNegociacaoHistorico(selectedDeal.id);
       setDealHistory(updated);
-      
+
       handleCloseCommunication();
-      success("Mensagem enviada com sucesso!");
+      success("Abrindo WhatsApp para envio...");
     } catch (err) {
       console.error("[Negociacoes] Erro ao enviar comunicação:", err);
       error(err instanceof Error ? err.message : "Não foi possível enviar a mensagem.");
@@ -1175,9 +1147,9 @@ export default function NegociacoesPage() {
               <Dialog open={isCommunicationOpen} onOpenChange={setIsCommunicationOpen}>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Enviar Comunicação</DialogTitle>
+                    <DialogTitle>Abrir WhatsApp</DialogTitle>
                     <DialogDescription>
-                      Enviar mensagem ou arquivo para o cliente via WhatsApp.
+                      Ao confirmar, o sistema abrirá o WhatsApp com a mensagem e/ou link do arquivo já prontos para envio.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
@@ -1229,7 +1201,7 @@ export default function NegociacoesPage() {
                     </Button>
                     <Button onClick={handleSendCommunication} disabled={isSendingCommunication || (!communicationMessage.trim() && !communicationFile)}>
                       {isSendingCommunication ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                      Enviar
+                      Abrir WhatsApp
                     </Button>
                   </DialogFooter>
                 </DialogContent>
