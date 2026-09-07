@@ -134,6 +134,7 @@ const etapaToDealStage = (etapa: string): DealStage => {
     'Negociação': 'EM_NEGOCIACAO',
     'Fechamento': 'ASSINATURA_ALIENACAO',
     'Venda': 'CONCLUIDO_SUCESSO',
+    'Aguardando Pagamento': 'AGUARDANDO_PAGAMENTO',
   };
   return map[etapa] || 'NOVO_LEAD';
 };
@@ -148,7 +149,7 @@ const dealStageToEtapa = (stage: DealStage): string => {
     DADOS_CADASTRAIS: 'Negociação',
     ANALISE_BEM_CREDITO: 'Fechamento',
     ASSINATURA_ALIENACAO: 'Fechamento',
-    AGUARDANDO_PAGAMENTO: 'Fechamento',
+    AGUARDANDO_PAGAMENTO: 'Aguardando Pagamento',
     CONCLUIDO_SUCESSO: 'Venda',
     ENVIAR_PARA_POS_VENDA: 'Venda',
   };
@@ -319,6 +320,7 @@ export default function NegociacoesPage() {
   };
 
   const openEdit = (negociacao: Negociacao) => {
+    console.log("[Negociacoes] Abrir edição", negociacao.id, negociacao.etapa);
     setSelectedNegociacao(negociacao);
     setFormData({
       titulo: negociacao.titulo || "",
@@ -356,6 +358,7 @@ export default function NegociacoesPage() {
   };
 
   const openDealDetail = (deal: Deal) => {
+    console.log("[Negociacoes] Abrir detalhe", deal.id, deal.etapa, deal.status);
     setSelectedDeal(deal);
     setDealChecklist(deal.documentosDadosCadastraisChecklist && deal.documentosDadosCadastraisChecklist.length > 0 ? deal.documentosDadosCadastraisChecklist : defaultDocumentChecklist);
     setNewTaskTipo("Tarefa");
@@ -406,7 +409,7 @@ export default function NegociacoesPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!formData.titulo.trim()) return;
-
+    console.log("[Negociacoes] Submit", selectedNegociacao?.id, formData.etapa, formData.status);
     setIsSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -441,16 +444,14 @@ export default function NegociacoesPage() {
       }
 
       if (selectedNegociacao) {
-        const updated = await update(selectedNegociacao.id, payload);
-        setNegociacoes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+        await update(selectedNegociacao.id, payload);
       } else {
-        const created = await create(payload);
-        setNegociacoes((prev) => [created, ...prev]);
+        await create(payload);
       }
+      await loadNegociacoes();
       setIsFormOpen(false);
       setFormData(emptyForm);
       setSelectedNegociacao(null);
-      await loadNegociacoes();
     } catch (err) {
       console.error("Erro ao salvar negociação:", err);
     } finally {
