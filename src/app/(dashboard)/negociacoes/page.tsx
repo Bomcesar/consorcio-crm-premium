@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNegociacoes } from "@/hooks/use-negociacoes";
 import { useToast } from "@/hooks/use-toast";
+import { useLeads } from "@/hooks/use-leads";
+import { useClientes } from "@/hooks/use-clientes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -136,10 +138,9 @@ export default function NegociacoesPage() {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const { getNegociacoes } = await import("@/repositories/client/negociacoes.repository");
-      const { list: listLeads } = await import("@/hooks/use-leads");
-      const { list: listClientes } = await import("@/hooks/use-clientes");
-      const [negociacoesData, leadsData, clientesData] = await Promise.all([getNegociacoes(), listLeads(), listClientes()]);
+      const leadsHook = useLeads();
+      const clientesHook = useClientes();
+      const [negociacoesData, leadsData, clientesData] = await Promise.all([getNegociacoes(), leadsHook.list(), clientesHook.list()]);
       setNegociacoes(negociacoesData);
       setLeads(leadsData.map((l) => ({ id: l.id, nome: l.nome, telefone: l.telefone, email: l.email || "" })));
       setClientes(clientesData.map((c) => ({ id: c.id, nome: c.nome, telefone: c.telefone, email: c.email || "" })));
