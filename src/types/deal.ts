@@ -21,6 +21,8 @@ export interface DealDocumentCheckItem {
 
 export interface Deal {
   id: string;
+  leadId: string;
+  clienteId: string | null;
   clienteNome: string;
   etapa: DealStage;
   status: DealStatus;

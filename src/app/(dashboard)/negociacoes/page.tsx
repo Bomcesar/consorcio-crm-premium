@@ -261,6 +261,8 @@ export default function NegociacoesPage() {
 
         return {
           id: n.id,
+          leadId: n.lead_id,
+          clienteId: n.cliente_id,
           clienteNome,
           etapa: etapaToDealStage(n.etapa),
           status,
@@ -391,13 +393,17 @@ export default function NegociacoesPage() {
 
   const getDealPhone = () => {
     if (!selectedDeal) return "";
-    const lead = leads.find((l) => l.id === selectedDeal.id);
-    const cliente = clientes.find((c) => c.id === selectedDeal.id);
-    return (cliente?.telefone || lead?.telefone || "").replace(/\D/g, "");
+    console.log("[Negociacoes] getDealPhone", selectedDeal.id, selectedDeal.leadId, selectedDeal.clienteId);
+    const lead = leads.find((l) => l.id === selectedDeal.leadId);
+    const cliente = clientes.find((c) => c.id === selectedDeal.clienteId);
+    const phone = (cliente?.telefone || lead?.telefone || "").replace(/\D/g, "");
+    console.log("[Negociacoes] phone found", phone);
+    return phone;
   };
 
   const handleQuickCommunication = (type: string) => {
     if (!selectedDeal) return;
+    console.log("[Negociacoes] handleQuickCommunication", type, selectedDeal.id);
     setCommunicationType(type);
     setCommunicationMessage("");
     setCommunicationFile(null);
@@ -413,6 +419,7 @@ export default function NegociacoesPage() {
 
   const handleSendCommunication = async () => {
     if (!selectedDeal || !communicationMessage.trim() && !communicationFile) return;
+    console.log("[Negociacoes] handleSendCommunication", selectedDeal.id, communicationType, communicationMessage);
     setIsSendingCommunication(true);
     try {
       const phone = getDealPhone();
