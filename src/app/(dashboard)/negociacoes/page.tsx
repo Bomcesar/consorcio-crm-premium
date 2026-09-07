@@ -276,7 +276,7 @@ export default function NegociacoesPage() {
       const payload = {
         titulo: formData.titulo.trim(),
         valor: Number(formData.valor) || 0,
-        etapa: formData.etapa,
+        etapa: formData.etapa as Negociacao['etapa'],
         probabilidade: Number(formData.probabilidade) || 0,
         data_prevista: formData.data_prevista,
         observacoes: formData.observacoes.trim(),
