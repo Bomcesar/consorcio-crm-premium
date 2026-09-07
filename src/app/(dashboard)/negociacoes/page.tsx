@@ -470,9 +470,25 @@ export default function NegociacoesPage() {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[Negociacoes] WhatsApp failed", response.status, errorText);
-        throw new Error("Falha ao enviar mensagem.");
+        let errorMessage = "Falha ao enviar mensagem.";
+        try {
+          const errorData = await response.json();
+          console.error("[Negociacoes] WhatsApp failed", response.status, errorData);
+          if (errorData && typeof errorData === 'object' && 'error' in errorData) {
+            const rawError = (errorData as { error?: string }).error || "";
+            if (rawError.includes("Configuração do WhatsApp incompleta")) {
+              errorMessage = "WhatsApp não configurado. Configure WHATSAPP_API_URL, WHATSAPP_API_TOKEN e WHATSAPP_PHONE_NUMBER_ID.";
+            } else if (rawError) {
+              errorMessage = rawError;
+            }
+          } else if (typeof errorData === 'string') {
+            errorMessage = errorData;
+          }
+        } catch {
+          const errorText = await response.text();
+          console.error("[Negociacoes] WhatsApp failed text", response.status, errorText);
+        }
+        throw new Error(errorMessage);
       }
 
       // Adicionar ao histórico
