@@ -117,6 +117,8 @@ const emptyForm = {
   tipo_carta_credito: "NOVA_COTA" as Deal['tipoCartaCredito'],
   parcela_cheia: "",
   parcela_reduzida: "",
+  comissao_estimada: "",
+  comissao_estimada_porcentagem: "2.00",
   administradora: "",
   tipo_bem: "IMOVEL" as Deal['tipoBem'],
 };
@@ -362,6 +364,8 @@ export default function NegociacoesPage() {
       parcela_reduzida: String(negociacao.parcela_reduzida || 0),
       administradora: negociacao.administradora || "",
       tipo_bem: (negociacao.tipo_bem as Deal['tipoBem']) || "IMOVEL",
+      comissao_estimada: String(negociacao.comissao_estimada_em_porcentagem ?? 0),
+      comissao_estimada_porcentagem: String(negociacao.comissao_estimada_em_porcentagem ?? 2.00),
     });
     setIsFormOpen(true);
   };
@@ -828,7 +832,7 @@ export default function NegociacoesPage() {
                 <Input id="valor_credito" type="number" step="0.01" value={formData.valor_credito} onChange={(e) => handleChange("valor_credito", e.target.value)} placeholder="0,00" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="valor_lance_entrada">Valor de Entrada/Lance (R$)</Label>
+                <Label htmlFor="valor_lance_entrada">Valor de Parcela/Lance (R$)</Label>
                 <Input id="valor_lance_entrada" type="number" step="0.01" value={formData.valor_lance_entrada} onChange={(e) => handleChange("valor_lance_entrada", e.target.value)} placeholder="0,00" />
               </div>
             </div>
