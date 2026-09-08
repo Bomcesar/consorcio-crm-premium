@@ -450,7 +450,24 @@ export default function NegociacoesPage() {
         if (!uploadResponse.ok) {
           const errorText = await uploadResponse.text();
           console.error("[Negociacoes] Upload failed", uploadResponse.status, errorText);
-          error("Falha ao enviar arquivo.");
+          let errorMessage = "Falha ao enviar arquivo.";
+          try {
+            const errorData = await uploadResponse.json();
+            if (errorData && typeof errorData === 'object' && 'error' in errorData) {
+              const rawError = (errorData as { error?: string }).error || "";
+              if (rawError.includes("Configuração de storage incompleta")) {
+                errorMessage = "Storage não configurado. Configure STORAGE_ACCESS_KEY e STORAGE_SECRET_KEY.";
+              } else if (rawError) {
+                errorMessage = rawError;
+              }
+            } else if (typeof errorData === 'string') {
+              errorMessage = errorData;
+            }
+          } catch {
+            const errorText2 = await uploadResponse.text();
+            console.error("[Negociacoes] Upload failed text", uploadResponse.status, errorText2);
+          }
+          error(errorMessage);
           return;
         }
 
