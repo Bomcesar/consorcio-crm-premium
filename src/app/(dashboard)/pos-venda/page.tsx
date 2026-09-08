@@ -302,11 +302,28 @@ const PosVendaPage = () => {
       return;
     }
 
+    const now = new Date();
+    const dataPagamento = now.toLocaleDateString("pt-BR");
+    const mesAtual = now.toLocaleString("pt-BR", { month: "long" });
+
     const values: Record<string, string> = {
       nome: cliente.nome || "",
       grupo: cliente.numero_grupo || "",
       vencimento: cliente.data_vencimento || "",
-      data_assembleia: cliente.data_assembleia || "",
+      data_assembleia: cliente.data_assembreia || "",
+      data_pagamento: dataPagamento,
+      mes: mesAtual,
+      valor: posVenda.formData.boleto_url || "",
+      nome_consultor: "Paulo Cesar",
+      valor_carta: posVenda.formData.boleto_url || "",
+      meta_milhoes: "5",
+      meta_comissao: "500",
+      progresso: "10.025.000,00",
+      nome_cliente: cliente.nome || "",
+      cota: cliente.numero_cota || "",
+      matricula: "Paulo Cesar",
+      secretaria: "",
+      administrativa: "",
     };
 
     const mensagem = renderTemplate(template, values);
@@ -782,6 +799,45 @@ const PosVendaPage = () => {
                 </Button>
                 <Button type="button" variant="secondary" size="sm" onClick={() => handleTemplateSend("assembleia")}>
                   Assembleia
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Templates de Grupo</Label>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => handleTemplateSend("comprovante_pix")}>
+                  Comprovante PIX
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => handleTemplateSend("lista_atualizada")}>
+                  Lista atualizada
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => handleTemplateSend("modalidade_lar")}>
+                  Modalidade LAR
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => handleTemplateSend("ranking_mensal")}>
+                  Ranking Mensal
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Checklist Pós-venda</Label>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" size="sm" onClick={() => handleTemplateSend("pos_venda_boas_vindas")}>
+                  Boas-vindas
+                </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={() => handleTemplateSend("pos_venda_comprovante")}>
+                  Comprovante
+                </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={() => handleTemplateSend("pos_venda_regulamento")}>
+                  Regulamento
+                </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={() => handleTemplateSend("pos_venda_contrato")}>
+                  Contrato
+                </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={() => handleTemplateSend("pos_venda_app")}>
+                  App Ademicon
                 </Button>
               </div>
             </div>
