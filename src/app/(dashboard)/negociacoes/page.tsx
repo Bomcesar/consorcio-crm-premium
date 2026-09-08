@@ -141,6 +141,7 @@ const etapaToDealStage = (etapa: string): DealStage => {
     'Fechamento': 'ASSINATURA_ALIENACAO',
     'Venda': 'CONCLUIDO_SUCESSO',
     'Aguardando Pagamento': 'AGUARDANDO_PAGAMENTO',
+    'Pós-venda': 'ENVIAR_PARA_POS_VENDA',
   };
   return map[etapa] || 'NOVO_LEAD';
 };
@@ -157,7 +158,7 @@ const dealStageToEtapa = (stage: DealStage): string => {
     ASSINATURA_ALIENACAO: 'Fechamento',
     AGUARDANDO_PAGAMENTO: 'Aguardando Pagamento',
     CONCLUIDO_SUCESSO: 'Venda',
-    ENVIAR_PARA_POS_VENDA: 'Venda',
+    ENVIAR_PARA_POS_VENDA: 'Pós-venda',
   };
   return map[stage];
 };
@@ -837,6 +838,9 @@ export default function NegociacoesPage() {
                 <select id="tipo_carta_credito" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.tipo_carta_credito} onChange={(e) => handleChange("tipo_carta_credito", e.target.value)}>
                   <option value="NOVA_COTA">Nova Cota</option>
                   <option value="CONTEMPLADA">Contemplada</option>
+                  <option value="INVESTIMENTO">Investimento</option>
+                  <option value="CREDITO">Crédito</option>
+                  <option value="APOSENTADORIA_IMOBILIARIA">Aposentadoria Imobiliária</option>
                 </select>
               </div>
               <div className="space-y-2">
