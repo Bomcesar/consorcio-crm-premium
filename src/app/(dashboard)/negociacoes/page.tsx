@@ -834,6 +834,28 @@ export default function NegociacoesPage() {
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
+                <Label htmlFor="parcela_cheia">Parcela Cheia (R$)</Label>
+                <Input id="parcela_cheia" type="number" step="0.01" value={formData.parcela_cheia} onChange={(e) => handleChange("parcela_cheia", e.target.value)} placeholder="0,00" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="parcela_reduzida">Parcela Reduzida (R$)</Label>
+                <Input id="parcela_reduzida" type="number" step="0.01" value={formData.parcela_reduzida} onChange={(e) => handleChange("parcela_reduzida", e.target.value)} placeholder="0,00" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="comissao_estimada">Comissão Estimada (R$)</Label>
+                <Input id="comissao_estimada" type="number" step="0.01" value={formData.comissao_estimada} onChange={(e) => handleChange("comissao_estimada", e.target.value)} placeholder="0,00" />
+                <p className="text-xs text-muted-foreground">Comissão é calculada automaticamente como 2% do valor do crédito.</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="comissao_estimada_porcentagem">Comissão (%)</Label>
+                <Input id="comissao_estimada_porcentagem" type="number" step="0.01" value={formData.comissao_estimada_porcentagem} onChange={(e) => handleChange("comissao_estimada_porcentagem", e.target.value)} placeholder="2,00" />
+                <p className="text-xs text-muted-foreground">Valor padrão: 2% sobre o valor do crédito.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
                 <Label htmlFor="tipo_carta_credito">Tipo de Carta</Label>
                 <select id="tipo_carta_credito" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.tipo_carta_credito} onChange={(e) => handleChange("tipo_carta_credito", e.target.value)}>
                   <option value="NOVA_COTA">Nova Cota</option>
