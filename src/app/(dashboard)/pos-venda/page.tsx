@@ -29,6 +29,8 @@ import { Plus, Pencil, Trash2, Loader2, Headphones, CheckCircle2, Circle, Phone,
 import type { PosVendaInsert, PosVendaTarefa, PosVendaComunicacao } from "@/repositories/client/pos-venda.repository";
 import { AnexosUpload } from "@/components/anexos/anexos-upload";
 import { AnexosList } from "@/components/anexos/anexos-list";
+import { POS_VENDA_TEMPLATES, renderTemplate } from "@/lib/pos-venda-templates";
+import { CRM_WHATSAPP_NUMBER } from "@/lib/crm-whatsapp";
 
 const emptyForm: PosVendaInsert = {
   status: "Boas-vindas",
@@ -285,6 +287,44 @@ const PosVendaPage = () => {
       error("Não foi possível agendar o retorno.");
     }
     setScheduleOpen(false);
+  };
+
+  const handleTemplateSend = (templateKey: string) => {
+    const cliente = getClienteSelecionado();
+    if (!cliente) {
+      error("Selecione um cliente antes de enviar.");
+      return;
+    }
+
+    const template = POS_VENDA_TEMPLATES.find((item) => item.key === templateKey);
+    if (!template) {
+      error("Template não encontrado.");
+      return;
+    }
+
+    const values: Record<string, string> = {
+      nome: cliente.nome || "",
+      grupo: cliente.numero_grupo || "",
+      vencimento: cliente.data_vencimento || "",
+      data_assembleia: cliente.data_assembleia || "",
+    };
+
+    const mensagem = renderTemplate(template, values);
+    const digits = cliente.telefone.replace(/\D/g, "");
+    const texto = encodeURIComponent(mensagem);
+    const link = `https://wa.me/55${digits}?text=${texto}`;
+    window.open(link, "_blank");
+
+    if (posVenda.selectedPosVenda) {
+      void posVenda.addComunicacao({
+        pos_venda_id: posVenda.selectedPosVenda.id,
+        tipo: "WhatsApp",
+        descricao: mensagem,
+        resultado: "Enviado via template",
+        data: new Date().toISOString(),
+        usuario_id: posVenda.selectedPosVenda.usuario_id,
+      });
+    }
   };
 
   const getAcceptForType = (type: "image" | "audio" | "video" | "document" | "pdf") => {
@@ -729,6 +769,21 @@ const PosVendaPage = () => {
                 <Mail className="mr-2 h-4 w-4" />
                 E-mail
               </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Mensagens Rápidas</Label>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" size="sm" onClick={() => handleTemplateSend("boas_vindas")}>
+                  Boas-vindas
+                </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={() => handleTemplateSend("vencimento_boleto")}>
+                  Vencimento
+                </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={() => handleTemplateSend("assembleia")}>
+                  Assembleia
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-2">

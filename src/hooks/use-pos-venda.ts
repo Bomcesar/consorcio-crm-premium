@@ -39,7 +39,7 @@ export function usePosVenda() {
   const [isTasksLoading, setIsTasksLoading] = useState(false);
   const [isCommsLoading, setIsCommsLoading] = useState(false);
   const [clienteSearch, setClienteSearch] = useState("");
-  const [clienteSearchResults, setClienteSearchResults] = useState<{ id: string; nome: string; telefone: string; email: string; status: string }[]>([]);
+  const [clienteSearchResults, setClienteSearchResults] = useState<{ id: string; nome: string; telefone: string; email: string; status: string; numero_grupo?: string; data_assembleia?: string; data_vencimento?: string }[]>([]);
   const [isClienteSearchLoading, setIsClienteSearchLoading] = useState(false);
 
   const errorRef = useRef(error);
@@ -47,27 +47,30 @@ export function usePosVenda() {
     errorRef.current = error;
   }, [error]);
 
-   const getAllClientes = useCallback(async () => {
-    setIsClienteSearchLoading(true);
-    try {
-      const { getClientes } = await import("@/repositories/client/clientes.repository");
-      const data = await getClientes();
-      setClienteSearchResults(
-        data.map((c) => ({
-          id: c.id,
-          nome: c.nome,
-          telefone: c.telefone,
-          email: c.email,
-          status: c.status,
-        })),
-      );
-    } catch {
-      errorRef.current("Não foi possível carregar os clientes.");
-      setClienteSearchResults([]);
-    } finally {
-      setIsClienteSearchLoading(false);
-    }
-  }, []);
+    const getAllClientes = useCallback(async () => {
+      setIsClienteSearchLoading(true);
+      try {
+        const { getClientes } = await import("@/repositories/client/clientes.repository");
+        const data = await getClientes();
+        setClienteSearchResults(
+          data.map((c) => ({
+            id: c.id,
+            nome: c.nome,
+            telefone: c.telefone,
+            email: c.email,
+            status: c.status,
+            numero_grupo: c.numero_grupo || "",
+            data_assembleia: c.data_assembleia || "",
+            data_vencimento: c.data_vencimento || "",
+          })),
+        );
+      } catch {
+        errorRef.current("Não foi possível carregar os clientes.");
+        setClienteSearchResults([]);
+      } finally {
+        setIsClienteSearchLoading(false);
+      }
+    }, [errorRef]);
 
    const searchContatosByTelefone = useCallback(async (telefone: string) => {
     const trimmed = telefone.trim();
