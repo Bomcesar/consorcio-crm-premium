@@ -272,7 +272,9 @@ export default function CentralDeIndicadoresPage() {
     try {
       await updateIndicador(indicator.id, { status: "Inativo" });
       setIndicators((prev) => prev.map((i) => (i.id === indicator.id ? { ...i, status: "Inativo" as Indicador["status"] } : i)));
-      setSelectedIndicator((prev) => (prev ? { ...prev, status: "Inativo" as Indicador["status"] } : prev));
+      if (selectedIndicator?.id === indicator.id) {
+        setSelectedIndicator((prev) => (prev ? { ...prev, status: "Inativo" as Indicador["status"] } : prev));
+      }
       success("Indicador convertido para cliente.");
     } catch {
       error("Não foi possível converter o indicador.");
@@ -987,7 +989,7 @@ export default function CentralDeIndicadoresPage() {
                       <Phone className="mr-2 h-4 w-4" />
                       Ligar
                     </Button>
-                    <Button variant="outline" onClick={handleConvertToCliente}>
+                    <Button variant="outline" onClick={() => handleConvertToCliente(selectedIndicator)}>
                       <UserPlus className="mr-2 h-4 w-4" />
                       Converter para Cliente
                     </Button>
