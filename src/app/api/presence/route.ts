@@ -20,23 +20,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Status inválido." }, { status: 400 });
     }
 
-    const { error } = await supabase
+    const now = new Date().toISOString();
+    const payload = {
+      usuario_id: user.id,
+      status,
+      last_seen: now,
+      updated_at: now,
+    };
+
+    const { data, error } = await supabase
       .from("usuario_status")
-      .upsert(
-        {
-          usuario_id: user.id,
-          status,
-          last_seen: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "usuario_id",
-        },
-      );
+      .select("id")
+      .eq("usuario_id", user.id)
+      .maybeSingle();
 
     if (error) {
-      console.error("Erro ao atualizar status:", error);
+      console.error("Erro ao localizar status:", error);
       return NextResponse.json({ error: "Não foi possível atualizar o status." }, { status: 500 });
+    }
+
+    if (data?.id) {
+      const { error: updateError } = await supabase
+        .from("usuario_status")
+        .update({ status, last_seen: now, updated_at: now })
+        .eq("id", data.id);
+
+      if (updateError) {
+        console.error("Erro ao atualizar status:", updateError);
+        return NextResponse.json({ error: "Não foi possível atualizar o status." }, { status: 500 });
+      }
+    } else {
+      const { error: insertError } = await supabase.from("usuario_status").insert(payload);
+
+      if (insertError) {
+        console.error("Erro ao inserir status:", insertError);
+        return NextResponse.json({ error: "Não foi possível atualizar o status." }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ success: true });
