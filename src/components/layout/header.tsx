@@ -27,7 +27,7 @@ export function Header() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, isAuthenticated, refresh } = useAuth();
-  const { status, lastSeen } = usePresence(user?.id);
+  const { status, lastSeen } = usePresence(isAuthenticated ? user?.id : undefined);
 
   const currentNav = mainNavItems.find((item) =>
     item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),

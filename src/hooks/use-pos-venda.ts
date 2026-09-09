@@ -39,7 +39,7 @@ export function usePosVenda() {
   const [isTasksLoading, setIsTasksLoading] = useState(false);
   const [isCommsLoading, setIsCommsLoading] = useState(false);
   const [clienteSearch, setClienteSearch] = useState("");
-  const [clienteSearchResults, setClienteSearchResults] = useState<{ id: string; nome: string; telefone: string; email: string; status: string; numero_grupo?: string; data_assembreia?: string; data_vencimento?: string; numero_cota?: string }[]>([]);
+  const [clienteSearchResults, setClienteSearchResults] = useState<{ id: string; nome: string; telefone: string; email: string; status: string; numero_grupo?: string; data_assembleia?: string; data_vencimento?: string; numero_cota?: string }[]>([]);
   const [isClienteSearchLoading, setIsClienteSearchLoading] = useState(false);
 
   const errorRef = useRef(error);
@@ -60,7 +60,8 @@ export function usePosVenda() {
             email: c.email,
             status: c.status,
             numero_grupo: c.numero_grupo || "",
-            data_assembreia: c.data_assembreia || "",
+             data_assembleia: c.data_assembleia || "",
+
             data_vencimento: c.data_vencimento || "",
             numero_cota: c.numero_cota || "",
           })),

@@ -66,7 +66,7 @@ const emptyForm = {
   pagamento_pix: "",
   pix_link: "",
   data_sorteio: "",
-  data_assembreia: "",
+  data_assembleia: "",
   comprovante_pagamento: "",
 };
 
@@ -94,7 +94,7 @@ type ClienteFormData = {
   pagamento_pix: string;
   pix_link: string;
   data_sorteio: string;
-  data_assembreia: string;
+  data_assembleia: string;
   comprovante_pagamento: string;
 };type ClienteAtendimento = Cliente & {
   segmento?: string;
@@ -112,7 +112,7 @@ type ClienteFormData = {
   pagamento_pix?: string | null;
   pix_link?: string | null;
   data_sorteio?: string | null;
-  data_assembreia?: string | null;
+  data_assembleia?: string | null;
   comprovante_pagamento?: string | null;
 };
 
@@ -242,7 +242,7 @@ export default function ClientesPage() {
       pagamento_pix: (atendimento as ClienteAtendimento).pagamento_pix ?? "",
       pix_link: (atendimento as ClienteAtendimento).pix_link ?? "",
       data_sorteio: (atendimento as ClienteAtendimento).data_sorteio ?? "",
-      data_assembreia: (atendimento as ClienteAtendimento).data_assembreia ?? "",
+      data_assembleia: (atendimento as ClienteAtendimento).data_assembleia ?? "",
       comprovante_pagamento: (atendimento as ClienteAtendimento).comprovante_pagamento ?? "",
     });
     setIsFormOpen(true);
@@ -304,7 +304,7 @@ export default function ClientesPage() {
         pagamento_pix: formData.pagamento_pix.trim(),
         pix_link: formData.pix_link.trim(),
         data_sorteio: formData.data_sorteio || null,
-        data_assembreia: formData.data_assembreia || null,
+        data_assembleia: formData.data_assembleia || null,
         comprovante_pagamento: formData.comprovante_pagamento.trim(),
       };
       console.log("[Clientes] handleSubmit payload", payload);
@@ -671,8 +671,8 @@ export default function ClientesPage() {
                 <Input id="data_sorteio" type="date" value={formData.data_sorteio} onChange={(e) => handleChange("data_sorteio", e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="data_assembreia">Data da assembleia</Label>
-                <Input id="data_assembreia" type="date" value={formData.data_assembreia} onChange={(e) => handleChange("data_assembreia", e.target.value)} />
+                <Label htmlFor="data_assembleia">Data da assembleia</Label>
+                <Input id="data_assembleia" type="date" value={formData.data_assembleia} onChange={(e) => handleChange("data_assembleia", e.target.value)} />
               </div>
             </div>
             <div className="space-y-2">
@@ -803,7 +803,7 @@ export default function ClientesPage() {
                   </div>
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">Data da assembleia</p>
-                    <p className="text-sm">{(selectedCliente as ClienteAtendimento).data_assembreia ? new Date((selectedCliente as ClienteAtendimento).data_assembreia as string).toLocaleDateString("pt-BR") : "—"}</p>
+                    <p className="text-sm">{(selectedCliente as ClienteAtendimento).data_assembleia ? new Date((selectedCliente as ClienteAtendimento).data_assembleia as string).toLocaleDateString("pt-BR") : "—"}</p>
                   </div>
                   <div className="md:col-span-2">
                     <p className="text-xs font-medium text-muted-foreground">Comprovante de pagamento</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type StatusUsuarioOnline = "online" | "offline";
 
@@ -9,7 +9,7 @@ export function usePresence(userId: string | undefined) {
   const [lastSeen, setLastSeen] = useState<Date | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const updateStatus = async (newStatus: StatusUsuarioOnline) => {
+  const updateStatus = useCallback(async (newStatus: StatusUsuarioOnline) => {
     if (!userId) return;
     try {
       const response = await fetch("/api/presence", {
@@ -26,7 +26,7 @@ export function usePresence(userId: string | undefined) {
     } catch (error) {
       console.error("Erro ao atualizar status:", error);
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -54,7 +54,7 @@ export function usePresence(userId: string | undefined) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [userId]);
+  }, [userId, updateStatus]);
 
   return { status, lastSeen, updateStatus };
 }

@@ -422,7 +422,7 @@ export interface Database {
             pagamento_pix?: string | null;
             pix_link?: string | null;
             data_sorteio?: string | null;
-            data_assembreia?: string | null;
+            data_assembleia?: string | null;
             comprovante_pagamento?: string | null;
             status_contato?: string;
             data_ultimo_contato?: string | null;
@@ -458,7 +458,7 @@ export interface Database {
             pagamento_pix?: string | null;
             pix_link?: string | null;
             data_sorteio?: string | null;
-            data_assembreia?: string | null;
+            data_assembleia?: string | null;
             comprovante_pagamento?: string | null;
             status_contato?: string;
             data_ultimo_contato?: string | null;
@@ -494,7 +494,7 @@ export interface Database {
             pagamento_pix?: string | null;
             pix_link?: string | null;
             data_sorteio?: string | null;
-            data_assembreia?: string | null;
+            data_assembleia?: string | null;
             comprovante_pagamento?: string | null;
             status_contato?: string;
             data_ultimo_contato?: string | null;

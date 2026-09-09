@@ -310,7 +310,7 @@ const PosVendaPage = () => {
       nome: cliente.nome || "",
       grupo: cliente.numero_grupo || "",
       vencimento: cliente.data_vencimento || "",
-      data_assembleia: cliente.data_assembreia || "",
+      data_assembleia: cliente.data_assembleia || "",
       data_pagamento: dataPagamento,
       mes: mesAtual,
       valor: posVenda.formData.boleto_url || "",
