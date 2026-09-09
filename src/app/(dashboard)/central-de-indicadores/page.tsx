@@ -23,6 +23,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Activity,
@@ -41,6 +47,10 @@ import {
   MessageCircle,
   Upload,
   X,
+  MessageSquare,
+  User,
+  Users,
+  Send,
 } from "lucide-react";
 import type { Indicador, IndicadorHistorico } from "@/repositories/client/indicadores.repository";
 import type { ContatoIndicado } from "@/repositories/client/contatos-indicados.repository";
@@ -269,6 +279,57 @@ export default function CentralDeIndicadoresPage() {
     }
   };
 
+  const handleConvertToLead = async () => {
+    if (!selectedIndicator) return;
+    try {
+      const { createLead } = await import("@/repositories/client/leads.repository");
+      await createLead({
+        nome: selectedIndicator.nome,
+        telefone: selectedIndicator.telefone,
+        email: selectedIndicator.email || "",
+        cidade: selectedIndicator.cidade,
+        observacoes: `Convertido do indicador ${selectedIndicator.id}`,
+        status: "Novo",
+        origem: selectedIndicator.origem || "Indicador",
+      });
+      success("Contato convertido para lead.");
+    } catch {
+      error("Não foi possível converter para lead.");
+    }
+  };
+
+  const handleConvertToIndicador = async () => {
+    if (!selectedIndicator) return;
+    try {
+      const { createIndicador } = await import("@/repositories/client/indicadores.repository");
+      await createIndicador({
+        nome: selectedIndicator.nome,
+        telefone: selectedIndicator.telefone,
+        email: selectedIndicator.email || "",
+        cidade: selectedIndicator.cidade,
+        estado: selectedIndicator.estado,
+        origem: selectedIndicator.origem || "Indicador",
+        observacoes: selectedIndicator.observacoes,
+        ativo: true,
+        status: "Ativo",
+      });
+      success("Contato adicionado como indicador.");
+    } catch {
+      error("Não foi possível adicionar como indicador.");
+    }
+  };
+
+  const handleStartConversation = async (contact: ContatoIndicado) => {
+    const phone = (contact.telefone || "").replace(/\D/g, "");
+    if (!phone) {
+      error("Telefone inválido para WhatsApp.");
+      return;
+    }
+    const message = `Olá ${contact.nome}, tudo bem?`;
+    const link = `https://wa.me/55${phone}?text=${encodeURIComponent(message)}`;
+    window.open(link, "_blank");
+  };
+
   const statusOptions = useMemo(() => {
     const statuses = new Set(indicators.map((i) => i.status));
     return Array.from(statuses);
@@ -486,6 +547,27 @@ export default function CentralDeIndicadoresPage() {
                         <Button variant="ghost" size="icon" onClick={() => openDelete(indicator)} aria-label="Excluir">
                           <Trash2 className="h-4 w-4 text-red-600" />
                         </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label="Converter">
+                              <UserPlus className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleConvertToLead(indicator)}>
+                              <User className="mr-2 h-4 w-4" />
+                              Converter para Lead
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleConvertToCliente(indicator)}>
+                              <Users className="mr-2 h-4 w-4" />
+                              Converter para Cliente
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleConvertToIndicador(indicator)}>
+                              <UserPlus className="mr-2 h-4 w-4" />
+                              Adicionar como Indicador
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
