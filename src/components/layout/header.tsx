@@ -20,12 +20,14 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { Sidebar } from "@/components/layout/sidebar";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth/auth-provider";
+import { usePresence } from "@/hooks/use-presence";
 
 export function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, isAuthenticated, refresh } = useAuth();
+  const { status, lastSeen } = usePresence(user?.id);
 
   const currentNav = mainNavItems.find((item) =>
     item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),
@@ -49,6 +51,10 @@ export function Header() {
 
   const perfil = typeof window !== "undefined" ? localStorage.getItem("user_perfil") : null;
   const perfilLabel = perfil || "Usuário";
+
+  const statusBadge = status === "online"
+    ? { label: "Online", variant: "success" as const }
+    : { label: `Offline • ${lastSeen?.toLocaleString("pt-BR") ?? ""}`, variant: "secondary" as const };
 
   async function handleLogout() {
     if (isSupabaseConfigured()) {
@@ -106,8 +112,8 @@ export function Header() {
                 </Avatar>
                 <div className="hidden flex-col items-start text-left md:flex">
                   <span className="text-sm font-medium leading-none">{displayName}</span>
-                  <Badge variant="success" className="mt-1 h-4 px-1 text-[10px]">
-                    {perfilLabel}
+                  <Badge variant={statusBadge.variant} className="mt-1 h-4 px-1 text-[10px]">
+                    {statusBadge.label}
                   </Badge>
                 </div>
               </Button>

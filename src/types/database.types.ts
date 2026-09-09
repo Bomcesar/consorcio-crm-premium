@@ -48,6 +48,7 @@ export type TipoMaterialConsultor = "PDF" | "Imagem" | "Vídeo" | "Áudio" | "Do
 export type StatusMaterialConsultor = "Ativo" | "Inativo";
 export type StatusTreinamento = "Ativo" | "Inativo";
 export type StatusLinkUtil = "Ativo" | "Inativo";
+export type StatusUsuarioOnline = "online" | "offline";
 export type PropostaTipo = "Imovel" | "Veiculo" | "Servicos" | "Outros bens moveis";
 export type ValorTipo = "Cheio" | "Reduzida";
 
