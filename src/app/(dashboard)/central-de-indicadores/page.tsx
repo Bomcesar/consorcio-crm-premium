@@ -267,11 +267,11 @@ export default function CentralDeIndicadoresPage() {
     window.location.href = `tel:+55${phone}`;
   };
 
-  const handleConvertToCliente = async () => {
-    if (!selectedIndicator) return;
+  const handleConvertToCliente = async (indicator: Indicador) => {
+    if (!indicator) return;
     try {
-      await updateIndicador(selectedIndicator.id, { status: "Inativo" });
-      setIndicators((prev) => prev.map((i) => (i.id === selectedIndicator.id ? { ...i, status: "Inativo" as Indicador["status"] } : i)));
+      await updateIndicador(indicator.id, { status: "Inativo" });
+      setIndicators((prev) => prev.map((i) => (i.id === indicator.id ? { ...i, status: "Inativo" as Indicador["status"] } : i)));
       setSelectedIndicator((prev) => (prev ? { ...prev, status: "Inativo" as Indicador["status"] } : prev));
       success("Indicador convertido para cliente.");
     } catch {
@@ -279,18 +279,18 @@ export default function CentralDeIndicadoresPage() {
     }
   };
 
-  const handleConvertToLead = async () => {
-    if (!selectedIndicator) return;
+  const handleConvertToLead = async (indicator: Indicador) => {
+    if (!indicator) return;
     try {
       const { createLead } = await import("@/repositories/client/leads.repository");
       await createLead({
-        nome: selectedIndicator.nome,
-        telefone: selectedIndicator.telefone,
-        email: selectedIndicator.email || "",
-        cidade: selectedIndicator.cidade,
-        observacoes: `Convertido do indicador ${selectedIndicator.id}`,
+        nome: indicator.nome,
+        telefone: indicator.telefone,
+        email: indicator.email || "",
+        cidade: indicator.cidade,
+        observacoes: `Convertido do indicador ${indicator.id}`,
         status: "Novo",
-        origem: selectedIndicator.origem || "Indicador",
+        origem: indicator.origem || "Indicador",
       });
       success("Contato convertido para lead.");
     } catch {
@@ -298,18 +298,18 @@ export default function CentralDeIndicadoresPage() {
     }
   };
 
-  const handleConvertToIndicador = async () => {
-    if (!selectedIndicator) return;
+  const handleConvertToIndicador = async (indicator: Indicador) => {
+    if (!indicator) return;
     try {
       const { createIndicador } = await import("@/repositories/client/indicadores.repository");
       await createIndicador({
-        nome: selectedIndicator.nome,
-        telefone: selectedIndicator.telefone,
-        email: selectedIndicator.email || "",
-        cidade: selectedIndicator.cidade,
-        estado: selectedIndicator.estado,
-        origem: selectedIndicator.origem || "Indicador",
-        observacoes: selectedIndicator.observacoes,
+        nome: indicator.nome,
+        telefone: indicator.telefone,
+        email: indicator.email || "",
+        cidade: indicator.cidade,
+        estado: indicator.estado,
+        origem: indicator.origem || "Indicador",
+        observacoes: indicator.observacoes,
         ativo: true,
         status: "Ativo",
       });
