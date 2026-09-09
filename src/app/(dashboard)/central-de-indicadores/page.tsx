@@ -319,7 +319,27 @@ export default function CentralDeIndicadoresPage() {
     }
   };
 
-  const handleStartConversation = async (contact: ContatoIndicado) => {
+  const handleConvertContactToIndicador = async (contact: ContatoIndicado) => {
+    try {
+      const { createIndicador } = await import("@/repositories/client/indicadores.repository");
+      await createIndicador({
+        nome: contact.nome,
+        telefone: contact.telefone,
+        email: "",
+        cidade: contact.cidade,
+        estado: "",
+        origem: "Contato de Indicador",
+        observacoes: contact.observacoes,
+        ativo: true,
+        status: "Ativo",
+      });
+      success("Contato adicionado como indicador.");
+    } catch {
+      error("Não foi possível adicionar como indicador.");
+    }
+  };
+
+  const handleStartWhatsAppContact = (contact: ContatoIndicado) => {
     const phone = (contact.telefone || "").replace(/\D/g, "");
     if (!phone) {
       error("Telefone inválido para WhatsApp.");
@@ -328,6 +348,50 @@ export default function CentralDeIndicadoresPage() {
     const message = `Olá ${contact.nome}, tudo bem?`;
     const link = `https://wa.me/55${phone}?text=${encodeURIComponent(message)}`;
     window.open(link, "_blank");
+  };
+
+  const handleStartCallContact = (contact: ContatoIndicado) => {
+    const phone = (contact.telefone || "").replace(/\D/g, "");
+    if (!phone) {
+      error("Telefone inválido para ligação.");
+      return;
+    }
+    window.location.href = `tel:+55${phone}`;
+  };
+
+  const handleConvertContactToLead = async (contact: ContatoIndicado) => {
+    try {
+      const { createLead } = await import("@/repositories/client/leads.repository");
+      await createLead({
+        nome: contact.nome,
+        telefone: contact.telefone,
+        email: "",
+        cidade: contact.cidade,
+        observacoes: `Convertido do contato do indicador`,
+        status: "Novo",
+        origem: "Indicador",
+      });
+      success("Contato convertido para lead.");
+    } catch {
+      error("Não foi possível converter para lead.");
+    }
+  };
+
+  const handleConvertContactToCliente = async (contact: ContatoIndicado) => {
+    try {
+      const { createCliente } = await import("@/repositories/client/clientes.repository");
+      await createCliente({
+        nome: contact.nome,
+        telefone: contact.telefone,
+        email: "",
+        cidade: contact.cidade,
+        observacoes: `Convertido do contato do indicador`,
+        status: "Ativo",
+      });
+      success("Contato convertido para cliente.");
+    } catch {
+      error("Não foi possível converter para cliente.");
+    }
   };
 
   const statusOptions = useMemo(() => {
@@ -830,6 +894,33 @@ export default function CentralDeIndicadoresPage() {
                                 <Badge variant={contact.status === "Novo" ? "secondary" : contact.status === "Qualificado" ? "success" : "outline"}>{contact.status}</Badge>
                               </TableCell>
                               <TableCell className="flex justify-end gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => handleStartWhatsAppContact(contact)} aria-label="WhatsApp">
+                                  <MessageSquare className="h-4 w-4 text-green-600" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleStartCallContact(contact)} aria-label="Ligar">
+                                  <Phone className="h-4 w-4 text-blue-600" />
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" aria-label="Converter">
+                                      <UserPlus className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleConvertContactToLead(contact)}>
+                                      <User className="mr-2 h-4 w-4" />
+                                      Converter para Lead
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleConvertContactToCliente(contact)}>
+                                      <Users className="mr-2 h-4 w-4" />
+                                      Converter para Cliente
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleConvertContactToIndicador(contact)}>
+                                      <UserPlus className="mr-2 h-4 w-4" />
+                                      Adicionar como Indicador
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                                 <Button variant="ghost" size="icon" onClick={() => { setEditingContactId(contact.id); setContactFormData({ nome: contact.nome, telefone: contact.telefone, cidade: contact.cidade, status: contact.status as ContatoIndicado["status"], observacoes: contact.observacoes }); setIsContactFormOpen(true); }} aria-label="Editar">
                                   <Pencil className="h-4 w-4" />
                                 </Button>

@@ -448,8 +448,6 @@ export default function NegociacoesPage() {
         });
 
         if (!uploadResponse.ok) {
-          const errorText = await uploadResponse.text();
-          console.error("[Negociacoes] Upload failed", uploadResponse.status, errorText);
           let errorMessage = "Falha ao enviar arquivo.";
           try {
             const errorData = await uploadResponse.json();
@@ -464,9 +462,9 @@ export default function NegociacoesPage() {
               errorMessage = errorData;
             }
           } catch {
-            const errorText2 = await uploadResponse.text();
-            console.error("[Negociacoes] Upload failed text", uploadResponse.status, errorText2);
+            errorMessage = "Falha ao enviar arquivo.";
           }
+          console.error("[Negociacoes] Upload failed", uploadResponse.status, errorMessage);
           error(errorMessage);
           return;
         }
