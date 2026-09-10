@@ -91,7 +91,7 @@ export function usePresenceNotifications(user: User | null | undefined) {
           if (!prev) {
             if (row.usuario_id !== user.id && row.status === "online") {
               const nome = profileMap.get(row.usuario_id)?.nome || "Um usuário";
-              info("Usuário online", `${nome} acabou de entrar no sistema.`);
+              info(`${nome} acabou de entrar no sistema.`);
             }
             continue;
           }
@@ -100,9 +100,9 @@ export function usePresenceNotifications(user: User | null | undefined) {
             if (row.usuario_id !== user.id) {
               const nome = profileMap.get(row.usuario_id)?.nome || "Um usuário";
               if (row.status === "online") {
-                info("Usuário online", `${nome} acabou de entrar no sistema.`);
+                info(`${nome} acabou de entrar no sistema.`);
               } else {
-                info("Usuário offline", `${nome} saiu do sistema.`);
+                info(`${nome} saiu do sistema.`);
               }
             }
           }
