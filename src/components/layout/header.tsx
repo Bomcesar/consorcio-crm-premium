@@ -128,7 +128,7 @@ export function Header() {
                   <DropdownMenuItem key={u.id} className="flex flex-col items-start gap-0.5">
                     <span className="text-sm font-medium">{u.nome}</span>
                     <span className="text-xs text-muted-foreground">
-                      {u.email ? `${u.email}` : "Sem e-mail"}
+                      {u.perfil ? `${u.perfil} online` : u.email ? `${u.email}` : "Sem e-mail"}
                     </span>
                     <span className="text-[10px] text-green-600">
                       Online • {new Date(u.last_seen).toLocaleString("pt-BR")}

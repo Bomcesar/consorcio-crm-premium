@@ -624,7 +624,7 @@ export default function ConfiguracoesPage() {
                       </TableHeader>
                       <TableBody>
                         {usuarios.map((usuario) => {
-                          const canEdit = usuario.perfil !== "Administrador" && userRole === "Administrador";
+                          const canEdit = userRole === "Administrador";
                           return (
                             <TableRow key={usuario.id}>
                               <TableCell className="font-medium">{usuario.nome}</TableCell>

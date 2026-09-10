@@ -16,6 +16,7 @@ type OnlineUser = {
   id: string;
   nome: string;
   email?: string;
+  perfil?: string;
   status: "online" | "offline";
   last_seen: string;
 };
@@ -32,18 +33,18 @@ export function usePresenceNotifications(user: User | null | undefined) {
     const supabase = createClient();
     let isMounted = true;
 
-    async function loadProfiles(ids: string[]): Promise<Map<string, { nome: string; email?: string }>> {
-      const map = new Map<string, { nome: string; email?: string }>();
+    async function loadProfiles(ids: string[]): Promise<Map<string, { nome: string; email?: string; perfil?: string }>> {
+      const map = new Map<string, { nome: string; email?: string; perfil?: string }>();
       if (!ids.length) return map;
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, nome, email")
+        .select("id, nome, email, perfil")
         .in("id", ids);
 
       if (!error && data) {
-        for (const row of data as { id: string; nome: string; email?: string }[]) {
-          map.set(row.id, { nome: row.nome || row.email || "Usuário", email: row.email });
+        for (const row of data as { id: string; nome: string; email?: string; perfil?: string }[]) {
+          map.set(row.id, { nome: row.nome || row.email || "Usuário", email: row.email, perfil: row.perfil });
         }
       }
       return map;
@@ -73,6 +74,7 @@ export function usePresenceNotifications(user: User | null | undefined) {
             id: row.usuario_id,
             nome: profile?.nome || profile?.email || "Usuário",
             email: profile?.email,
+            perfil: profile?.perfil,
             status: row.status,
             last_seen: row.last_seen,
           };
