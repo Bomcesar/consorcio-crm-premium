@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Bell, LogOut, Menu, Search, Settings, User } from "lucide-react";
+import { LogOut, Menu, Search, Settings, User } from "lucide-react";
 import { mainNavItems } from "@/config/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,14 +22,16 @@ import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth/auth-provider";
 import { usePresence } from "@/hooks/use-presence";
 import { usePresenceNotifications } from "@/hooks/use-presence-notifications";
+import { Users } from "lucide-react";
 
 export function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [presenceOpen, setPresenceOpen] = useState(false);
   const { user, isAuthenticated, refresh } = useAuth();
   const { status, lastSeen } = usePresence(isAuthenticated ? user?.id : undefined);
-  const { onlineCount } = usePresenceNotifications(user);
+  const { onlineUsers } = usePresenceNotifications(user);
 
   const currentNav = mainNavItems.find((item) =>
     item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),
@@ -98,14 +100,38 @@ export function Header() {
 
       {isAuthenticated && (
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-4 w-4" />
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
-            <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
-              {onlineCount}
-            </span>
-            <span className="sr-only">Notificações</span>
-          </Button>
+          <DropdownMenu open={presenceOpen} onOpenChange={setPresenceOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative">
+                <Users className="h-4 w-4" />
+                {onlineUsers.length > 0 && (
+                  <span className="absolute right-1 top-1 inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
+                )}
+                <span className="sr-only">Usuários online</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel>Usuários online</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {onlineUsers.length === 0 ? (
+                <div className="px-2 py-2 text-xs text-muted-foreground">
+                  Nenhum outro usuário online no momento.
+                </div>
+              ) : (
+                onlineUsers.map((u) => (
+                  <DropdownMenuItem key={u.id} className="flex flex-col items-start gap-0.5">
+                    <span className="text-sm font-medium">{u.nome}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {u.email ? `${u.email}` : "Sem e-mail"}
+                    </span>
+                    <span className="text-[10px] text-green-600">
+                      Online • {new Date(u.last_seen).toLocaleString("pt-BR")}
+                    </span>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

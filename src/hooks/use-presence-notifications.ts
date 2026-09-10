@@ -12,9 +12,17 @@ type UsuarioStatusRow = {
   last_seen: string;
 };
 
+type OnlineUser = {
+  id: string;
+  nome: string;
+  email?: string;
+  status: "online" | "offline";
+  last_seen: string;
+};
+
 export function usePresenceNotifications(user: User | null | undefined) {
   const { info } = useToast();
-  const [onlineCount, setOnlineCount] = useState(0);
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const previousRef = useRef<Map<string, UsuarioStatusRow>>(new Map());
   const skipFirstRef = useRef(true);
 
@@ -23,6 +31,23 @@ export function usePresenceNotifications(user: User | null | undefined) {
 
     const supabase = createClient();
     let isMounted = true;
+
+    async function loadProfiles(ids: string[]): Promise<Map<string, { nome: string; email?: string }>> {
+      const map = new Map<string, { nome: string; email?: string }>();
+      if (!ids.length) return map;
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, nome, email")
+        .in("id", ids);
+
+      if (!error && data) {
+        for (const row of data as { id: string; nome: string; email?: string }[]) {
+          map.set(row.id, { nome: row.nome || row.email || "Usuário", email: row.email });
+        }
+      }
+      return map;
+    }
 
     async function loadAndNotify() {
       try {
@@ -34,13 +59,24 @@ export function usePresenceNotifications(user: User | null | undefined) {
         if (error) return;
         if (!isMounted) return;
 
-        const current = new Map<string, UsuarioStatusRow>();
         const rows = (data || []) as UsuarioStatusRow[];
-        const others = user?.id ? rows.filter((row) => row.usuario_id !== user.id) : rows;
+        const others = rows.filter((row) => row.usuario_id !== user.id);
+        const onlineRows = others.filter((row) => row.status === "online");
 
-        setOnlineCount(others.filter((row) => row.status === "online").length);
+        const profileMap = await loadProfiles(onlineRows.map((row) => row.usuario_id));
+
+        const mapped: OnlineUser[] = onlineRows.map((row) => ({
+          id: row.usuario_id,
+          nome: profileMap.get(row.usuario_id)?.nome || "Usuário",
+          email: profileMap.get(row.usuario_id)?.email,
+          status: row.status,
+          last_seen: row.last_seen,
+        }));
+
+        setOnlineUsers(mapped);
 
         if (skipFirstRef.current) {
+          const current = new Map<string, UsuarioStatusRow>();
           rows.forEach((row) => current.set(row.usuario_id, row));
           previousRef.current = current;
           skipFirstRef.current = false;
@@ -52,26 +88,27 @@ export function usePresenceNotifications(user: User | null | undefined) {
         for (const row of rows) {
           const prev = previous.get(row.usuario_id);
           if (!prev) {
-            if (user?.id && row.usuario_id !== user.id && row.status === "online") {
-              info("Usuário online: um usuário acabou de entrar no sistema.");
+            if (row.usuario_id !== user.id && row.status === "online") {
+              const nome = profileMap.get(row.usuario_id)?.nome || "Um usuário";
+              info("Usuário online", `${nome} acabou de entrar no sistema.`);
             }
-            current.set(row.usuario_id, row);
             continue;
           }
 
           if (prev.status !== row.status) {
-            if (user?.id && row.usuario_id !== user.id) {
+            if (row.usuario_id !== user.id) {
+              const nome = profileMap.get(row.usuario_id)?.nome || "Um usuário";
               if (row.status === "online") {
-                info("Usuário online: um usuário acabou de entrar no sistema.");
+                info("Usuário online", `${nome} acabou de entrar no sistema.`);
               } else {
-                info("Usuário offline: um usuário saiu do sistema.");
+                info("Usuário offline", `${nome} saiu do sistema.`);
               }
             }
           }
-
-          current.set(row.usuario_id, row);
         }
 
+        const current = new Map<string, UsuarioStatusRow>();
+        rows.forEach((row) => current.set(row.usuario_id, row));
         previousRef.current = current;
       } catch {
         // silent
@@ -87,5 +124,5 @@ export function usePresenceNotifications(user: User | null | undefined) {
     };
   }, [user?.id, info]);
 
-  return { onlineCount };
+  return { onlineUsers };
 }
