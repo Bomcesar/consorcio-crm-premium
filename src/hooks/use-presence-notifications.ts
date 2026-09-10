@@ -66,13 +66,16 @@ export function usePresenceNotifications(user: User | null | undefined) {
 
         const profileMap = await loadProfiles(onlineRows.map((row) => row.usuario_id));
 
-        const mapped: OnlineUser[] = onlineRows.map((row) => ({
-          id: row.usuario_id,
-          nome: profileMap.get(row.usuario_id)?.nome || "Usuário",
-          email: profileMap.get(row.usuario_id)?.email,
-          status: row.status,
-          last_seen: row.last_seen,
-        }));
+        const mapped: OnlineUser[] = onlineRows.map((row) => {
+          const profile = profileMap.get(row.usuario_id);
+          return {
+            id: row.usuario_id,
+            nome: profile?.nome || profile?.email || "Usuário",
+            email: profile?.email,
+            status: row.status,
+            last_seen: row.last_seen,
+          };
+        });
 
         setOnlineUsers(mapped);
 

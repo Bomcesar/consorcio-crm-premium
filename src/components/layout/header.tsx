@@ -30,7 +30,7 @@ export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [presenceOpen, setPresenceOpen] = useState(false);
   const { user, isAuthenticated, refresh } = useAuth();
-  const { status, lastSeen } = usePresence(isAuthenticated ? user?.id : undefined);
+  const { status, lastSeen, updateStatus } = usePresence(isAuthenticated ? user?.id : undefined);
   const { onlineUsers } = usePresenceNotifications(user);
 
   const currentNav = mainNavItems.find((item) =>
@@ -61,6 +61,12 @@ export function Header() {
     : { label: `Offline • ${lastSeen?.toLocaleString("pt-BR") ?? ""}`, variant: "secondary" as const };
 
   async function handleLogout() {
+    try {
+      await updateStatus("offline");
+    } catch {
+      // silent
+    }
+
     if (isSupabaseConfigured()) {
       const supabase = createClient();
       await supabase.auth.signOut();
