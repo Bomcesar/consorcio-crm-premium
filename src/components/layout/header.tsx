@@ -21,6 +21,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth/auth-provider";
 import { usePresence } from "@/hooks/use-presence";
+import { usePresenceNotifications } from "@/hooks/use-presence-notifications";
 
 export function Header() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, isAuthenticated, refresh } = useAuth();
   const { status, lastSeen } = usePresence(isAuthenticated ? user?.id : undefined);
+  const { onlineCount } = usePresenceNotifications(user);
 
   const currentNav = mainNavItems.find((item) =>
     item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),
@@ -99,6 +101,9 @@ export function Header() {
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-4 w-4" />
             <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
+            <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+              {onlineCount}
+            </span>
             <span className="sr-only">Notificações</span>
           </Button>
 
@@ -110,7 +115,7 @@ export function Header() {
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                <div className="hidden flex-col items-start text-left md:flex">
+                <div className="flex flex-col items-start text-left">
                   <span className="text-sm font-medium leading-none">{displayName}</span>
                   <Badge variant={statusBadge.variant} className="mt-1 h-4 px-1 text-[10px]">
                     {statusBadge.label}
