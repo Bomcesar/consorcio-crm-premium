@@ -6,7 +6,6 @@ export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Perfil = Profile;
 
 export async function getProfiles(): Promise<Profile[]> {
-  const user = await getAuthenticatedUser();
   const supabase = createClient();
   const { data, error } = await supabase
     .from("profiles")
@@ -18,7 +17,6 @@ export async function getProfiles(): Promise<Profile[]> {
 }
 
 export async function updateProfile(id: string, payload: Partial<Profile>) {
-  const user = await getAuthenticatedUser();
   const supabase = createClient();
   const { data, error } = await supabase
     .from("profiles")

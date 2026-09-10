@@ -16,10 +16,6 @@ function pastaBaseQuery(supabase: ReturnType<typeof createClient>) {
   return supabase.from("pastas").select("*");
 }
 
-function pastaItemBaseQuery(supabase: ReturnType<typeof createClient>) {
-  return supabase.from("pasta_itens").select("*");
-}
-
 function prospeccaoHistoricoBaseQuery(supabase: ReturnType<typeof createClient>) {
   return supabase.from("prospeccao_historico").select("*");
 }

@@ -116,7 +116,6 @@ export async function deleteProposta(id: string): Promise<void> {
 }
 
 export async function getPropostaEventos(propostaId: string): Promise<PropostaEvento[]> {
-  const user = await getAuthenticatedUser();
   const supabase = createClient();
   const { data, error } = await supabase
     .from("proposta_eventos")
@@ -306,7 +305,6 @@ export async function createPropostaFollowup(propostaId: string, payload: { tipo
 }
 
 export async function getPropostaFollowups(propostaId: string): Promise<PropostaFollowup[]> {
-  const user = await getAuthenticatedUser();
   const supabase = createClient();
   const { data, error } = await supabase
     .from("proposta_followups")
@@ -322,7 +320,6 @@ export async function getPropostaFollowups(propostaId: string): Promise<Proposta
 }
 
 export async function createPropostaReduzida(propostaId: string, payload: { titulo?: string; valor_parcela_reduzida?: number; observacoes?: string }): Promise<Proposta> {
-  const user = await getAuthenticatedUser();
   const supabase = createClient();
 
   const original = await getProposta(propostaId);
