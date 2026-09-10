@@ -50,6 +50,7 @@ export function usePresenceNotifications(user: User | null | undefined) {
     }
 
     async function loadAndNotify() {
+      if (!user?.id) return;
       try {
         const { data, error } = await supabase
           .from("usuario_status")
