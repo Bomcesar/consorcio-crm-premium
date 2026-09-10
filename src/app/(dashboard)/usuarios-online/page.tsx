@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth/auth-provider";
-import { getAuthenticatedUser, isAdminOrGestor } from "@/lib/auth-user";
+import { getAuthenticatedUser } from "@/lib/auth-user";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,19 +22,11 @@ export default function UsuariosOnlinePage() {
   const [usuarios, setUsuarios] = useState<UsuarioStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isAuthorized, setIsAuthorized] = useState(false);
 
   const loadUsuarios = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const currentUser = await getAuthenticatedUser();
-      if (!isAdminOrGestor(currentUser)) {
-        setIsAuthorized(false);
-        return;
-      }
-      setIsAuthorized(true);
-
       const supabase = createClient();
       const { data, error } = await supabase
         .from("usuario_status")
@@ -62,17 +54,6 @@ export default function UsuariosOnlinePage() {
         <h1 className="text-2xl font-bold tracking-tight">Usuários Online</h1>
         <Card>
           <CardContent className="p-4 text-sm text-destructive">Faça login para acessar esta página.</CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (!isAuthorized && !isLoading) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold tracking-tight">Usuários Online</h1>
-        <Card>
-          <CardContent className="p-4 text-sm text-destructive">Acesso restrito a Administradores e Gestores.</CardContent>
         </Card>
       </div>
     );

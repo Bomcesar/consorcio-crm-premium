@@ -37,16 +37,32 @@ export function usePresenceNotifications(user: User | null | undefined) {
       const map = new Map<string, { nome: string; email?: string; perfil?: string }>();
       if (!ids.length) return map;
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, nome, email, perfil")
-        .in("id", ids);
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, nome, email, perfil")
+          .in("id", ids);
 
-      if (!error && data) {
-        for (const row of data as { id: string; nome: string; email?: string; perfil?: string }[]) {
-          map.set(row.id, { nome: row.nome || row.email || "Usuário", email: row.email, perfil: row.perfil });
+        if (!error && data) {
+          for (const row of data as { id: string; nome: string; email?: string; perfil?: string }[]) {
+            map.set(row.id, {
+              nome: row.nome?.trim() || row.email?.trim() || `Usuário ${row.id.slice(0, 8)}`,
+              email: row.email,
+              perfil: row.perfil,
+            });
+          }
+        } else if (error) {
+          console.warn("[usePresenceNotifications] profiles query error:", error);
         }
+      } catch (err) {
+        console.warn("[usePresenceNotifications] profiles query exception:", err);
       }
+
+      const missing = ids.filter((id) => !map.has(id));
+      if (missing.length) {
+        console.warn("[usePresenceNotifications] missing profiles for ids:", missing);
+      }
+
       return map;
     }
 

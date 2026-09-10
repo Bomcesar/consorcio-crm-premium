@@ -33,7 +33,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", href: "/", icon: LayoutDashboard },
   { title: "Leads", href: "/leads", icon: UserPlus, badge: "12", allowedRoles: ["Administrador", "Gestor", "Consultor", "Assistente", "Indicador", "Trainee"] },
   { title: "Central de Indicadores", href: "/central-de-indicadores", icon: TrendingUp, allowedRoles: ["Administrador", "Gestor", "Consultor", "Indicador", "Trainee"] },
-  { title: "Usuários Online", href: "/usuarios-online", icon: Wifi, allowedRoles: ["Administrador", "Gestor"] },
+  { title: "Usuários Online", href: "/usuarios-online", icon: Wifi, allowedRoles: ["Administrador", "Gestor", "Consultor", "Assistente", "Indicador", "Trainee"] },
   { title: "Clientes", href: "/clientes", icon: Users, allowedRoles: ["Administrador", "Gestor", "Consultor", "Assistente", "Indicador", "Trainee"] },
   { title: "Contatos", href: "/contatos", icon: Mail, allowedRoles: ["Administrador", "Gestor", "Consultor", "Assistente", "Indicador", "Trainee"] },
   { title: "Agenda", href: "/agenda", icon: Calendar, allowedRoles: ["Administrador", "Gestor", "Consultor", "Assistente", "Indicador", "Trainee"] },
