@@ -50,7 +50,8 @@ export function usePresenceNotifications(user: User | null | undefined) {
     }
 
     async function loadAndNotify() {
-      if (!user?.id) return;
+      const currentUserId = user?.id;
+      if (!currentUserId) return;
       try {
         const { data, error } = await supabase
           .from("usuario_status")
@@ -61,7 +62,7 @@ export function usePresenceNotifications(user: User | null | undefined) {
         if (!isMounted) return;
 
         const rows = (data || []) as UsuarioStatusRow[];
-        const others = rows.filter((row) => row.usuario_id !== user.id);
+        const others = rows.filter((row) => row.usuario_id !== currentUserId);
         const onlineRows = others.filter((row) => row.status === "online");
 
         const profileMap = await loadProfiles(onlineRows.map((row) => row.usuario_id));
@@ -92,7 +93,7 @@ export function usePresenceNotifications(user: User | null | undefined) {
         for (const row of rows) {
           const prev = previous.get(row.usuario_id);
           if (!prev) {
-            if (row.usuario_id !== user.id && row.status === "online") {
+            if (row.usuario_id !== currentUserId && row.status === "online") {
               const nome = profileMap.get(row.usuario_id)?.nome || "Um usuário";
               info(`${nome} acabou de entrar no sistema.`);
             }
@@ -100,7 +101,7 @@ export function usePresenceNotifications(user: User | null | undefined) {
           }
 
           if (prev.status !== row.status) {
-            if (row.usuario_id !== user.id) {
+            if (row.usuario_id !== currentUserId) {
               const nome = profileMap.get(row.usuario_id)?.nome || "Um usuário";
               if (row.status === "online") {
                 info(`${nome} acabou de entrar no sistema.`);
@@ -120,7 +121,7 @@ export function usePresenceNotifications(user: User | null | undefined) {
     }
 
     void loadAndNotify();
-    const interval = setInterval(loadAndNotify, 15000);
+    const interval = setInterval(loadAndNotify, 5000);
 
     return () => {
       isMounted = false;
