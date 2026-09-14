@@ -10,6 +10,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -44,11 +52,14 @@ import {
   Image,
   Video,
   Music,
+  Search,
 } from "lucide-react";
 import type { Deal, DealStage, DealStatus, DealDocumentCheckItem } from "@/types/deal";
 import type { Negociacao, NegociacaoUpdate } from "@/repositories/client/negociacoes.repository";
 import type { NegociacaoHistorico } from "@/repositories/client/negociacoes.repository";
 import { updateNegociacao } from "@/repositories/client/negociacoes.repository";
+import { broadcastCelebration } from "@/hooks/use-fireworks";
+import { createClient } from "@/lib/supabase/client";
 
 const dealStageLabels: Record<DealStage, string> = {
   NOVO_LEAD: 'Novo Lead',
@@ -121,6 +132,22 @@ const emptyForm = {
   comissao_estimada_porcentagem: "2.00",
   administradora: "",
   tipo_bem: "IMOVEL" as Deal['tipoBem'],
+};
+
+
+const modalidadeDisplay: Record<string, string> = {
+  LAR: "🌱Modalidade LAR🏠",
+  FINANCIAMENTO: "💰Financiamento🏦",
+  CONSORCIO: "🤝Consórcio🎉",
+  CONSTRUCAO: "🏗️Construção/Casa própria🏠",
+  VEICULO: "🚗Veículo/Frota🚙",
+  SERVICOS: "💼Serviços/Equipamentos🛠️",
+};
+
+const formatModalidade = (modalidade: string): string => {
+  const trimmed = modalidade?.trim().toUpperCase();
+  if (!trimmed) return "";
+  return modalidadeDisplay[trimmed] || `🎯${modalidade.trim()}`;
 };
 
 const etapaToDealStage = (etapa: string): DealStage => {
@@ -237,6 +264,34 @@ export default function NegociacoesPage() {
   const [communicationMessage, setCommunicationMessage] = useState("");
   const [communicationFile, setCommunicationFile] = useState<File | null>(null);
   const [isSendingCommunication, setIsSendingCommunication] = useState(false);
+  const [isClienteSearchOpen, setIsClienteSearchOpen] = useState(false);
+  const [clienteSearchQuery, setClienteSearchQuery] = useState("");
+  const [clienteSearchResults, setClienteSearchResults] = useState<Array<{ id: string; nome: string; telefone: string; email: string; origem: string; tipo: "cliente" | "lead" }>>([]);
+  const [isClienteSearchLoading, setIsClienteSearchLoading] = useState(false);
+
+  const searchClientesELeads = async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setClienteSearchResults([]);
+      return;
+    }
+    setIsClienteSearchLoading(true);
+    try {
+      const [clientesData, leadsData] = await Promise.all([
+        clientesHook.search(trimmed),
+        leadsHook.search(trimmed),
+      ]);
+      const combined = [
+        ...clientesData.map((c) => ({ id: c.id, nome: c.nome, telefone: c.telefone, email: c.email || "", origem: c.origem || "", tipo: "cliente" as const })),
+        ...leadsData.map((l) => ({ id: l.id, nome: l.nome, telefone: l.telefone, email: l.email || "", origem: l.origem || "", tipo: "lead" as const })),
+      ];
+      setClienteSearchResults(combined);
+    } catch {
+      setClienteSearchResults([]);
+    } finally {
+      setIsClienteSearchLoading(false);
+    }
+  };
 
   const handleChange = (field: keyof NegociacaoFormData, value: string | boolean | number | null) => {
     setFormData((current: NegociacaoFormData) => ({ ...current, [field]: value }));
@@ -578,6 +633,56 @@ export default function NegociacoesPage() {
       } else {
         await create(payload);
       }
+
+      const novaNegocio = formData.etapa === "CONCLUIDO_SUCESSO";
+      const etapaAnterior = selectedNegociacao ? etapaToDealStage(selectedNegociacao.etapa) : "NOVO_LEAD";
+      const fechamento = novaNegocio && etapaAnterior !== "CONCLUIDO_SUCESSO";
+
+      if (fechamento) {
+        const valorStr = formData.valor_credito ? Number(formData.valor_credito) : Number(formData.valor) || 0;
+
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        let usuarioNome = "Usuário";
+        let usuarioPerfil = "Usuário";
+
+        if (user?.id) {
+          const { data: profile, error: profileErr } = await supabase
+            .from("profiles")
+            .select("nome, perfil")
+            .eq("id", user.id)
+            .single();
+
+          if (!profileErr && profile) {
+            usuarioNome = profile.nome || usuarioNome;
+            usuarioPerfil = profile.perfil || usuarioPerfil;
+          }
+        }
+
+        const perfilFormatted = usuarioPerfil.toLowerCase().replace(/_/g, " ");
+        const perfilLabel = perfilFormatted.charAt(0).toUpperCase() + perfilFormatted.slice(1);
+
+        const modalidadeLabel = formatModalidade(formData.modalidade);
+        const mensagemTicker = `Parabéns ${usuarioNome} por realizar o sonho de mais um cliente - ${modalidadeLabel}`;
+
+        try {
+          const { createTickerMessage } = await import("@/repositories/client/ticker.repository");
+          await createTickerMessage({ text: mensagemTicker, tipo: "resultado", ativo: true });
+        } catch (msgErr) {
+          console.warn("[Negociacoes] Não foi possível salvar mensagem no ticker:", msgErr);
+          window.dispatchEvent(
+            new CustomEvent("crm:ticker:new", { detail: { text: mensagemTicker, tipo: "resultado" } }),
+          );
+        }
+
+        broadcastCelebration({
+          message: `Parabéns ${usuarioNome} (${perfilLabel}) por realizar o sonho de mais um cliente - ${modalidadeLabel}`,
+          value: valorStr,
+        });
+
+        success("Fechamento concluído! Parabéns!");
+      }
+
       await loadNegociacoes();
       setIsFormOpen(false);
       setFormData(emptyForm);
@@ -837,8 +942,13 @@ export default function NegociacoesPage() {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cliente_nome">Nome do Cliente</Label>
-                <Input id="cliente_nome" value={formData.cliente_nome} onChange={(e) => handleChange("cliente_nome", e.target.value)} placeholder="Nome do cliente" />
+                <Label htmlFor="cliente_nome">Cliente</Label>
+                <div className="relative">
+                  <Input id="cliente_nome" value={formData.cliente_nome} onChange={(e) => handleChange("cliente_nome", e.target.value)} placeholder="Nome do cliente" readOnly={false} />
+                  <Button type="button" variant="ghost" size="sm" className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 p-0" onClick={() => { setClienteSearchQuery(""); searchClientesELeads(""); setIsClienteSearchOpen(true); }} aria-label="Buscar cliente">
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -950,6 +1060,86 @@ export default function NegociacoesPage() {
               Excluir
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isClienteSearchOpen} onOpenChange={setIsClienteSearchOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Selecionar cliente ou lead</DialogTitle>
+            <DialogDescription>
+              Pesquise um cliente ou lead para associar a esta negociação.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Pesquisar por nome, telefone ou e-mail..."
+                className="pl-9"
+                value={clienteSearchQuery}
+                onChange={(e) => {
+                  setClienteSearchQuery(e.target.value);
+                  void searchClientesELeads(e.target.value);
+                }}
+              />
+            </div>
+            {isClienteSearchLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : clienteSearchResults.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">Nenhum resultado encontrado.</p>
+            ) : (
+              <div className="max-h-72 overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>E-mail</TableHead>
+                      <TableHead>Origem</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead className="w-[80px] text-right">Ação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clienteSearchResults.map((c) => (
+                      <TableRow key={`${c.tipo}-${c.id}`}>
+                        <TableCell className="font-medium">{c.nome}</TableCell>
+                        <TableCell>{c.telefone || "—"}</TableCell>
+                        <TableCell>{c.email || "—"}</TableCell>
+                        <TableCell>{c.origem || "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant={c.tipo === "cliente" ? "default" : "secondary"}>
+                            {c.tipo === "cliente" ? "Cliente" : "Lead"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              handleChange("cliente_id", c.id);
+                              handleChange("cliente_nome", c.nome);
+                              handleChange("lead_id", c.tipo === "lead" ? c.id : "");
+                              if (c.tipo === "cliente") {
+                                handleChange("lead_id", "");
+                              }
+                              setIsClienteSearchOpen(false);
+                              setClienteSearchQuery("");
+                              setClienteSearchResults([]);
+                            }}
+                          >
+                            Selecionar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 

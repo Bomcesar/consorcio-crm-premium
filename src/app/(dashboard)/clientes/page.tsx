@@ -39,6 +39,7 @@ import {
   X,
   UserPlus,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import type { Cliente, ClienteHistorico, ClienteContato } from "@/repositories/client/clientes.repository";
 import { converterClientePara } from "@/repositories/client/clientes.repository";
 
@@ -160,7 +161,31 @@ export default function ClientesPage() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [isContatosLoading, setIsContatosLoading] = useState(false);
+  const [isUserSearchOpen, setIsUserSearchOpen] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [userSearchResults, setUserSearchResults] = useState<Array<{ id: string; nome: string; perfil: string; email: string }>>([]);
+  const [isUserSearchLoading, setIsUserSearchLoading] = useState(false);
   const [tab, setTab] = useState("info");
+
+  const searchUsers = async (query: string) => {
+    setIsUserSearchLoading(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, nome, perfil, email")
+        .in("perfil", ["Consultor", "Indicador", "Trainee", "Gestor", "Administrador"])
+        .or(`nome.ilike.%${query}%,email.ilike.%${query}%`)
+        .order("nome");
+      if (error) throw error;
+      setUserSearchResults(data || []);
+    } catch {
+      setUserSearchResults([]);
+    } finally {
+      setIsUserSearchLoading(false);
+    }
+  };
+
 
   const loadClientes = async () => {
     setIsLoading(true);
@@ -561,7 +586,12 @@ export default function ClientesPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="origem">Origem</Label>
-                <Input id="origem" value={formData.origem} onChange={(e) => handleChange("origem", e.target.value)} placeholder="Ex: Indicação, Site, etc." />
+                <div className="relative">
+                  <Input id="origem" value={formData.origem} onChange={(e) => handleChange("origem", e.target.value)} placeholder="Ex: Indicação, Site, etc." />
+                  <Button type="button" variant="ghost" size="sm" className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 p-0" onClick={() => { setUserSearchQuery(""); searchUsers(""); setIsUserSearchOpen(true); }} aria-label="Buscar usuário origem">
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1008,6 +1038,71 @@ export default function ClientesPage() {
             <Button variant="outline" onClick={() => { if (convertingCliente) { void handleConvert(convertingCliente, "parceiro"); setIsConvertOpen(false); } }}>Parceiro</Button>
             <Button variant="outline" onClick={() => { if (convertingCliente) { void handleConvert(convertingCliente, "recrutamento"); setIsConvertOpen(false); } }}>Recrutamento</Button>
             <Button variant="outline" className="sm:col-span-2" onClick={() => { if (convertingCliente) { void handleConvert(convertingCliente, "cliente"); setIsConvertOpen(false); } }}>Manter como Cliente</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isUserSearchOpen} onOpenChange={setIsUserSearchOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Buscar usuário por origem</DialogTitle>
+            <DialogDescription>
+              Pesquise um usuário cadastrado para identificar a origem do cliente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Pesquisar por nome ou e-mail..."
+                className="pl-9"
+                value={userSearchQuery}
+                onChange={(e) => {
+                  setUserSearchQuery(e.target.value);
+                  searchUsers(e.target.value);
+                }}
+              />
+            </div>
+            {isUserSearchLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : userSearchResults.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum usuário encontrado.</p>
+            ) : (
+              <div className="max-h-64 overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Perfil</TableHead>
+                      <TableHead className="text-right">Ação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {userSearchResults.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell>{u.nome || "Sem nome"}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{u.perfil}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              handleChange("origem", `${u.nome || u.email} (${u.perfil})`);
+                              setIsUserSearchOpen(false);
+                            }}
+                          >
+                            Selecionar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

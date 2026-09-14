@@ -31,7 +31,7 @@ export async function createUsuarioAction(
       status: error.status,
       code: error.code,
     });
-    throw new Error("Não foi possível criar o usuário.");
+    throw new Error(`Não foi possível criar o usuário: ${error.message || "Erro no Supabase Auth"}`);
   }
 
   if (!data.user) {
@@ -70,36 +70,47 @@ export async function createUsuarioAction(
     console.error("[createUsuarioAction] profiles upsert error", {
       message: profileError.message,
       code: profileError.code,
+      details: profileError.details,
+      hint: profileError.hint,
     });
     await supabase.auth.admin.deleteUser(data.user.id);
-    throw new Error("Não foi possível criar o perfil do usuário.");
+    throw new Error(`Não foi possível criar o perfil do usuário: ${profileError.message || "Erro desconhecido"}`);
   }
 
   console.log("[createUsuarioAction] profile criado/atualizado", { userId: data.user.id });
 
   if (perfil === "Indicador") {
-    const { error: indicadorError } = await supabase.from("indicadores").insert({
-      nome,
-      email,
-      telefone: "",
-      cidade: "",
-      estado: "",
-      cpf: "",
-      pix: "",
-      origem: "Cadastro manual",
-      status: "Ativo",
-      observacoes: "",
-      ativo: true,
-      usuario_id: data.user.id,
-    });
-
-    if (indicadorError) {
-      console.error("[createUsuarioAction] indicadores insert error", {
-        message: indicadorError.message,
-        code: indicadorError.code,
+    try {
+      const { error: indicadorError } = await supabase.from("indicadores").insert({
+        nome,
+        email,
+        telefone: "",
+        cidade: "",
+        estado: "",
+        cpf: "",
+        pix: "",
+        origem: "Cadastro manual",
+        status: "Ativo",
+        observacoes: "",
+        ativo: true,
+        usuario_id: data.user.id,
       });
-    } else {
+
+      if (indicadorError) {
+        console.error("[createUsuarioAction] indicadores insert error", {
+          message: indicadorError.message,
+          code: indicadorError.code,
+          details: indicadorError.details,
+          hint: indicadorError.hint,
+        });
+        throw new Error(`Não foi possível criar o registro de indicador: ${indicadorError.message || "Verifique se a migration de indicadores foi aplicada."}`);
+      }
+
       console.log("[createUsuarioAction] indicador criado", { userId: data.user.id });
+    } catch (indErr) {
+      await supabase.auth.admin.deleteUser(data.user.id);
+      await supabase.from("profiles").delete().eq("id", data.user.id);
+      throw indErr instanceof Error ? indErr : new Error("Erro desconhecido ao criar indicador.");
     }
   }
 

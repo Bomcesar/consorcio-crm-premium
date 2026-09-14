@@ -1988,6 +1988,35 @@ export interface Database {
           concedido_por?: string | null;
         };
       };
+      ticker_messages: {
+        Row: {
+          id: string;
+          text: string;
+          tipo: string;
+          ativo: boolean;
+          usuario_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          text?: string;
+          tipo?: string;
+          ativo?: boolean;
+          usuario_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          text?: string;
+          tipo?: string;
+          ativo?: boolean;
+          usuario_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       metas: {
         Row: {
           id: string;

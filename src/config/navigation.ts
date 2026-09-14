@@ -18,6 +18,7 @@ import {
   Link2,
   Wifi,
   type LucideIcon,
+  Megaphone,
 } from "lucide-react";
 
 export interface NavItem {
@@ -49,6 +50,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { title: "Links úteis", href: "/links-uteis", icon: Link2, allowedRoles: ["Administrador", "Gestor", "Consultor", "Assistente", "Indicador", "Trainee"] },
   { title: "Relatórios", href: "/relatorios", icon: BarChart3, allowedRoles: ["Administrador", "Gestor", "Consultor", "Assistente", "Indicador", "Trainee"] },
   { title: "Configurações", href: "/configuracoes", icon: Settings, allowedRoles: ["Administrador", "Gestor", "Consultor", "Assistente", "Indicador", "Trainee"] },
+  { title: "Mensagens Dinâmicas", href: "/mensagens-dinamicas", icon: Megaphone, allowedRoles: ["Administrador", "Gestor", "Consultor", "Assistente", "Indicador", "Trainee"] },
 ];
 
 export const mainNavItems = ALL_NAV_ITEMS.filter((item) => !item.allowedRoles || item.allowedRoles.length === 0);
