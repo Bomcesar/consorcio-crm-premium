@@ -11,7 +11,8 @@ import { useTickerMessages } from "@/hooks/use-ticker-messages";
 
 function TickerWrapper() {
   const { messages } = useTickerMessages();
-  return <LiveTicker messages={messages} />;
+  const activeMessages = messages.filter((m) => m.ativo);
+  return <LiveTicker messages={activeMessages} />;
 }
 
 function FireworksWrapper() {

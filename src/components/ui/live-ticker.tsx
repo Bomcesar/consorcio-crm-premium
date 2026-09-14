@@ -8,8 +8,10 @@ export type TickerMessage = {
   created_at: string;
 };
 
-const ANIMATION_DURATION = 12000;
+const ENTER_DURATION = 4000;
 const PAUSE_DURATION = 3000;
+const EXIT_DURATION = 4000;
+const TOTAL_DURATION = ENTER_DURATION + PAUSE_DURATION + EXIT_DURATION;
 
 export function LiveTicker({ messages }: { messages: TickerMessage[] }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -27,16 +29,25 @@ export function LiveTicker({ messages }: { messages: TickerMessage[] }) {
         const exitTimer = setTimeout(() => {
           setCurrentIndex((prev) => (prev + 1) % messages.length);
           setAnimationState("enter");
-        }, ANIMATION_DURATION - PAUSE_DURATION);
+        }, EXIT_DURATION);
 
         return () => clearTimeout(exitTimer);
       }, PAUSE_DURATION);
 
       return () => clearTimeout(pauseTimer);
-    }, ANIMATION_DURATION - PAUSE_DURATION);
+    }, ENTER_DURATION);
 
     return () => clearTimeout(enterTimer);
   }, [currentIndex, messages.length]);
+
+  // When a new message is added, show it immediately
+  const latestMessageId = messages[0]?.id;
+  useEffect(() => {
+    if (latestMessageId && currentIndex !== 0) {
+      setCurrentIndex(0);
+      setAnimationState("enter");
+    }
+  }, [latestMessageId, currentIndex]);
 
   if (!messages.length) return null;
 

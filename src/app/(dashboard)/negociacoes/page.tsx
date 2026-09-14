@@ -58,6 +58,7 @@ import type { Deal, DealStage, DealStatus, DealDocumentCheckItem } from "@/types
 import type { Negociacao, NegociacaoUpdate } from "@/repositories/client/negociacoes.repository";
 import type { NegociacaoHistorico } from "@/repositories/client/negociacoes.repository";
 import { updateNegociacao } from "@/repositories/client/negociacoes.repository";
+import { createTickerMessageAction } from "@/app/actions/ticker.actions";
 import { broadcastCelebration } from "@/hooks/use-fireworks";
 import { createClient } from "@/lib/supabase/client";
 
@@ -666,14 +667,18 @@ export default function NegociacoesPage() {
         const mensagemTicker = `Parabéns ${usuarioNome} por realizar o sonho de mais um cliente - ${modalidadeLabel}`;
 
         try {
-          const { createTickerMessage } = await import("@/repositories/client/ticker.repository");
-          await createTickerMessage({ text: mensagemTicker, tipo: "resultado", ativo: true });
+          const result = await createTickerMessageAction({ text: mensagemTicker, tipo: "resultado", ativo: true });
+          if (!result.success) {
+            console.warn("[Negociacoes] createTickerMessageAction failed:", result.error);
+          }
         } catch (msgErr) {
           console.warn("[Negociacoes] Não foi possível salvar mensagem no ticker:", msgErr);
-          window.dispatchEvent(
-            new CustomEvent("crm:ticker:new", { detail: { text: mensagemTicker, tipo: "resultado" } }),
-          );
         }
+
+        // Always broadcast locally so the ticker animation shows immediately
+        window.dispatchEvent(
+          new CustomEvent("crm:ticker:new", { detail: { text: mensagemTicker, tipo: "resultado" } }),
+        );
 
         broadcastCelebration({
           message: `Parabéns ${usuarioNome} (${perfilLabel}) por realizar o sonho de mais um cliente - ${modalidadeLabel}`,
