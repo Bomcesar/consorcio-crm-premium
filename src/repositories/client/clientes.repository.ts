@@ -19,7 +19,9 @@ function clienteBaseQuery(supabase: ReturnType<typeof createClient>) {
 export async function getClientes(): Promise<Cliente[]> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
-  let query = clienteBaseQuery(supabase).order("created_at", { ascending: false });
+  let query = clienteBaseQuery(supabase)
+    .eq("base_origem", "cliente")
+    .order("created_at", { ascending: false });
   if (!isAdminOrGestor(user)) {
     query = query.eq("usuario_id", user.id);
   }
@@ -43,13 +45,15 @@ export async function getClientesDisponiveis(): Promise<Cliente[]> {
 
   const clientesEmPasta = new Set((pastaItens ?? []).map((item) => item.cliente_id));
 
-  let query = clienteBaseQuery(supabase).order("created_at", { ascending: false });
+  let query = clienteBaseQuery(supabase)
+    .eq("base_origem", "contato")
+    .order("created_at", { ascending: false });
   if (!isAdminOrGestor(user)) {
     query = query.eq("usuario_id", user.id);
   }
 
   const { data, error } = await query;
-  if (error) throw new Error("Não foi possível carregar os clientes disponíveis.");
+  if (error) throw new Error("Não foi possível carregar os contatos disponíveis.");
 
   const todos = (data as Cliente[]) ?? [];
   return todos.filter((cliente) => !clientesEmPasta.has(cliente.id));

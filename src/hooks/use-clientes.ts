@@ -49,14 +49,14 @@ export function useClientes() {
   const create = async (data: ClienteInsert) => {
     try {
       const { createCliente } = await import("@/repositories/client/clientes.repository");
-      const cliente = await createCliente(data);
+      const cliente = await createCliente({ ...data, base_origem: data.base_origem ?? "contato" });
       console.log("[useClientes] create sucesso:", cliente);
-      success("Cliente cadastrado com sucesso.");
+      success("Contato cadastrado com sucesso.");
       return cliente;
     } catch (err) {
       console.error("[useClientes] create erro:", err);
-      error("Não foi possível salvar o cliente.");
-      throw new Error("Falha ao criar cliente.");
+      error("Não foi possível salvar o contato.");
+      throw new Error("Falha ao criar contato.");
     }
   };
 

@@ -312,6 +312,7 @@ export default function LeadsPage() {
           status: "Ativo",
           origem: selectedLead.origem || "",
           observacoes: selectedLead.observacoes || "",
+          base_origem: "cliente",
         });
         await update(selectedLead.id, { status: "Ganho" });
         setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? { ...l, status: "Ganho" as Lead["status"] } : l)));
@@ -674,11 +675,18 @@ export default function LeadsPage() {
               >
                 <option value="Novo">Novo</option>
                 <option value="Em contato">Em contato</option>
+                <option value="Contactando">Contactando</option>
+                <option value="Ligar">Ligar</option>
+                <option value="Reunião Agendada">Reunião Agendada</option>
+                <option value="Follow-Up">Follow-Up</option>
                 <option value="Qualificado">Qualificado</option>
                 <option value="Em análise">Em análise</option>
                 <option value="Proposta">Proposta</option>
                 <option value="Ganho">Ganho</option>
                 <option value="Perdido">Perdido</option>
+                <option value="Cancelado">Cancelado</option>
+                <option value="Não Compareceu na Reunião">Não Compareceu na Reunião</option>
+                <option value="Deixou para depois">Deixou para depois</option>
               </select>
             </div>
             <div className="space-y-2">

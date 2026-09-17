@@ -2,9 +2,9 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export type Perfil = "Administrador" | "Gestor" | "Consultor" | "Trainee" | "Secretaria" | "Indicador";
 
-export type StatusLead = "Novo" | "Em contato" | "Qualificado" | "Em análise" | "Proposta" | "Ganho" | "Perdido";
+export type StatusLead = "Novo" | "Em contato" | "Qualificado" | "Em análise" | "Proposta" | "Ganho" | "Perdido" | "Cancelado" | "Contactando" | "Ligar" | "Reunião Agendada" | "Não Compareceu na Reunião" | "Follow-Up" | "Deixou para depois";
 export type StatusIndicador = "Ativo" | "Inativo" | "Pendente";
-export type StatusCliente = "Ativo" | "Inativo" | "Bloqueado";
+export type StatusCliente = "Ativo" | "Inativo" | "Bloqueado" | "Cancelado" | "Perdido" | "Contactando" | "Ligar" | "Reunião Agendada" | "Não Compareceu na Reunião" | "Follow-Up" | "Deixou para depois";
 export type StatusAgenda = "Agendado" | "Confirmado" | "Realizado" | "Cancelado";
 export type TipoAgenda = "Reunião" | "Visita" | "Ligação" | "Assembleia" | "Contemplação" | "Treinamento";
 export type TipoMensagemWhatsApp = "texto" | "imagem" | "audio" | "documento";
@@ -428,6 +428,7 @@ export interface Database {
             data_ultimo_contato?: string | null;
             destino_conversao?: string | null;
             destino_id?: string | null;
+            base_origem?: string | null;
           };
           Insert: {
             id?: string;
@@ -464,6 +465,7 @@ export interface Database {
             data_ultimo_contato?: string | null;
             destino_conversao?: string | null;
             destino_id?: string | null;
+            base_origem?: string | null;
           };
           Update: {
             id?: string;
@@ -500,9 +502,10 @@ export interface Database {
             data_ultimo_contato?: string | null;
             destino_conversao?: string | null;
             destino_id?: string | null;
+            base_origem?: string | null;
           };
         };
-      cliente_historico: {
+        cliente_historico: {
         Row: {
           id: string;
           cliente_id: string;

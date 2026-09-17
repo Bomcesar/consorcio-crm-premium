@@ -549,6 +549,7 @@ export default function ContatosPage() {
           origem: convertingCliente.origem || "Contatos",
           status: "Ativo",
           segmento: (convertingCliente as unknown as { segmento?: string }).segmento || "",
+          base_origem: "cliente",
         });
         if (error) throw error;
       } else if (convertTarget === "indicadores") {

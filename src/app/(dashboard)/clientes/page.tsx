@@ -610,6 +610,14 @@ export default function ClientesPage() {
                 <option value="Ativo">Ativo</option>
                 <option value="Inativo">Inativo</option>
                 <option value="Bloqueado">Bloqueado</option>
+                <option value="Contactando">Contactando</option>
+                <option value="Ligar">Ligar</option>
+                <option value="Reunião Agendada">Reunião Agendada</option>
+                <option value="Follow-Up">Follow-Up</option>
+                <option value="Cancelado">Cancelado</option>
+                <option value="Perdido">Perdido</option>
+                <option value="Não Compareceu na Reunião">Não Compareceu na Reunião</option>
+                <option value="Deixou para depois">Deixou para depois</option>
               </select>
             </div>
             <div className="space-y-2">
