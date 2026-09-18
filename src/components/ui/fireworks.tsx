@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 
 let audioCtx: AudioContext | null = null;
+let hallelujahBuffer: AudioBuffer | null = null;
+let hallelujahLoading = false;
 
 function ensureAudioContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -20,6 +22,28 @@ function unlockAudio() {
   if (!ctx) return;
   if (ctx.state === "suspended") {
     ctx.resume().catch(() => void 0);
+  }
+}
+
+async function loadHallelujahBuffer(ctx: AudioContext): Promise<AudioBuffer | null> {
+  if (hallelujahBuffer) return hallelujahBuffer;
+  if (hallelujahLoading) {
+    while (hallelujahLoading) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return hallelujahBuffer;
+  }
+  hallelujahLoading = true;
+  try {
+    const res = await fetch("/sounds/hallelujah-chorus.mp3");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const arrayBuffer = await res.arrayBuffer();
+    hallelujahBuffer = await ctx.decodeAudioData(arrayBuffer);
+    return hallelujahBuffer;
+  } catch {
+    return null;
+  } finally {
+    hallelujahLoading = false;
   }
 }
 
@@ -141,6 +165,19 @@ export function playCelebrationSound() {
     rumbleGain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
     rumble.start(now);
     rumble.stop(now + 1.5);
+
+    // Play the Hallelujah chorus alongside the fireworks (async, non-blocking)
+    loadHallelujahBuffer(ctx).then((buffer) => {
+      if (!buffer) return;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      const hallelujahGain = ctx.createGain();
+      hallelujahGain.gain.setValueAtTime(0.35, now);
+      hallelujahGain.gain.exponentialRampToValueAtTime(0.001, now + 17);
+      source.connect(hallelujahGain);
+      hallelujahGain.connect(ctx.destination);
+      source.start(now + 0.1);
+    });
   } catch { }
 }
 
@@ -151,6 +188,10 @@ export function Fireworks({ isActive, onComplete }: { isActive: boolean; onCompl
   useEffect(() => {
     const onFirstInteraction = () => {
       unlockAudio();
+      const ctx = ensureAudioContext();
+      if (ctx) {
+        void loadHallelujahBuffer(ctx);
+      }
       window.removeEventListener("click", onFirstInteraction);
       window.removeEventListener("touchstart", onFirstInteraction);
       window.removeEventListener("keydown", onFirstInteraction);
@@ -173,7 +214,7 @@ export function Fireworks({ isActive, onComplete }: { isActive: boolean; onCompl
     }
 
     unlockAudio();
-    playCelebrationSound();
+    void playCelebrationSound();
 
     const colors = ["#FF4E50", "#F9D423", "#6BCB77", "#4D96FF", "#B366FF", "#FF8A65"];
     const containerWidth = window.innerWidth;
