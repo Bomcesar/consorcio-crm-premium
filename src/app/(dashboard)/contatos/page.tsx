@@ -354,7 +354,11 @@ export default function ContatosPage() {
     }
     if (item && pastaMestreId && item.pasta_id !== pastaMestreId) {
       try {
-        await clientesHook.addClienteToPasta(pastaMestreId, item.cliente_id);
+        const itensMestre = await clientesHook.loadPastaItens(pastaMestreId);
+        const jaNoMestre = itensMestre.some((i) => i.cliente_id === item.cliente_id);
+        if (!jaNoMestre) {
+          await clientesHook.addClienteToPasta(pastaMestreId, item.cliente_id);
+        }
       } catch (err) {
         console.error("[Contatos] Erro ao devolver para pasta mestre:", err);
       }
@@ -794,7 +798,11 @@ export default function ContatosPage() {
         await clientesHookRef.current.removeClienteFromPasta(itemId);
         if (item && pastaMestreId && item.pasta_id !== pastaMestreId) {
           try {
-            await clientesHookRef.current.addClienteToPasta(pastaMestreId, item.cliente_id);
+            const itensMestre = await clientesHookRef.current.loadPastaItens(pastaMestreId);
+            const jaNoMestre = itensMestre.some((i) => i.cliente_id === item.cliente_id);
+            if (!jaNoMestre) {
+              await clientesHookRef.current.addClienteToPasta(pastaMestreId, item.cliente_id);
+            }
           } catch (err) {
             console.error("[Contatos] Erro ao devolver para pasta mestre:", err);
           }
