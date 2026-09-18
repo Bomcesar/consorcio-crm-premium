@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -102,6 +103,8 @@ export default function LeadsPage() {
   const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [convertTarget, setConvertTarget] = useState<"clientes" | "indicadores" | "parceiros" | "recrutamento" | "negociacoes">("clientes");
   const [isConverting, setIsConverting] = useState(false);
+  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
+  const [isConvertingSelected, setIsConvertingSelected] = useState(false);
 
   const loadLeads = async () => {
     setIsLoading(true);
@@ -403,6 +406,62 @@ export default function LeadsPage() {
     }
   };
 
+  const handleSelectLead = (leadId: string) => {
+    setSelectedLeads((prev) => {
+      const next = new Set(prev);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    setSelectedLeads(new Set(filteredLeads.map((l) => l.id)));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedLeads(new Set());
+  };
+
+  const handleConvertSelectedToClientes = async () => {
+    if (selectedLeads.size === 0) return;
+    setIsConvertingSelected(true);
+    try {
+      let count = 0;
+      for (const lead of filteredLeads.filter((l) => selectedLeads.has(l.id))) {
+        await clientesHook.create({
+          nome: lead.nome,
+          telefone: lead.telefone,
+          email: lead.email || "",
+          cidade: lead.cidade,
+          estado: "",
+          status: "Ativo",
+          origem: lead.origem || "",
+          observacoes: lead.observacoes || "",
+          base_origem: "cliente",
+        });
+        await update(lead.id, { status: "Ganho" });
+        count++;
+      }
+      setLeads((prev) =>
+        prev.map((lead) =>
+          selectedLeads.has(lead.id)
+            ? { ...lead, status: "Ganho" as Lead["status"] }
+            : lead,
+        ),
+      );
+      setSelectedLeads(new Set());
+      success(`${count} lead(s) convertido(s) para cliente com sucesso.`);
+    } catch {
+      error("Não foi possível converter os leads selecionados.");
+    } finally {
+      setIsConvertingSelected(false);
+    }
+  };
+
   const handleWhatsApp = (lead: Lead) => {
     const phone = (lead.telefone || "").replace(/\D/g, "");
     if (!phone) {
@@ -448,6 +507,42 @@ export default function LeadsPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      {selectedLeads.size > 0 && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-green-800">
+                {selectedLeads.size} lead(s) selecionado(s)
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeselectAll}
+                  type="button"
+                >
+                  Limpar seleção
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleConvertSelectedToClientes}
+                  disabled={isConvertingSelected}
+                  type="button"
+                >
+                  {isConvertingSelected ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserCheck className="mr-2 h-4 w-4" />
+                  )}
+                  Enviar para Cliente
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -497,6 +592,19 @@ export default function LeadsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={filteredLeads.length > 0 && filteredLeads.every((l) => selectedLeads.has(l.id))}
+                        onCheckedChange={(checked: boolean | "indeterminate") => {
+                          if (checked === true) {
+                            handleSelectAll();
+                          } else {
+                            handleDeselectAll();
+                          }
+                        }}
+                        aria-label="Selecionar todos"
+                      />
+                    </TableHead>
                     <TableHead>Nome</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Cidade</TableHead>
@@ -509,6 +617,13 @@ export default function LeadsPage() {
                 <TableBody>
                   {filteredLeads.map((lead) => (
                     <TableRow key={lead.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedLeads.has(lead.id)}
+                          onCheckedChange={() => handleSelectLead(lead.id)}
+                          aria-label={`Selecionar ${lead.nome}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{lead.nome}</TableCell>
                       <TableCell>
                         <Badge variant={lead.status === "Ganho" ? "success" : lead.status === "Perdido" ? "destructive" : "secondary"}>

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -38,6 +39,7 @@ import {
   FileText,
   X,
   UserPlus,
+  UserCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Cliente, ClienteHistorico, ClienteContato } from "@/repositories/client/clientes.repository";
@@ -166,6 +168,7 @@ export default function ClientesPage() {
   const [userSearchResults, setUserSearchResults] = useState<Array<{ id: string; nome: string; perfil: string; email: string }>>([]);
   const [isUserSearchLoading, setIsUserSearchLoading] = useState(false);
   const [tab, setTab] = useState("info");
+  const [selectedClientes, setSelectedClientes] = useState<Set<string>>(new Set());
 
   const searchUsers = async (query: string) => {
     setIsUserSearchLoading(true);
@@ -442,6 +445,26 @@ export default function ClientesPage() {
     }
   };
 
+  const handleSelectCliente = (clienteId: string) => {
+    setSelectedClientes((prev) => {
+      const next = new Set(prev);
+      if (next.has(clienteId)) {
+        next.delete(clienteId);
+      } else {
+        next.add(clienteId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllClientes = () => {
+    setSelectedClientes(new Set(filteredClientes.map((c) => c.id)));
+  };
+
+  const handleDeselectAllClientes = () => {
+    setSelectedClientes(new Set());
+  };
+
   const statusOptions = useMemo(() => {
     const statuses = new Set(clientes.map((c) => c.status));
     return Array.from(statuses);
@@ -467,6 +490,47 @@ export default function ClientesPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      {selectedClientes.size > 0 && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-blue-800">
+                {selectedClientes.size} cliente(s) selecionado(s)
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeselectAllClientes}
+                  type="button"
+                >
+                  Limpar seleção
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={async () => {
+                    const clienteIds = Array.from(selectedClientes);
+                    try {
+                      await converterClientePara(clienteIds[0], "lead");
+                      success(`${clienteIds.length} cliente(s) convertido(s) com sucesso.`);
+                      setSelectedClientes(new Set());
+                      await loadClientes();
+                    } catch {
+                      error("Não foi possível converter os clientes selecionados.");
+                    }
+                  }}
+                  type="button"
+                >
+                  <UserCheck className="mr-2 h-4 w-4" />
+                  Converter para Lead
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -511,6 +575,19 @@ export default function ClientesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={filteredClientes.length > 0 && filteredClientes.every((c) => selectedClientes.has(c.id))}
+                        onCheckedChange={(checked: boolean | "indeterminate") => {
+                          if (checked === true) {
+                            handleSelectAllClientes();
+                          } else {
+                            handleDeselectAllClientes();
+                          }
+                        }}
+                        aria-label="Selecionar todos"
+                      />
+                    </TableHead>
                     <TableHead>Nome</TableHead>
                     <TableHead>Cidade</TableHead>
                     <TableHead>Status</TableHead>
@@ -521,6 +598,13 @@ export default function ClientesPage() {
                 <TableBody>
                   {filteredClientes.map((cliente) => (
                     <TableRow key={cliente.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedClientes.has(cliente.id)}
+                          onCheckedChange={() => handleSelectCliente(cliente.id)}
+                          aria-label={`Selecionar ${cliente.nome}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{cliente.nome}</TableCell>
                       <TableCell>{cliente.cidade || "—"}</TableCell>
                       <TableCell>
