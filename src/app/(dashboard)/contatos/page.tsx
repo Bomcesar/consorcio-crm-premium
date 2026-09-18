@@ -27,7 +27,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Search, Plus, Pencil, Trash2, Loader2, Upload, Download, Users, Phone, Mail, UserPlus, FolderOpen, ChevronRight, MessageSquare, ArrowRight, ClipboardList, Filter, MessageCircle, UserCheck } from "lucide-react";
-import type { Cliente } from "@/repositories/client/clientes.repository";
+import type { Cliente, ClienteUpdate } from "@/repositories/client/clientes.repository";
 import type { Contato, ContatoImportPreview } from "@/lib/contatos";
 import type { Pasta, PastaItem } from "@/repositories/client/pastas.repository";
 import { exportCSV, exportVCF, exportTXT, exportXLSX, downloadFile, parseCSV, parseVCF, parseTXT, parseXLSX, detectDuplicates } from "@/lib/contatos";
@@ -509,10 +509,23 @@ export default function ContatosPage() {
     setIsDeleteOpen(true);
   };
 
-  const openConvert = (cliente: Cliente) => {
+   const openConvert = (cliente: Cliente) => {
     setConvertingCliente(cliente);
     setConvertTarget("leads");
     setIsConvertOpen(true);
+  };
+
+  const handleConvertToCliente = async (cliente: Cliente) => {
+    try {
+      await clientesHook.update(cliente.id, { base_origem: "cliente" } as ClienteUpdate);
+      successRef.current("Contato enviado para Clientes com sucesso.");
+      const updated = await clientesHook.listAvailable();
+      setClientes(updated);
+      setFiltered(updated);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Não foi possível enviar o contato para Clientes.";
+      errorRef.current(message);
+    }
   };
 
   const handleConvert = async () => {
@@ -944,7 +957,7 @@ export default function ContatosPage() {
                   {pastas.length > 0 ? `${pastas.length} pasta(s) criada(s)` : "Nenhuma pasta criada ainda."}
                 </CardDescription>
               </div>
-              <Button onClick={() => setIsPastaFormOpen(true)}>
+              <Button type="button" onClick={() => setIsPastaFormOpen(true)}>
                 <FolderOpen className="mr-2 h-4 w-4" />
                 Nova Pasta
               </Button>
@@ -966,22 +979,24 @@ export default function ContatosPage() {
                             </CardTitle>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={(e) => { e.stopPropagation(); handleOpenEditPasta(pasta); }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-red-600"
-                              onClick={(e) => { e.stopPropagation(); handleOpenDeletePasta(pasta); }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                             <Button
+                               variant="ghost"
+                               size="icon"
+                               type="button"
+                               className="h-7 w-7"
+                               onClick={(e) => { e.stopPropagation(); handleOpenEditPasta(pasta); }}
+                             >
+                               <Pencil className="h-3.5 w-3.5" />
+                             </Button>
+                             <Button
+                               variant="ghost"
+                               size="icon"
+                               type="button"
+                               className="h-7 w-7 text-red-600"
+                               onClick={(e) => { e.stopPropagation(); handleOpenDeletePasta(pasta); }}
+                             >
+                               <Trash2 className="h-3.5 w-3.5" />
+                             </Button>
                           </div>
                         </div>
                         <CardDescription className="line-clamp-2 cursor-pointer" onClick={() => handleOpenPasta(pasta)}>{pasta.descricao || "Sem descrição"}</CardDescription>
@@ -1110,27 +1125,30 @@ export default function ContatosPage() {
                             </TableCell>
                             <TableCell className="max-w-[200px] truncate">{cliente.observacoes || "—"}</TableCell>
                             <TableCell className="flex justify-end gap-1">
-                              <Button variant="ghost" size="icon" aria-label="Ligar" onClick={() => window.location.href = `tel:+55${cliente.telefone.replace(/\D/g, "")}`}>
-                                <Phone className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" aria-label="WhatsApp" onClick={() => window.open(`https://wa.me/55${cliente.telefone.replace(/\D/g, "")}`, "_blank")}>
-                                <MessageSquare className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" aria-label="SMS" onClick={() => window.location.href = `sms:+55${cliente.telefone.replace(/\D/g, "")}`}>
-                                <MessageCircle className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" aria-label="E-mail" onClick={() => window.location.href = `mailto:${cliente.email || ""}`}>
-                                <Mail className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => openEdit(cliente)} aria-label="Editar">
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => openConvert(cliente)} aria-label="Converter">
-                                <UserCheck className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => openDelete(cliente)} aria-label="Excluir">
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
+                               <Button variant="ghost" size="icon" type="button" aria-label="Ligar" onClick={() => window.location.href = `tel:+55${cliente.telefone.replace(/\D/g, "")}`}>
+                                 <Phone className="h-4 w-4" />
+                               </Button>
+                               <Button variant="ghost" size="icon" type="button" aria-label="WhatsApp" onClick={() => window.open(`https://wa.me/55${cliente.telefone.replace(/\D/g, "")}`, "_blank")}>
+                                 <MessageSquare className="h-4 w-4" />
+                               </Button>
+                               <Button variant="ghost" size="icon" type="button" aria-label="SMS" onClick={() => window.location.href = `sms:+55${cliente.telefone.replace(/\D/g, "")}`}>
+                                 <MessageCircle className="h-4 w-4" />
+                               </Button>
+                               <Button variant="ghost" size="icon" type="button" aria-label="E-mail" onClick={() => window.location.href = `mailto:${cliente.email || ""}`}>
+                                 <Mail className="h-4 w-4" />
+                               </Button>
+                               <Button variant="ghost" size="icon" type="button" onClick={() => openEdit(cliente)} aria-label="Editar">
+                                 <Pencil className="h-4 w-4" />
+                               </Button>
+                               <Button variant="ghost" size="icon" type="button" onClick={() => handleConvertToCliente(cliente)} aria-label="Enviar para Cliente">
+                                 <UserCheck className="h-4 w-4 text-green-600" />
+                               </Button>
+                               <Button variant="ghost" size="icon" type="button" onClick={() => openConvert(cliente)} aria-label="Converter">
+                                 <UserCheck className="h-4 w-4" />
+                               </Button>
+                               <Button variant="ghost" size="icon" type="button" onClick={() => openDelete(cliente)} aria-label="Excluir">
+                                 <Trash2 className="h-4 w-4 text-red-600" />
+                               </Button>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1369,10 +1387,10 @@ export default function ContatosPage() {
             <DialogDescription>Tem certeza que deseja excluir este contato? Esta ação não pode ser desfeita.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+            <Button variant="outline" type="button" onClick={() => setIsDeleteOpen(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            <Button variant="destructive" type="button" onClick={handleDelete}>
               Excluir
             </Button>
           </DialogFooter>
@@ -1386,10 +1404,10 @@ export default function ContatosPage() {
             <DialogDescription>Tem certeza que deseja excluir {selectedClienteIds.size} contato(s)? Esta ação não pode ser desfeita.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteSelectedOpen(false)}>
+            <Button variant="outline" type="button" onClick={() => setIsDeleteSelectedOpen(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={() => { setIsDeleteSelectedOpen(false); void handleDeleteSelected(); }}>
+            <Button variant="destructive" type="button" onClick={() => { setIsDeleteSelectedOpen(false); void handleDeleteSelected(); }}>
               Excluir selecionados
             </Button>
           </DialogFooter>
@@ -1469,10 +1487,10 @@ export default function ContatosPage() {
             </TabsContent>
           </Tabs>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsImportOpen(false)}>
+            <Button variant="outline" type="button" onClick={() => setIsImportOpen(false)}>
               Fechar
             </Button>
-            <Button onClick={handleImport} disabled={isImporting || importPreview.length === 0}>
+            <Button type="button" onClick={handleImport} disabled={isImporting || importPreview.length === 0}>
               {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirmar importação"}
             </Button>
           </DialogFooter>
@@ -1705,10 +1723,10 @@ export default function ContatosPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditPastaOpen(false)}>
+            <Button variant="outline" type="button" onClick={() => setIsEditPastaOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSaveEditPasta}>Salvar alterações</Button>
+            <Button type="button" onClick={handleSaveEditPasta}>Salvar alterações</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1722,10 +1740,10 @@ export default function ContatosPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeletePastaOpen(false)}>
+            <Button variant="outline" type="button" onClick={() => setIsDeletePastaOpen(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={handleConfirmDeletePasta}>
+            <Button variant="destructive" type="button" onClick={handleConfirmDeletePasta}>
               Excluir pasta
             </Button>
           </DialogFooter>
@@ -1755,10 +1773,10 @@ export default function ContatosPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsConvertOpen(false)}>
+            <Button variant="outline" type="button" onClick={() => setIsConvertOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleConvert} disabled={isConverting}>
+            <Button type="button" onClick={handleConvert} disabled={isConverting}>
               {isConverting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Converter"}
             </Button>
           </DialogFooter>

@@ -41,14 +41,16 @@ export async function getOrCreatePastaMestre(): Promise<Pasta> {
     .select("*")
     .eq("usuario_id", user.id)
     .eq("nome", "Mestre")
-    .maybeSingle();
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .single();
 
-  if (fetchError) {
-    console.error("[pastas.repository] Erro ao buscar pasta mestre:", fetchError);
+  if (!fetchError && existing) {
+    return existing as Pasta;
   }
 
-  if (existing) {
-    return existing as Pasta;
+  if (fetchError && fetchError.code !== "PGRST116") {
+    console.error("[pastas.repository] Erro ao buscar pasta mestre:", fetchError);
   }
 
   const { data, error } = await supabase
