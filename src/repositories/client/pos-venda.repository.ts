@@ -14,6 +14,8 @@ export type PosVendaComunicacaoInsert = Database["public"]["Tables"]["pos_venda_
 export type PosVendaComunicacaoUpdate = Database["public"]["Tables"]["pos_venda_comunicacoes"]["Update"];
 export type PosVendaWithRelations = Database["public"]["Tables"]["pos_venda"]["Row"] & {
   cliente?: { id: string; nome: string; telefone: string; email: string };
+  lance_grupo?: string;
+  lance_cota?: string;
 };
 
 type SupabaseError = {
@@ -46,6 +48,8 @@ const ALLOWED_STATUS = [
   "Pago",
   "Cancelado",
   "Ativo",
+  "Lance",
+  "Segundo Lance",
   "Sorteio Loteria Federal",
   "Resultado número da Loteria Federal",
   "Resultado da Assembleia",
@@ -98,6 +102,8 @@ function normalizePayload(payload: PosVendaInsert) {
     lembrete_em: payload.lembrete_em ?? null,
     retencao_motivo: typeof payload.retencao_motivo === "string" ? payload.retencao_motivo : "",
     retencao_data: payload.retencao_data ?? null,
+    lance_grupo: typeof payload.lance_grupo === "string" ? payload.lance_grupo : "",
+    lance_cota: typeof payload.lance_cota === "string" ? payload.lance_cota : "",
     created_at: now,
     updated_at: now,
   };
@@ -123,6 +129,8 @@ function normalizeUpdatePayload(payload: PosVendaUpdate) {
   if (payload.last_contact_at !== undefined) normalized.last_contact_at = payload.last_contact_at ?? null;
   if (payload.lembrete_em !== undefined) normalized.lembrete_em = payload.lembrete_em ?? null;
   if (payload.retencao_data !== undefined) normalized.retencao_data = payload.retencao_data ?? null;
+  if (payload.lance_grupo !== undefined) normalized.lance_grupo = typeof payload.lance_grupo === "string" ? payload.lance_grupo : "";
+  if (payload.lance_cota !== undefined) normalized.lance_cota = typeof payload.lance_cota === "string" ? payload.lance_cota : "";
   normalized.updated_at = now;
   return normalized;
 }
@@ -132,7 +140,7 @@ export async function getPosVendas(): Promise<PosVendaWithRelations[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("pos_venda")
-    .select("*")
+    .select("*, cliente:clientes(id, nome, telefone, email)")
     .eq("usuario_id", user.id)
     .order("created_at", { ascending: true });
 

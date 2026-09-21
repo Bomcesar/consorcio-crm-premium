@@ -61,6 +61,8 @@ const STATUS_OPTIONS = [
   "Pago",
   "Cancelado",
   "Ativo",
+  "Lance",
+  "Segundo Lance",
   "Sorteio Loteria Federal",
   "Resultado número da Loteria Federal",
   "Resultado da Assembleia",
@@ -475,7 +477,8 @@ const PosVendaPage = () => {
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
   };
 
-  const formatDateTime = (dateString: string) => {
+  const formatDateTime = (dateString: string | null) => {
+    if (!dateString) return "—";
     return new Date(dateString).toLocaleString("pt-BR");
   };
 
@@ -493,9 +496,11 @@ const PosVendaPage = () => {
       "Sorteio Loteria Federal": "outline",
       "Resultado número da Loteria Federal": "secondary",
       "Resultado da Assembleia": "secondary",
-      "Dia da Assembleia": "outline",
-      Contemplei: "success",
-      Imóvel: "outline",
+       "Dia da Assembleia": "outline",
+       Contemplei: "success",
+       "Lance": "outline",
+       "Segundo Lance": "outline",
+       Imóvel: "outline",
       Motors: "outline",
       Serviços: "outline",
       "Outros bens móveis": "outline",
@@ -563,60 +568,70 @@ const PosVendaPage = () => {
            }).length === 0 ? (
              <p className="text-sm text-muted-foreground">Nenhum registro cadastrado ainda.</p>
            ) : (
-             <div className="overflow-x-auto">
-               <Table>
-                 <TableHeader>
-                   <TableRow>
-                     <TableHead>Cliente</TableHead>
-                     <TableHead>Status</TableHead>
-                     <TableHead>Canal</TableHead>
-                    <TableHead>Contato</TableHead>
-                    <TableHead className="w-[100px] text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {posVenda.posVendas.filter((item) => {
-                     if (!posVendaSearch.trim()) return true;
-                     const q = posVendaSearch.trim().toLowerCase();
-                     const clienteNome = item.cliente?.nome?.toLowerCase() || "";
-                     const clienteTel = item.cliente?.telefone?.toLowerCase() || "";
-                     return clienteNome.includes(q) || clienteTel.includes(q);
-                   }).map((item) => {
-                     const clienteNome = item.cliente?.nome || "—";
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{clienteNome}</TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusBadge(item.status)}`}>
-                            {item.status}
-                          </span>
-                        </TableCell>
-                        <TableCell>{item.channel}</TableCell>
-                        <TableCell>{formatDate(item.next_contact_at)}</TableCell>
-                        <TableCell className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => posVenda.openEdit(item)}
-                            aria-label="Editar registro"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => posVenda.openDelete(item)}
-                            aria-label="Excluir registro"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Canal</TableHead>
+                      <TableHead>Próximo Contato</TableHead>
+                      <TableHead className="w-[100px] text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {posVenda.posVendas.filter((item) => {
+                      if (!posVendaSearch.trim()) return true;
+                      const q = posVendaSearch.trim().toLowerCase();
+                      const clienteNome = item.cliente?.nome?.toLowerCase() || "";
+                      const clienteTel = item.cliente?.telefone?.toLowerCase() || "";
+                      return clienteNome.includes(q) || clienteTel.includes(q);
+                    }).map((item) => {
+                      const clienteNome = item.cliente?.nome || "—";
+                      const clienteTel = item.cliente?.telefone || "—";
+                      const isLance = item.status === "Lance" || item.status === "Segundo Lance";
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">{clienteNome}</TableCell>
+                          <TableCell>{clienteTel}</TableCell>
+                          <TableCell>
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusBadge(item.status)}`}>
+                              {item.status}
+                            </span>
+                          </TableCell>
+                          <TableCell>{item.channel}</TableCell>
+                          <TableCell>{formatDateTime(item.next_contact_at)}</TableCell>
+                          {isLance && (
+                            <>
+                              <TableCell>{item.lance_grupo || "—"}</TableCell>
+                              <TableCell>{item.lance_cota || "—"}</TableCell>
+                            </>
+                          )}
+                          <TableCell className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => posVenda.openEdit(item)}
+                              aria-label="Editar registro"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => posVenda.openDelete(item)}
+                              aria-label="Excluir registro"
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
           )}
         </CardContent>
       </Card>
@@ -767,9 +782,32 @@ const PosVendaPage = () => {
                   onChange={(e) => handleChange("last_contact_at", e.target.value)}
                 />
               </div>
-            </div>
+             </div>
 
-            <div className="flex flex-wrap gap-2">
+             {(posVenda.formData.status === "Lance" || posVenda.formData.status === "Segundo Lance") && (
+               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                 <div className="space-y-2">
+                   <Label htmlFor="lance_grupo">Grupo</Label>
+                   <Input
+                     id="lance_grupo"
+                     value={posVenda.formData.lance_grupo || ""}
+                     onChange={(e) => handleChange("lance_grupo", e.target.value)}
+                     placeholder="Digite o número do grupo"
+                   />
+                 </div>
+                 <div className="space-y-2">
+                   <Label htmlFor="lance_cota">Cota</Label>
+                   <Input
+                     id="lance_cota"
+                     value={posVenda.formData.lance_cota || ""}
+                     onChange={(e) => handleChange("lance_cota", e.target.value)}
+                     placeholder="Digite o número da cota"
+                   />
+                 </div>
+               </div>
+             )}
+
+             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" onClick={() => handleSendWhatsApp("cliente")}>
                 <MessageSquare className="mr-2 h-4 w-4" />
                 Enviar para WhatsApp

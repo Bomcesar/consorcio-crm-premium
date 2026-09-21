@@ -1061,28 +1061,32 @@ export interface Database {
            boleto_url: string;
            lembrete_em: string | null;
            retencao_motivo: string;
-           retencao_data: string | null;
-         };
-         Insert: {
-           id?: string;
-           usuario_id?: string;
-           cliente_id?: string;
-           agenda_id?: string | null;
-           status?: string;
-           priority?: string;
-           satisfaction?: number;
-           next_contact_at?: string | null;
-           last_contact_at?: string | null;
-           channel?: string;
-           needs_attention?: boolean;
-           observacoes?: string;
-           boleto_url?: string;
-           lembrete_em?: string | null;
-           retencao_motivo?: string;
-           retencao_data?: string | null;
-           created_at?: string;
-           updated_at?: string;
-         };
+            retencao_data: string | null;
+            lance_grupo: string;
+            lance_cota: string;
+          };
+          Insert: {
+            id?: string;
+            usuario_id?: string;
+            cliente_id?: string;
+            agenda_id?: string | null;
+            status?: string;
+            priority?: string;
+            satisfaction?: number;
+            next_contact_at?: string | null;
+            last_contact_at?: string | null;
+            channel?: string;
+            needs_attention?: boolean;
+            observacoes?: string;
+            boleto_url?: string;
+            lembrete_em?: string | null;
+            retencao_motivo?: string;
+            retencao_data?: string | null;
+            lance_grupo?: string;
+            lance_cota?: string;
+            created_at?: string;
+            updated_at?: string;
+          };
          Update: {
            id?: string;
            usuario_id?: string;
@@ -1099,12 +1103,14 @@ export interface Database {
            boleto_url?: string;
            lembrete_em?: string | null;
            retencao_motivo?: string;
-           retencao_data?: string | null;
-           created_at?: string;
-           updated_at?: string;
-         };
-       };
-      pos_venda_historico: {
+            retencao_data?: string | null;
+            lance_grupo?: string;
+            lance_cota?: string;
+            created_at?: string;
+            updated_at?: string;
+          };
+        };
+       pos_venda_historico: {
         Row: {
           id: string;
           pos_venda_id: string;

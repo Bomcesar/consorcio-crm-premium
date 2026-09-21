@@ -18,6 +18,8 @@ const emptyForm: PosVendaInsert = {
   lembrete_em: null,
   retencao_motivo: "",
   retencao_data: null,
+  lance_grupo: "",
+  lance_cota: "",
 };
 
 export function usePosVenda() {
@@ -225,6 +227,8 @@ export function usePosVenda() {
       lembrete_em: posVenda.lembrete_em,
       retencao_motivo: posVenda.retencao_motivo,
       retencao_data: posVenda.retencao_data,
+      lance_grupo: posVenda.lance_grupo || "",
+      lance_cota: posVenda.lance_cota || "",
       created_at: posVenda.created_at,
       updated_at: posVenda.updated_at,
       usuario_id: posVenda.usuario_id,
