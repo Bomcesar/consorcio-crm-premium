@@ -51,6 +51,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { broadcastConversaoContato, broadcastCelebration, mensagemIndicacaoQualificada, getUsuarioAutenticado } from "@/lib/celebracao";
 import type { Lead, LeadHistorico, LeadAnexo } from "@/repositories/client/leads.repository";
 
 const emptyForm = {
@@ -218,6 +219,11 @@ export default function LeadsPage() {
         setLeads((prev) => prev.map((lead) => (lead.id === updated.id ? updated : lead)));
         if (isDetailOpen && selectedLead.id === updated.id) {
           setSelectedLead(updated);
+        }
+        if (formData.status === "Qualificado" && selectedLead.status !== "Qualificado") {
+          void getUsuarioAutenticado().then((u) =>
+            broadcastCelebration(mensagemIndicacaoQualificada(u.nome, selectedLead.nome)),
+          );
         }
       } else {
         const created = await create(payload);
@@ -398,10 +404,11 @@ export default function LeadsPage() {
         success("Lead convertido para negociação com sucesso.");
       }
 
-      setIsConvertOpen(false);
-    } catch {
-      error("Não foi possível converter o lead.");
-    } finally {
+       setIsConvertOpen(false);
+       broadcastConversaoContato(selectedLead.nome, convertTarget);
+     } catch {
+       error("Não foi possível converter o lead.");
+     } finally {
       setIsConverting(false);
     }
   };

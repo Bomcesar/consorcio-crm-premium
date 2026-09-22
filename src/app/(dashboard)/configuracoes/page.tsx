@@ -28,6 +28,7 @@ import { getAuthenticatedUser, hasPermission, canAssignProfile, canEditUserProfi
 import { getProfiles, updateProfile } from "@/repositories/client/profiles.repository";
 import type { Perfil } from "@/repositories/client/profiles.repository";
 import { createUsuarioAction, resetSenhaUsuarioAction, deleteUsuarioAction } from "@/app/actions/usuarios.actions";
+import { broadcastCadastroUsuario } from "@/lib/celebracao";
 import { ALL_NAV_ITEMS } from "@/config/navigation";
 
 type TabValue = "perfil" | "usuarios" | "permissoes" | "visibilidade";
@@ -309,6 +310,7 @@ export default function ConfiguracoesPage() {
 
         setUsuarios((prev) => [...prev, created]);
         success("Usuário criado com sucesso.");
+        broadcastCadastroUsuario(usuarioForm.nome, usuarioForm.perfil);
       } else {
         if (!editingUsuario) return;
 

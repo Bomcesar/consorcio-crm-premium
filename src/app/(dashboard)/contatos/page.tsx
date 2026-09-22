@@ -31,6 +31,7 @@ import type { Cliente, ClienteUpdate } from "@/repositories/client/clientes.repo
 import type { Contato, ContatoImportPreview } from "@/lib/contatos";
 import type { Pasta, PastaItem } from "@/repositories/client/pastas.repository";
 import { exportCSV, exportVCF, exportTXT, exportXLSX, downloadFile, parseCSV, parseVCF, parseTXT, parseXLSX, detectDuplicates } from "@/lib/contatos";
+import { broadcastConversaoContato } from "@/lib/celebracao";
 
 const emptyForm = {
   nome: "",
@@ -617,6 +618,7 @@ export default function ContatosPage() {
       setIsConvertOpen(false);
       setConvertingCliente(null);
       successRef.current("Contato convertido com sucesso.");
+      broadcastConversaoContato(convertingCliente.nome, convertTarget as "leads" | "clientes" | "indicadores" | "parceiros" | "recrutamento" | "negociacoes");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Não foi possível converter o contato.";
       errorRef.current(message);

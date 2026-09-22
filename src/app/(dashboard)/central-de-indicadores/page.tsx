@@ -55,6 +55,7 @@ import {
 import type { Indicador, IndicadorHistorico } from "@/repositories/client/indicadores.repository";
 import type { ContatoIndicado } from "@/repositories/client/contatos-indicados.repository";
 import { updateIndicador, deleteIndicador } from "@/repositories/client/indicadores.repository";
+import { broadcastCelebration, mensagemBemVindoEquipe, mensagemIndicacaoQualificada, getUsuarioAutenticado } from "@/lib/celebracao";
 
 const emptyForm = {
   nome: "",
@@ -276,6 +277,7 @@ export default function CentralDeIndicadoresPage() {
         setSelectedIndicator((prev) => (prev ? { ...prev, status: "Inativo" as Indicador["status"] } : prev));
       }
       success("Indicador convertido para cliente.");
+      broadcastCelebration(mensagemBemVindoEquipe(indicator.nome, "Consultor"));
     } catch {
       error("Não foi possível converter o indicador.");
     }
@@ -295,6 +297,7 @@ export default function CentralDeIndicadoresPage() {
         origem: indicator.origem || "Indicador",
       });
       success("Contato convertido para lead.");
+      broadcastCelebration(mensagemIndicacaoQualificada(indicator.nome, indicator.nome));
     } catch {
       error("Não foi possível converter para lead.");
     }
@@ -316,6 +319,7 @@ export default function CentralDeIndicadoresPage() {
         status: "Ativo",
       });
       success("Contato adicionado como indicador.");
+      broadcastCelebration(mensagemBemVindoEquipe(indicator.nome, "Indicador"));
     } catch {
       error("Não foi possível adicionar como indicador.");
     }
@@ -336,6 +340,7 @@ export default function CentralDeIndicadoresPage() {
         status: "Ativo",
       });
       success("Contato adicionado como indicador.");
+      broadcastCelebration(mensagemBemVindoEquipe(contact.nome, "Indicador"));
     } catch {
       error("Não foi possível adicionar como indicador.");
     }
@@ -374,6 +379,9 @@ export default function CentralDeIndicadoresPage() {
         origem: "Indicador",
       });
       success("Contato convertido para lead.");
+      void getUsuarioAutenticado().then((u) =>
+        broadcastCelebration(mensagemIndicacaoQualificada(u.nome, contact.nome)),
+      );
     } catch {
       error("Não foi possível converter para lead.");
     }
@@ -391,6 +399,7 @@ export default function CentralDeIndicadoresPage() {
         status: "Ativo",
       });
       success("Contato convertido para cliente.");
+      broadcastCelebration(mensagemBemVindoEquipe(contact.nome, "Consultor"));
     } catch {
       error("Não foi possível converter para cliente.");
     }
