@@ -1,9 +1,10 @@
 "use server";
 
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { Perfil } from "@/types/database.types";
 import type { Usuario } from "@/repositories/client/usuarios.repository";
+import { hasPermission, canAssignProfile } from "@/lib/auth-user";
 
 export async function createUsuarioAction(
   email: string,
@@ -11,6 +12,38 @@ export async function createUsuarioAction(
   nome: string,
   perfil: Perfil
 ): Promise<Usuario> {
+  const serverClient = await createClient();
+  const { data: { user: authUser }, error: authError } = await serverClient.auth.getUser();
+
+  if (authError || !authUser?.id) {
+    throw new Error("Não autenticado. É necessário estar logado para criar usuários.");
+  }
+
+  const { data: callerProfile, error: callerProfileError } = await serverClient
+    .from("profiles")
+    .select("perfil")
+    .eq("id", authUser.id)
+    .single();
+
+  if (callerProfileError || !callerProfile) {
+    throw new Error("Não foi possível carregar o perfil do usuário autenticado.");
+  }
+
+  const caller = {
+    id: authUser.id,
+    email: authUser.email,
+    perfil: callerProfile.perfil as string | undefined,
+    permissoes: [],
+  };
+
+  if (!hasPermission(caller, "usuarios.criar")) {
+    throw new Error("Sem permissão para criar usuários. Apenas Administradores e Gestores podem criar usuários.");
+  }
+
+  if (!canAssignProfile(caller, perfil)) {
+    throw new Error("Sem permissão para atribuir este perfil. Gestores não podem criar usuários como Administrador ou Gestor.");
+  }
+
   let supabase;
   try {
     supabase = createAdminClient();
@@ -131,6 +164,27 @@ export async function createUsuarioAction(
 }
 
 export async function resetSenhaUsuarioAction(usuarioId: string, novaSenha: string) {
+  const serverClient = await createClient();
+  const { data: { user: authUser }, error: authError } = await serverClient.auth.getUser();
+
+  if (authError || !authUser?.id) {
+    throw new Error("Não autenticado.");
+  }
+
+  const { data: callerProfile, error: callerProfileError } = await serverClient
+    .from("profiles")
+    .select("perfil")
+    .eq("id", authUser.id)
+    .single();
+
+  if (callerProfileError || !callerProfile) {
+    throw new Error("Não foi possível carregar o perfil do usuário autenticado.");
+  }
+
+  if (callerProfile.perfil !== "Administrador") {
+    throw new Error("Sem permissão para redefinir senhas. Apenas Administradores podem redefinir senhas de usuários.");
+  }
+
   const supabase = createAdminClient();
 
   const { error } = await supabase.auth.admin.updateUserById(usuarioId, {
@@ -150,6 +204,27 @@ export async function resetSenhaUsuarioAction(usuarioId: string, novaSenha: stri
 }
 
 export async function deleteUsuarioAction(usuarioId: string) {
+  const serverClient = await createClient();
+  const { data: { user: authUser }, error: authError } = await serverClient.auth.getUser();
+
+  if (authError || !authUser?.id) {
+    throw new Error("Não autenticado.");
+  }
+
+  const { data: callerProfile, error: callerProfileError } = await serverClient
+    .from("profiles")
+    .select("perfil")
+    .eq("id", authUser.id)
+    .single();
+
+  if (callerProfileError || !callerProfile) {
+    throw new Error("Não foi possível carregar o perfil do usuário autenticado.");
+  }
+
+  if (callerProfile.perfil !== "Administrador") {
+    throw new Error("Sem permissão para excluir usuários. Apenas Administradores podem excluir usuários.");
+  }
+
   const supabase = createAdminClient();
 
   const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(usuarioId);
