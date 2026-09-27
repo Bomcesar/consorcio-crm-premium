@@ -1,6 +1,7 @@
 "use client";
 
 import { StatsCards } from "@/components/dashboard/stats-cards";
+import { MetasCards } from "@/components/dashboard/metas-cards";
 import {
   RecentActivity,
   UpcomingSchedule,
@@ -89,6 +90,7 @@ export default function DashboardPage() {
       ) : (
         <>
           <StatsCards stats={stats!} atividades={atividades} />
+          <MetasCards metas={stats!.metas} valorVendasRealizado={stats!.valorVendasRealizado} />
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <RecentActivity atividades={atividades} />

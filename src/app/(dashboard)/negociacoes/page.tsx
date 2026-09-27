@@ -298,6 +298,15 @@ export default function NegociacoesPage() {
     setFormData((current: NegociacaoFormData) => ({ ...current, [field]: value }));
   };
 
+  useEffect(() => {
+    const valorCredito = Number(formData.valor_credito) || 0;
+    const porcentagem = Number(formData.comissao_estimada_porcentagem) || 0;
+    if (valorCredito > 0 && porcentagem > 0) {
+      const comissaoCalculada = (valorCredito * porcentagem) / 100;
+      setFormData((current) => ({ ...current, comissao_estimada: comissaoCalculada.toFixed(2) }));
+    }
+  }, [formData.valor_credito, formData.comissao_estimada_porcentagem]);
+
   const loadNegociacoes = async () => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -622,6 +631,7 @@ export default function NegociacoesPage() {
         parcela_reduzida: Number(formData.parcela_reduzida) || 0,
         administradora: formData.administradora.trim(),
         tipo_bem: formData.tipo_bem,
+        comissao_estimada_em_porcentagem: Number(formData.comissao_estimada_porcentagem) || 2,
         ...(formData.lead_id ? { lead_id: formData.lead_id } : {}),
       };
 

@@ -4,6 +4,15 @@ import { withTimeout } from "@/lib/supabase-timeout";
 import type { Database } from "@/types/database.types";
 import type { EventoAgenda } from "@/repositories/agenda.repository";
 
+export type MetaSimplificada = {
+  id: string;
+  titulo: string;
+  valor_alvo: number;
+  valor_realizado: number;
+  perfil_aplicavel: string;
+  tipo: string;
+};
+
 export type DashboardStats = {
   totalLeads: number;
   totalIndicadores: number;
@@ -15,6 +24,8 @@ export type DashboardStats = {
   totalCobrancas: number;
   totalPendencias: number;
   totalPosVenda: number;
+  metas: MetaSimplificada[];
+  valorVendasRealizado: number;
 };
 
 export type DashboardAtividadeRecente = {
@@ -240,6 +251,12 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     ? supabase.from("pos_venda").select("*", { count: "exact", head: true })
     : supabase.from("pos_venda").select("*", { count: "exact", head: true }).eq("usuario_id", user.id);
 
+  const vendasValorQuery = isAdminOrGestor
+    ? supabase.from("negociacoes").select("valor").eq("etapa", "Venda")
+    : supabase.from("negociacoes").select("valor").eq("usuario_id", user.id).eq("etapa", "Venda");
+
+  const metasQuery = supabase.from("metas").select("*").eq("ativo", true).order("periodo_inicio", { ascending: false });
+
   const [
     leadsResult,
     indicadoresResult,
@@ -251,6 +268,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     cobrancasResult,
     pendenciasResult,
     posVendaResult,
+    vendasValorResult,
+    metasResult,
   ] = await Promise.all([
     withTimeout(leadsQuery, 10000, { count: 0, error: null, data: null }),
     withTimeout(indicadoresQuery, 10000, { count: 0, error: null, data: null }),
@@ -262,10 +281,18 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     withTimeout(cobrancasQuery, 10000, { count: 0, error: null, data: null }),
     withTimeout(pendenciasQuery, 10000, { count: 0, error: null, data: null }),
     withTimeout(posVendaQuery, 10000, { count: 0, error: null, data: null }),
+    withTimeout(vendasValorQuery, 10000, { count: 0, error: null, data: null }),
+    withTimeout(metasQuery, 10000, { data: null, error: null, count: null }),
   ]);
 
   const safeCount = (result: { count: number | null; error?: { message: string } | null }) =>
     result.error ? 0 : (result.count ?? 0);
+
+  const valorVendasRealizado = Array.isArray(vendasValorResult.data)
+    ? vendasValorResult.data.reduce((sum: number, v: { valor: number }) => sum + Number(v.valor || 0), 0)
+    : 0;
+
+  const metas = (metasResult.data ?? []) as MetaSimplificada[];
 
   return {
     totalLeads: safeCount(leadsResult),
@@ -278,6 +305,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     totalCobrancas: safeCount(cobrancasResult),
     totalPendencias: safeCount(pendenciasResult),
     totalPosVenda: safeCount(posVendaResult),
+    metas,
+    valorVendasRealizado: Math.round(valorVendasRealizado * 100) / 100,
   };
 }
 
