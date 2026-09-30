@@ -255,7 +255,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     ? supabase.from("negociacoes").select("valor").eq("etapa", "Venda")
     : supabase.from("negociacoes").select("valor").eq("usuario_id", user.id).eq("etapa", "Venda");
 
-  const metasQuery = supabase.from("metas").select("*").eq("ativo", true).order("periodo_inicio", { ascending: false });
+  const metasQuery = isAdminOrGestor
+    ? supabase.from("metas").select("id,titulo,descricao,tipo,valor_alvo,valor_realizado,periodo_inicio,periodo_fim,usuario_id,perfil_aplicavel,ativo").eq("ativo", true).order("periodo_inicio", { ascending: false })
+    : supabase.from("metas").select("id,titulo,descricao,tipo,valor_alvo,valor_realizado,periodo_inicio,periodo_fim,usuario_id,perfil_aplicavel,ativo").eq("ativo", true).eq("perfil_aplicavel", "Equipe").order("periodo_inicio", { ascending: false });
 
   const [
     leadsResult,
@@ -292,7 +294,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     ? vendasValorResult.data.reduce((sum: number, v: { valor: number }) => sum + Number(v.valor || 0), 0)
     : 0;
 
-  const metas = (metasResult.data ?? []) as MetaSimplificada[];
+  const metas = ((metasResult.data ?? []) as MetaSimplificada[]).filter((m) => m.valor_alvo > 0);
 
   return {
     totalLeads: safeCount(leadsResult),

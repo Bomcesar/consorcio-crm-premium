@@ -43,49 +43,49 @@ ALTER TABLE public.pos_venda_historico ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pos_venda_tarefas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pos_venda_comunicacoes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Authenticated users can view their pos_venda_historico"
+DROP POLICY IF EXISTS "Authenticated users can view their pos_venda_historico" ON public.pos_venda_historico; CREATE POLICY "Authenticated users can view their pos_venda_historico"
   ON public.pos_venda_historico FOR SELECT
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can insert their pos_venda_historico"
+DROP POLICY IF EXISTS "Authenticated users can insert their pos_venda_historico" ON public.pos_venda_historico; CREATE POLICY "Authenticated users can insert their pos_venda_historico"
   ON public.pos_venda_historico FOR INSERT
   WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can delete their pos_venda_historico"
+DROP POLICY IF EXISTS "Authenticated users can delete their pos_venda_historico" ON public.pos_venda_historico; CREATE POLICY "Authenticated users can delete their pos_venda_historico"
   ON public.pos_venda_historico FOR DELETE
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can view their pos_venda_tarefas"
+DROP POLICY IF EXISTS "Authenticated users can view their pos_venda_tarefas" ON public.pos_venda_tarefas; CREATE POLICY "Authenticated users can view their pos_venda_tarefas"
   ON public.pos_venda_tarefas FOR SELECT
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can insert their pos_venda_tarefas"
+DROP POLICY IF EXISTS "Authenticated users can insert their pos_venda_tarefas" ON public.pos_venda_tarefas; CREATE POLICY "Authenticated users can insert their pos_venda_tarefas"
   ON public.pos_venda_tarefas FOR INSERT
   WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can update their pos_venda_tarefas"
+DROP POLICY IF EXISTS "Authenticated users can update their pos_venda_tarefas" ON public.pos_venda_tarefas; CREATE POLICY "Authenticated users can update their pos_venda_tarefas"
   ON public.pos_venda_tarefas FOR UPDATE
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id)
   WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can delete their pos_venda_tarefas"
+DROP POLICY IF EXISTS "Authenticated users can delete their pos_venda_tarefas" ON public.pos_venda_tarefas; CREATE POLICY "Authenticated users can delete their pos_venda_tarefas"
   ON public.pos_venda_tarefas FOR DELETE
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can view their pos_venda_comunicacoes"
+DROP POLICY IF EXISTS "Authenticated users can view their pos_venda_comunicacoes" ON public.pos_venda_comunicacoes; CREATE POLICY "Authenticated users can view their pos_venda_comunicacoes"
   ON public.pos_venda_comunicacoes FOR SELECT
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can insert their pos_venda_comunicacoes"
+DROP POLICY IF EXISTS "Authenticated users can insert their pos_venda_comunicacoes" ON public.pos_venda_comunicacoes; CREATE POLICY "Authenticated users can insert their pos_venda_comunicacoes"
   ON public.pos_venda_comunicacoes FOR INSERT
   WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can update their pos_venda_comunicacoes"
+DROP POLICY IF EXISTS "Authenticated users can update their pos_venda_comunicacoes" ON public.pos_venda_comunicacoes; CREATE POLICY "Authenticated users can update their pos_venda_comunicacoes"
   ON public.pos_venda_comunicacoes FOR UPDATE
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id)
   WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can delete their pos_venda_comunicacoes"
+DROP POLICY IF EXISTS "Authenticated users can delete their pos_venda_comunicacoes" ON public.pos_venda_comunicacoes; CREATE POLICY "Authenticated users can delete their pos_venda_comunicacoes"
   ON public.pos_venda_comunicacoes FOR DELETE
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
@@ -94,4 +94,5 @@ CREATE INDEX IF NOT EXISTS pos_venda_tarefas_pos_venda_id_idx ON public.pos_vend
 CREATE INDEX IF NOT EXISTS pos_venda_comunicacoes_pos_venda_id_idx ON public.pos_venda_comunicacoes (pos_venda_id);
 
 COMMIT;
+
 

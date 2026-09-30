@@ -69,37 +69,37 @@ CREATE TRIGGER update_agenda_followups_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION public.update_agenda_followups_updated_at();
 
-CREATE POLICY "Authenticated users can view their agenda tarefas"
+DROP POLICY IF EXISTS "Authenticated users can view their agenda tarefas" ON public.agenda_tarefas; CREATE POLICY "Authenticated users can view their agenda tarefas"
   ON public.agenda_tarefas FOR SELECT
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can insert their agenda tarefas"
+DROP POLICY IF EXISTS "Authenticated users can insert their agenda tarefas" ON public.agenda_tarefas; CREATE POLICY "Authenticated users can insert their agenda tarefas"
   ON public.agenda_tarefas FOR INSERT
   WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can update their agenda tarefas"
+DROP POLICY IF EXISTS "Authenticated users can update their agenda tarefas" ON public.agenda_tarefas; CREATE POLICY "Authenticated users can update their agenda tarefas"
   ON public.agenda_tarefas FOR UPDATE
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id)
   WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can delete their agenda tarefas"
+DROP POLICY IF EXISTS "Authenticated users can delete their agenda tarefas" ON public.agenda_tarefas; CREATE POLICY "Authenticated users can delete their agenda tarefas"
   ON public.agenda_tarefas FOR DELETE
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can view their agenda followups"
+DROP POLICY IF EXISTS "Authenticated users can view their agenda followups" ON public.agenda_followups; CREATE POLICY "Authenticated users can view their agenda followups"
   ON public.agenda_followups FOR SELECT
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can insert their agenda followups"
+DROP POLICY IF EXISTS "Authenticated users can insert their agenda followups" ON public.agenda_followups; CREATE POLICY "Authenticated users can insert their agenda followups"
   ON public.agenda_followups FOR INSERT
   WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can update their agenda followups"
+DROP POLICY IF EXISTS "Authenticated users can update their agenda followups" ON public.agenda_followups; CREATE POLICY "Authenticated users can update their agenda followups"
   ON public.agenda_followups FOR UPDATE
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id)
   WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
-CREATE POLICY "Authenticated users can delete their agenda followups"
+DROP POLICY IF EXISTS "Authenticated users can delete their agenda followups" ON public.agenda_followups; CREATE POLICY "Authenticated users can delete their agenda followups"
   ON public.agenda_followups FOR DELETE
   USING (auth.role() = 'authenticated' AND auth.uid() = usuario_id);
 
@@ -111,4 +111,5 @@ CREATE INDEX IF NOT EXISTS agenda_followups_evento_id_idx ON public.agenda_follo
 CREATE INDEX IF NOT EXISTS agenda_followups_usuario_id_idx ON public.agenda_followups (usuario_id);
 
 COMMIT;
+
 

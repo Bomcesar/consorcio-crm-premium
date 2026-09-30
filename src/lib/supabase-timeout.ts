@@ -7,5 +7,8 @@ export function withTimeout<T>(
     setTimeout(() => resolve(fallback as T), ms);
   });
 
-  return Promise.race([Promise.resolve(promise as Promise<T>), timeout]);
+  return Promise.race([
+    Promise.resolve(promise as Promise<T>).catch(() => fallback as T),
+    timeout,
+  ]);
 }

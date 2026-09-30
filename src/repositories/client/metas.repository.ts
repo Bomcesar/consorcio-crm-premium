@@ -15,10 +15,12 @@ export async function getMetas(): Promise<Meta[]> {
 
   const supabase = createClient();
 
+  const SELECT_COLUMNS = "id,titulo,descricao,tipo,valor_alvo,valor_realizado,periodo_inicio,periodo_fim,usuario_id,perfil_aplicavel,ativo,created_at,updated_at";
+
   if (user.perfil === "Administrador") {
     const { data, error } = await supabase
       .from("metas")
-      .select("*")
+      .select(SELECT_COLUMNS)
       .order("periodo_inicio", { ascending: false });
 
     if (error) throw new Error("Não foi possível carregar as metas.");
@@ -28,7 +30,7 @@ export async function getMetas(): Promise<Meta[]> {
   if (user.perfil === "Gestor") {
     const { data, error } = await supabase
       .from("metas")
-      .select("*")
+      .select(SELECT_COLUMNS)
       .or(`perfil_aplicavel.eq.Equipe,usuario_id.eq.${user.id}`)
       .order("periodo_inicio", { ascending: false });
 
@@ -38,7 +40,7 @@ export async function getMetas(): Promise<Meta[]> {
 
   const { data, error } = await supabase
     .from("metas")
-    .select("*")
+    .select(SELECT_COLUMNS)
     .or(`usuario_id.eq.${user.id},perfil_aplicavel.eq.Equipe`)
     .order("periodo_inicio", { ascending: false });
 
@@ -56,7 +58,7 @@ export async function getMeta(id: string): Promise<Meta | null> {
 
   const { data, error } = await supabase
     .from("metas")
-    .select("*")
+    .select("id,titulo,descricao,tipo,valor_alvo,valor_realizado,periodo_inicio,periodo_fim,usuario_id,perfil_aplicavel,ativo,created_at,updated_at")
     .eq("id", id)
     .single();
 
@@ -81,8 +83,8 @@ export async function createMeta(payload: MetaInsert): Promise<Meta> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("metas")
-    .insert({ ...payload, usuario_id: user.id })
-    .select()
+       .insert({ ...payload, usuario_id: user.id })
+    .select("id,titulo,descricao,tipo,valor_alvo,valor_realizado,periodo_inicio,periodo_fim,usuario_id,perfil_aplicavel,ativo,created_at,updated_at")
     .single();
 
   if (error || !data) throw new Error("Não foi possível salvar a meta.");
@@ -101,6 +103,7 @@ export async function updateMeta(id: string, payload: MetaUpdate): Promise<Meta>
     .from("metas")
     .update(payload)
     .eq("id", id)
+    .select("id,titulo,descricao,tipo,valor_alvo,valor_realizado,periodo_inicio,periodo_fim,usuario_id,perfil_aplicavel,ativo,created_at,updated_at")
     .single();
 
   if (error || !data) throw new Error("Não foi possível atualizar a meta.");

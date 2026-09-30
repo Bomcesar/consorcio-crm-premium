@@ -18,10 +18,12 @@ CREATE TABLE IF NOT EXISTS public.lead_historico (
 
 ALTER TABLE public.lead_historico ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow authenticated users to view lead historico" ON public.lead_historico;
 CREATE POLICY "Allow authenticated users to view lead historico"
   ON public.lead_historico FOR SELECT
   USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Allow authenticated users to insert lead historico" ON public.lead_historico;
 CREATE POLICY "Allow authenticated users to insert lead historico"
   ON public.lead_historico FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
@@ -39,14 +41,17 @@ CREATE TABLE IF NOT EXISTS public.lead_anexos (
 
 ALTER TABLE public.lead_anexos ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow authenticated users to view lead anexos" ON public.lead_anexos;
 CREATE POLICY "Allow authenticated users to view lead anexos"
   ON public.lead_anexos FOR SELECT
   USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Allow authenticated users to insert lead anexos" ON public.lead_anexos;
 CREATE POLICY "Allow authenticated users to insert lead anexos"
   ON public.lead_anexos FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Allow authenticated users to delete lead anexos" ON public.lead_anexos;
 CREATE POLICY "Allow authenticated users to delete lead anexos"
   ON public.lead_anexos FOR DELETE
   USING (auth.role() = 'authenticated');

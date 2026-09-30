@@ -49,7 +49,7 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser> {
   }
 
   let permissoes: string[] = [];
-  if (perfil === "Administrador" || perfil === "Gestor") {
+  if (perfil) {
     const grantsResult = await withTimeout(
       supabase.from("user_permission_grants").select("permissao_id").eq("usuario_id", data.user.id),
       8000,
