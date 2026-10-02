@@ -301,10 +301,15 @@ export default function ConfiguracoesPage() {
           return;
         }
 
+        if (!usuarioForm.email.trim() || !usuarioForm.nome.trim()) {
+          error("Informe nome e e-mail.");
+          return;
+        }
+
         const created = await createUsuarioAction(
-          usuarioForm.email,
+          usuarioForm.email.trim(),
           senha,
-          usuarioForm.nome,
+          usuarioForm.nome.trim(),
           usuarioForm.perfil,
         );
 
@@ -344,11 +349,22 @@ export default function ConfiguracoesPage() {
       setSenha("");
       setUsuarioForm({ nome: "", email: "", perfil: "Consultor", ativo: true });
     } catch (err) {
-      console.error("[handleUsuarioSubmit] error:", err);
-      const errMsg = err instanceof Error ? err.message : "Erro desconhecido";
-      error(isCreatingUsuario
-        ? `Não foi possível criar o usuário: ${errMsg}`
-        : `Não foi possível atualizar o usuário: ${errMsg}`);
+      // O `digest` só existe em build de produção: é o identificador que
+      // correlaciona o erro mascarado do Next com o log do servidor.
+      const digest = (err as { digest?: string })?.digest;
+      console.error("[handleUsuarioSubmit] error:", err, digest ? { digest } : {});
+      const bruto = err instanceof Error ? err.message : "Erro desconhecido";
+      const ehServidor = bruto.includes("Server Components render") || bruto.includes("digest");
+      const errMsg = ehServidor
+        ? digest
+          ? `erro interno (digest ${digest}). Veja o log do servidor.`
+          : "erro interno no servidor. Veja o log do servidor."
+        : bruto;
+      error(
+        isCreatingUsuario
+          ? `Não foi possível criar o usuário: ${errMsg}`
+          : `Não foi possível atualizar o usuário: ${errMsg}`,
+      );
     } finally {
       setIsUsuarioSaving(false);
     }

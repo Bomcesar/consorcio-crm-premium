@@ -1,31 +1,43 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useToastContext } from "@/components/ui/toast";
 
-type ToastType = "success" | "error" | "warning" | "info";
+export type ToastOpcoes = {
+  title: string;
+  description?: string | null;
+  variant?: "default" | "destructive";
+};
 
-interface Toast {
-  id: string;
-  message: string;
-  type: ToastType;
-}
-
+/**
+ * Adaptador de compatibilidade.
+ *
+ * Historicamente este módulo guardava os toasts em `useState` próprio.
+ * Nada renderizava esse estado: o componente visível (`ToasterProvider`)
+ * usa outro contexto. Resultado — todo `success()`/`error()` feito por
+ * aqui era silenciosamente descartado e o usuário não recebia nenhuma
+ * confirmação, parecendo que a operação simplesmente não acontecia.
+ *
+ * Agora o hook delega ao contexto do `ToasterProvider`, de modo que os
+ * avisos realmente aparecem. Fora do dashboard (login, convite de live,
+ * reset de senha) não há provider: nesse caso cai para `console`, e a
+ * operação segue sem quebrar a tela.
+ */
 export function useToast() {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const contexto = useToastContext();
 
-  const addToast = useCallback((message: string, type: ToastType = "info") => {
-    const id = Math.random().toString(36).slice(2);
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
-  }, []);
+  const add = (message: string, type: "success" | "error" | "warning" | "info") => {
+    if (!contexto) {
+      if (type === "error") console.error("[toast]", message);
+      return;
+    }
+    contexto.addToast({ title: message, type });
+  };
 
   return {
-    toasts,
-    success: (message: string) => addToast(message, "success"),
-    error: (message: string) => addToast(message, "error"),
-    warning: (message: string) => addToast(message, "warning"),
-    info: (message: string) => addToast(message, "info"),
+    toasts: contexto?.toasts ?? [],
+    success: (message: string) => add(message, "success"),
+    error: (message: string) => add(message, "error"),
+    warning: (message: string) => add(message, "warning"),
+    info: (message: string) => add(message, "info"),
   };
 }

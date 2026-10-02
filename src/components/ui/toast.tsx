@@ -16,6 +16,18 @@ const toastContext = React.createContext<{
   addToast: (toast: Omit<ToasterMessage, "id">) => void;
 } | null>(null);
 
+/**
+ * Acesso sem exceção ao contexto do toaster.
+ *
+ * `useToast` (abaixo) lança quando não há `ToasterProvider` — correto
+ * para quem quer falhar alto, mas quebrado para páginas renderizadas
+ * fora do dashboard (login, convite de live, reset de senha), onde o
+ * aviso silencioso ainda é melhor que uma tela branca.
+ */
+export function useToastContext() {
+  return React.useContext(toastContext);
+}
+
 export function ToasterProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = React.useState<ToasterMessage[]>([]);
 

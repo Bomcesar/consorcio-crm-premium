@@ -6,7 +6,34 @@ import type { Perfil } from "@/types/database.types";
 import type { Usuario } from "@/repositories/client/usuarios.repository";
 import { hasPermission, canAssignProfile } from "@/lib/auth-user";
 
+/**
+ * Cria um usuário e, para o perfil Indicador, o registro em `indicadores`.
+ *
+ * Este arquivo é uma Server Action. Uma exceção aqui vira HTTP 500 e, em
+ * build de produção, o Next substitui a mensagem por um texto genérico com
+ * um `digest` — o detalhe real só aparece no log do servidor. Por isso
+ * todo erro é registrado aqui antes de repropagar.
+ */
 export async function createUsuarioAction(
+  email: string,
+  password: string,
+  nome: string,
+  perfil: Perfil
+): Promise<Usuario> {
+  try {
+    return await criarUsuario(email, password, nome, perfil);
+  } catch (erro) {
+    console.error("[createUsuarioAction] falhou:", {
+      perfil,
+      email,
+      mensagem: erro instanceof Error ? erro.message : String(erro),
+      stack: erro instanceof Error ? erro.stack : undefined,
+    });
+    throw erro;
+  }
+}
+
+async function criarUsuario(
   email: string,
   password: string,
   nome: string,
@@ -26,6 +53,15 @@ export async function createUsuarioAction(
     .single();
 
   if (callerProfileError || !callerProfile) {
+    // Sem este log, um simples "perfil não encontrado" chega ao usuário
+    // como erro genérico de Server Components, indistinguível de uma
+    // falha de infraestrutura.
+    console.error("[createUsuarioAction] perfil do caller não carregou:", {
+      callerId: authUser.id,
+      erro: callerProfileError?.message,
+      codigo: callerProfileError?.code,
+      detalhes: callerProfileError?.details,
+    });
     throw new Error("Não foi possível carregar o perfil do usuário autenticado.");
   }
 
@@ -35,6 +71,12 @@ export async function createUsuarioAction(
     perfil: callerProfile.perfil as string | undefined,
     permissoes: [],
   };
+
+  console.log("[createUsuarioAction] caller resolvido", {
+    id: caller.id,
+    perfil: caller.perfil,
+    perfilAlvo: perfil,
+  });
 
   if (!hasPermission(caller, "usuarios.criar")) {
     throw new Error("Sem permissão para criar usuários. Apenas Administradores e Gestores podem criar usuários.");
