@@ -22,13 +22,17 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/api/auth");
   const isPublicProposal = request.nextUrl.pathname.startsWith("/proposta/");
   const isPublicProposalApi = request.nextUrl.pathname.startsWith("/api/propostas/");
+  // Sala pública de live: acessível somente por token (convidado externo).
+  const isPublicLive = request.nextUrl.pathname.startsWith("/live/convite/");
+  const isPublicLiveApi = request.nextUrl.pathname.startsWith("/api/live/convite/");
+  const isPublicLiveRoute = isPublicLive || isPublicLiveApi;
 
   if (isPublicAsset) {
     return supabaseResponse;
   }
 
   if (!isSupabaseConfigured()) {
-    if (!isAuthRoute && !isPublicProposal && !isPublicProposalApi) {
+    if (!isAuthRoute && !isPublicProposal && !isPublicProposalApi && !isPublicLiveRoute) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       return NextResponse.redirect(url);
@@ -57,7 +61,7 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && !isAuthRoute && !isPublicProposal && !isPublicProposalApi) {
+  if (!user && !isAuthRoute && !isPublicProposal && !isPublicProposalApi && !isPublicLiveRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

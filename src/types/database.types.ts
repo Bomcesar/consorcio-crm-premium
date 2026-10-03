@@ -2330,6 +2330,381 @@ export interface Database {
             updated_at?: string;
           };
         };
+        live_rooms: {
+          Row: {
+            id: string;
+            titulo: string;
+            descricao: string;
+            anfitriao_id: string;
+            status: string;
+            modo: string;
+            livekit_room: string;
+            max_cadeiras: number;
+            iniciada_em: string | null;
+            encerrada_em: string | null;
+            created_at: string;
+            updated_at: string;
+          };
+          Insert: {
+            id?: string;
+            titulo?: string;
+            descricao?: string;
+            anfitriao_id: string;
+            status?: string;
+            modo?: string;
+            livekit_room: string;
+            max_cadeiras?: number;
+            iniciada_em?: string | null;
+            encerrada_em?: string | null;
+            created_at?: string;
+            updated_at?: string;
+          };
+          Update: {
+            id?: string;
+            titulo?: string;
+            descricao?: string;
+            anfitriao_id?: string;
+            status?: string;
+            modo?: string;
+            livekit_room?: string;
+            max_cadeiras?: number;
+            iniciada_em?: string | null;
+            encerrada_em?: string | null;
+            updated_at?: string;
+          };
+        };
+        live_participantes: {
+          Row: {
+            id: string;
+            live_id: string;
+            usuario_id: string | null;
+            convidado_hash: string | null;
+            nome_exibicao: string;
+            perfil: string | null;
+            tipo: string;
+            cadeira: number | null;
+            microfone_ativo: boolean;
+            camera_ativa: boolean;
+            bloqueado: boolean;
+            saiu_em: string | null;
+            last_seen_at: string;
+            created_at: string;
+            updated_at: string;
+          };
+          Insert: {
+            id?: string;
+            live_id: string;
+            usuario_id?: string | null;
+            convidado_hash?: string | null;
+            nome_exibicao?: string;
+            perfil?: string | null;
+            tipo?: string;
+            cadeira?: number | null;
+            microfone_ativo?: boolean;
+            camera_ativa?: boolean;
+            bloqueado?: boolean;
+            saiu_em?: string | null;
+            last_seen_at?: string;
+            created_at?: string;
+            updated_at?: string;
+          };
+          Update: {
+            nome_exibicao?: string;
+            perfil?: string | null;
+            tipo?: string;
+            cadeira?: number | null;
+            microfone_ativo?: boolean;
+            camera_ativa?: boolean;
+            bloqueado?: boolean;
+            saiu_em?: string | null;
+            last_seen_at?: string;
+            updated_at?: string;
+          };
+        };
+        live_solicitacoes: {
+          Row: {
+            id: string;
+            live_id: string;
+            usuario_id: string;
+            status: string;
+            created_at: string;
+            respondida_em: string | null;
+            respondido_por: string | null;
+          };
+          Insert: {
+            id?: string;
+            live_id: string;
+            usuario_id: string;
+            status?: string;
+            created_at?: string;
+            respondida_em?: string | null;
+            respondido_por?: string | null;
+          };
+          Update: {
+            status?: string;
+            respondida_em?: string | null;
+            respondido_por?: string | null;
+          };
+        };
+        live_convites: {
+          Row: {
+            id: string;
+            live_id: string;
+            token_hash: string;
+            rotulo: string;
+            criado_por: string;
+            expira_em: string;
+            limite_acessos: number | null;
+            acessos: number;
+            revogado: boolean;
+            ultimo_acesso_em: string | null;
+            created_at: string;
+            updated_at: string;
+          };
+          Insert: {
+            id?: string;
+            live_id: string;
+            token_hash: string;
+            rotulo?: string;
+            criado_por: string;
+            expira_em: string;
+            limite_acessos?: number | null;
+            acessos?: number;
+            revogado?: boolean;
+            ultimo_acesso_em?: string | null;
+            created_at?: string;
+            updated_at?: string;
+          };
+          Update: {
+            rotulo?: string;
+            expira_em?: string;
+            limite_acessos?: number | null;
+            revogado?: boolean;
+            ultimo_acesso_em?: string | null;
+            updated_at?: string;
+          };
+        };
+        live_convite_acessos: {
+          Row: {
+            id: string;
+            convite_id: string;
+            nome_exibicao: string;
+            user_agent: string;
+            ip_hash: string;
+            entrou_em: string;
+            saiu_em: string | null;
+          };
+          Insert: {
+            convite_id: string;
+            nome_exibicao?: string;
+            user_agent?: string;
+            ip_hash?: string;
+            entrou_em?: string;
+            saiu_em?: string | null;
+          };
+          Update: {
+            nome_exibicao?: string;
+            saiu_em?: string | null;
+          };
+        };
+        live_chat_mensagens: {
+          Row: {
+            id: string;
+            live_id: string;
+            autor_usuario_id: string | null;
+            autor_convidado_hash: string | null;
+            nome_exibicao: string;
+            perfil: string | null;
+            mensagem: string;
+            tipo: string;
+            created_at: string;
+          };
+          Insert: {
+            id?: string;
+            live_id: string;
+            autor_usuario_id?: string | null;
+            autor_convidado_hash?: string | null;
+            nome_exibicao?: string;
+            perfil?: string | null;
+            mensagem: string;
+            tipo?: string;
+            created_at?: string;
+          };
+          Update: {
+            mensagem?: string;
+            nome_exibicao?: string;
+          };
+        };
+        live_presentes_categorias: {
+          Row: {
+            id: string;
+            nome: string;
+            slug: string;
+            emoji: string;
+            ordem: number;
+            ativo: boolean;
+            created_at: string;
+            updated_at: string;
+          };
+          Insert: {
+            id?: string;
+            nome: string;
+            slug: string;
+            emoji?: string;
+            ordem?: number;
+            ativo?: boolean;
+            created_at?: string;
+            updated_at?: string;
+          };
+          Update: {
+            nome?: string;
+            emoji?: string;
+            ordem?: number;
+            ativo?: boolean;
+            updated_at?: string;
+          };
+        };
+        live_presentes_subcategorias: {
+          Row: {
+            id: string;
+            categoria_id: string;
+            nome: string;
+            slug: string;
+            ordem: number;
+            ativo: boolean;
+            created_at: string;
+            updated_at: string;
+          };
+          Insert: {
+            id?: string;
+            categoria_id: string;
+            nome: string;
+            slug: string;
+            ordem?: number;
+            ativo?: boolean;
+            created_at?: string;
+            updated_at?: string;
+          };
+          Update: {
+            nome?: string;
+            ordem?: number;
+            ativo?: boolean;
+            updated_at?: string;
+          };
+        };
+        live_presentes: {
+          Row: {
+            id: string;
+            categoria_id: string;
+            subcategoria_id: string | null;
+            nome: string;
+            valor_credito: number;
+            imagem_path: string;
+            ativo: boolean;
+            ordem: number;
+            created_at: string;
+            updated_at: string;
+          };
+          Insert: {
+            id?: string;
+            categoria_id: string;
+            subcategoria_id?: string | null;
+            nome: string;
+            valor_credito: number;
+            imagem_path?: string;
+            ativo?: boolean;
+            ordem?: number;
+            created_at?: string;
+            updated_at?: string;
+          };
+          Update: {
+            categoria_id?: string;
+            subcategoria_id?: string | null;
+            nome?: string;
+            valor_credito?: number;
+            imagem_path?: string;
+            ativo?: boolean;
+            ordem?: number;
+            updated_at?: string;
+          };
+        };
+        live_presentes_envios: {
+          Row: {
+            id: string;
+            live_id: string;
+            presente_id: string | null;
+            categoria_id: string | null;
+            categoria_nome: string;
+            presente_nome: string;
+            remetente_usuario_id: string | null;
+            remetente_convidado_hash: string | null;
+            destinatario_participante_id: string;
+            valor_credito_representado: number;
+            created_at: string;
+          };
+          Insert: {
+            id?: string;
+            live_id: string;
+            presente_id?: string | null;
+            categoria_id?: string | null;
+            categoria_nome?: string;
+            presente_nome?: string;
+            remetente_usuario_id?: string | null;
+            remetente_convidado_hash?: string | null;
+            destinatario_participante_id: string;
+            valor_credito_representado?: number;
+            created_at?: string;
+          };
+          Update: {
+            valor_credito_representado?: number;
+          };
+        };
+        live_apresentacoes: {
+          Row: {
+            id: string;
+            live_id: string;
+            tipo: string;
+            anexo_id: string | null;
+            caminho: string;
+            mime_type: string;
+            titulo: string;
+            pagina_atual: number;
+            total_paginas: number;
+            reproduzindo: boolean;
+            tempo_atual_segundos: number;
+            iniciado_em: string;
+            encerrada_em: string | null;
+            iniciado_por: string | null;
+            created_at: string;
+            updated_at: string;
+          };
+          Insert: {
+            id?: string;
+            live_id: string;
+            tipo?: string;
+            anexo_id?: string | null;
+            caminho?: string;
+            mime_type?: string;
+            titulo?: string;
+            pagina_atual?: number;
+            total_paginas?: number;
+            reproduzindo?: boolean;
+            tempo_atual_segundos?: number;
+            iniciado_em?: string;
+            encerrada_em?: string | null;
+            iniciado_por?: string | null;
+            created_at?: string;
+            updated_at?: string;
+          };
+          Update: {
+            pagina_atual?: number;
+            total_paginas?: number;
+            reproduzindo?: boolean;
+            tempo_atual_segundos?: number;
+            encerrada_em?: string | null;
+            updated_at?: string;
+          };
+        };
       };
      Views: Record<string, never>;
      Functions: Record<string, never>;
