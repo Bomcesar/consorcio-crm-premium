@@ -546,6 +546,17 @@ export function LiveRoomView({ liveId, isHost }: Props) {
                           }
                         : undefined
                     }
+                    onAbrirLink={
+                      isHost
+                        ? async (l) => {
+                            publicacao.setErroApresentacao(null);
+                            await apresentacao.abrirLink(l);
+                          }
+                        : undefined
+                    }
+                    enviandoLink={apresentacao.enviandoLink}
+                    falhaUrl={apresentacao.falhaUrl}
+                    aoTentarNovamente={() => void apresentacao.recarregar()}
                     onIniciarTela={
                       isHost
                         ? () => {

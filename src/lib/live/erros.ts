@@ -116,6 +116,23 @@ export const LIVE_ERROS: Record<
       "Não foi possível abrir o arquivo de apresentação. Verifique se o arquivo está disponível e tente novamente.",
     recuperavel: true,
   },
+  link_nao_suportado: {
+    titulo: "Link não suportado",
+    mensagem:
+      "Este link não pode virar apresentação. Use um arquivo do Google Drive ou uma URL direta de PDF, MP4 ou WebM. Documentos do Google precisam ser exportados como PDF primeiro.",
+    recuperavel: true,
+  },
+  link_drive_negado: {
+    titulo: "Link do Drive bloqueado",
+    mensagem:
+      "O Google Drive não liberou o download deste arquivo. Verifique se o compartilhamento está público ou envie o arquivo diretamente.",
+    recuperavel: true,
+  },
+  arquivo_grande: {
+    titulo: "Arquivo muito grande",
+    mensagem: "O limite é de 100 MB. Envie um arquivo menor ou use um link direto.",
+    recuperavel: true,
+  },
   falha_envio_presente: {
     titulo: "Não foi possível enviar o presente",
     mensagem: "Tente novamente em alguns instantes.",

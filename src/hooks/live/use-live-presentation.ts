@@ -26,6 +26,10 @@ export function useLiveApresentacao(params: { liveId: string; souAnfitriao: bool
   const [url, setUrl] = React.useState<string | null>(null);
   const [carregando, setCarregando] = React.useState(true);
   const [erro, setErro] = React.useState<string | null>(null);
+  /** A URL assinada não pôde ser gerada: a tela mostra
+   *  erro com retry em vez de "carregando" para sempre. */
+  const [falhaUrl, setFalhaUrl] = React.useState(false);
+  const [enviandoLink, setEnviandoLink] = React.useState(false);
 
   /**
    * Caminho cuja URL já foi assinada.
@@ -43,14 +47,20 @@ export function useLiveApresentacao(params: { liveId: string; souAnfitriao: bool
     if (!caminho) {
       caminhoAssinado.current = null;
       setUrl(null);
+      setFalhaUrl(false);
       return;
     }
     if (caminhoAssinado.current === caminho) return;
     caminhoAssinado.current = caminho;
-    setUrl(await getUrlApresentacao(caminho));
+    const assinada = await getUrlApresentacao(caminho);
+    setUrl(assinada);
+    setFalhaUrl(!assinada);
   }, []);
 
   const carregar = React.useCallback(async () => {
+    // Reseta a URL assinada: o token expira e a tentativa
+    // de novo precisa de uma assinatura fresca.
+    caminhoAssinado.current = null;
     try {
       const atual = await getApresentacaoAtiva(liveId);
       setApresentacao(atual);
@@ -148,9 +158,17 @@ export function useLiveApresentacao(params: { liveId: string; souAnfitriao: bool
     async (arquivo: File) => {
       if (!souAnfitriao) return null;
       setErro(null);
-      const tipo: Exclude<LiveTipoApresentacao, "screen"> = arquivo.type === "application/pdf"
-        ? "pdf"
-        : "video";
+      // O picker de arquivos do celular (especialmente ao
+      // baixar do Google Drive) costuma devolver
+      // `application/octet-stream`. Classificar só por
+      // MIME fazia um PDF virar "video" e a tela travava
+      // em carregamento infinito. A extensão é a fonte
+      // de verdade quando o MIME não ajuda.
+      const nome = arquivo.name.toLowerCase();
+      const tipo: Exclude<LiveTipoApresentacao, "screen"> =
+        arquivo.type.toLowerCase().includes("pdf") || nome.endsWith(".pdf")
+          ? "pdf"
+          : "video";
       try {
         const registro = await iniciarApresentacao({
           liveId,
@@ -169,6 +187,44 @@ export function useLiveApresentacao(params: { liveId: string; souAnfitriao: bool
         const codigo = e instanceof Error ? e.message : "falha_apresentacao";
         setErro(codigo);
         return null;
+      }
+    },
+    [liveId, souAnfitriao, carregar],
+  );
+
+  /**
+   * Abre um link externo (Google Drive ou URL direta).
+   * O download acontece no servidor (`/api/live/apresentacao/link`):
+   * o navegador não consegue buscar o Drive (CORS) e o
+   * pdf.js exige mesma origem. O arquivo baixado vira uma
+   * apresentação normal, com URL assinada para todos.
+   */
+  const abrirLink = React.useCallback(
+    async (link: string) => {
+      if (!souAnfitriao) return null;
+      setErro(null);
+      setEnviandoLink(true);
+      try {
+        const resposta = await fetch("/api/live/apresentacao/link", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ liveId, url: link.trim() }),
+        });
+        const corpo = (await resposta.json().catch(() => null)) as
+          | { erro?: string }
+          | null;
+
+        if (!resposta.ok) {
+          throw new Error(corpo?.erro ?? "falha_apresentacao");
+        }
+        await carregar();
+        return true;
+      } catch (e) {
+        const codigo = e instanceof Error ? e.message : "falha_apresentacao";
+        setErro(codigo);
+        return null;
+      } finally {
+        setEnviandoLink(false);
       }
     },
     [liveId, souAnfitriao, carregar],
@@ -203,10 +259,13 @@ export function useLiveApresentacao(params: { liveId: string; souAnfitriao: bool
     carregando,
     erro,
     setErro,
+    falhaUrl,
+    enviandoLink,
     irParaPagina,
     definirTotalPaginas,
     sincronizarReproducao,
     abrirArquivo,
+    abrirLink,
     iniciarTela,
     encerrar,
     recarregar: carregar,

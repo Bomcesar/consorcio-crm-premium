@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { MonitorUp, FileText, X, Loader2, AlertTriangle } from "lucide-react";
+import { MonitorUp, FileText, X, Loader2, AlertTriangle, Link2 } from "lucide-react";
 import { useMaybeRoomContext, useTracks, VideoTrack } from "@livekit/components-react";
 import { Track, LocalTrack } from "livekit-client";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,10 @@ type Props = {
   onEncerrar: () => void;
   onSelecionarArquivo?: (arquivo: File) => Promise<void> | void;
   onIniciarTela?: () => void;
+  onAbrirLink?: (link: string) => Promise<void> | void;
+  enviandoLink?: boolean;
+  falhaUrl?: boolean;
+  aoTentarNovamente?: () => void;
   erro?: string | null;
 };
 
@@ -107,36 +111,41 @@ function FaixaTelaRemota({
 }
 
 /**
- * Painel de material quando o modo apresentação está ativo
- * mas ainda não há conteúdo.
+ * Controles de material: arquivo local, compartilhamento
+ * de tela e link externo (Google Drive / URL direta).
  *
- * "Iniciar apresentação" só troca o modo da sala; o material
- * é escolhido aqui. Sem este painel a tela ficava presa em
- * "Carregando arquivo da apresentação..." para sempre — sem
- * saída visível, principalmente no celular, onde a barra de
- * controles ficava abaixo da dobra.
+ * Usado tanto no modo áudio (o anfitrião escolhe o que
+ * vai apresentar) quanto no modo apresentação sem conteúdo.
  */
-function PainelSemApresentacao({
+function ControlesMaterial({
   enviando,
   erro,
   aoSelecionarArquivo,
   aoIniciarTela,
+  aoAbrirLink,
+  enviandoLink,
   inputRef,
 }: {
   enviando: boolean;
   erro?: string | null;
-  aoSelecionarArquivo: (arquivo: File) => Promise<void> | void;
+  aoSelecionarArquivo?: (arquivo: File) => Promise<void> | void;
   aoIniciarTela?: () => void;
+  aoAbrirLink?: (link: string) => Promise<void> | void;
+  enviandoLink?: boolean;
   inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
+  const [mostrarLink, setMostrarLink] = React.useState(false);
+  const [link, setLink] = React.useState("");
+
+  const abrirLink = async () => {
+    if (!aoAbrirLink || !link.trim()) return;
+    await aoAbrirLink(link);
+    setLink("");
+    setMostrarLink(false);
+  };
+
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 overflow-y-auto p-4 text-center">
-      <MonitorUp className="h-8 w-8 text-primary" />
-      <p className="text-sm font-medium">Nenhuma apresentação em andamento</p>
-      <p className="max-w-sm text-xs text-muted-foreground">
-        Escolha o material para começar. O áudio da sala continua ativo
-        durante a apresentação.
-      </p>
+    <div className="flex flex-col items-center gap-2">
       <div className="flex flex-wrap items-center justify-center gap-2">
         {aoSelecionarArquivo && (
           <>
@@ -172,13 +181,119 @@ function PainelSemApresentacao({
             Compartilhar tela
           </Button>
         )}
+        {aoAbrirLink && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMostrarLink((v) => !v)}
+            aria-expanded={mostrarLink}
+          >
+            <Link2 className="mr-2 h-4 w-4" />
+            Usar link
+          </Button>
+        )}
       </div>
+
+      {mostrarLink && aoAbrirLink && (
+        <form
+          className="flex w-full max-w-md flex-wrap items-center justify-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void abrirLink();
+          }}
+        >
+          <input
+            type="url"
+            required
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            placeholder="Link do Google Drive ou URL direta do arquivo"
+            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+            disabled={enviandoLink}
+          />
+          <Button type="submit" size="sm" disabled={enviandoLink || !link.trim()}>
+            {enviandoLink ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Link2 className="mr-2 h-4 w-4" />
+            )}
+            Abrir
+          </Button>
+        </form>
+      )}
+
       {erro && (
         <p className="flex items-start gap-1 text-xs text-destructive">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           {descreverErroLive(erro).mensagem}
         </p>
       )}
+    </div>
+  );
+}
+
+/** Falha de carregamento com retry — substitui o loading infinito. */
+function PainelFalha({ aoTentarNovamente }: { aoTentarNovamente?: () => void }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
+      <AlertTriangle className="h-8 w-8 text-destructive" />
+      <p className="text-sm font-medium">Não foi possível carregar o arquivo</p>
+      <p className="max-w-sm text-xs text-muted-foreground">
+        O download falhou, o link expirou ou o arquivo está corrompido.
+      </p>
+      {aoTentarNovamente && (
+        <Button variant="outline" size="sm" onClick={aoTentarNovamente}>
+          Tentar novamente
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Painel de material quando o modo apresentação está ativo
+ * mas ainda não há conteúdo.
+ *
+ * "Iniciar apresentação" só troca o modo da sala; o material
+ * é escolhido aqui. Sem este painel a tela ficava presa em
+ * "Carregando arquivo da apresentação..." para sempre — sem
+ * saída visível, principalmente no celular, onde a barra de
+ * controles ficava abaixo da dobra.
+ */
+function PainelSemApresentacao({
+  enviando,
+  erro,
+  aoSelecionarArquivo,
+  aoIniciarTela,
+  aoAbrirLink,
+  enviandoLink,
+  inputRef,
+}: {
+  enviando: boolean;
+  erro?: string | null;
+  aoSelecionarArquivo?: (arquivo: File) => Promise<void> | void;
+  aoIniciarTela?: () => void;
+  aoAbrirLink?: (link: string) => Promise<void> | void;
+  enviandoLink?: boolean;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 overflow-y-auto p-4 text-center">
+      <MonitorUp className="h-8 w-8 text-primary" />
+      <p className="text-sm font-medium">Nenhuma apresentação em andamento</p>
+      <p className="max-w-sm text-xs text-muted-foreground">
+        Escolha o material para começar. O áudio da sala continua ativo
+        durante a apresentação.
+      </p>
+      <ControlesMaterial
+        enviando={enviando}
+        erro={erro}
+        aoSelecionarArquivo={aoSelecionarArquivo}
+        aoIniciarTela={aoIniciarTela}
+        aoAbrirLink={aoAbrirLink}
+        enviandoLink={enviandoLink}
+        inputRef={inputRef}
+      />
     </div>
   );
 }
@@ -202,11 +317,16 @@ export function LivePresentation({
   onEncerrar,
   onSelecionarArquivo,
   onIniciarTela,
+  onAbrirLink,
+  enviandoLink,
+  falhaUrl,
+  aoTentarNovamente,
   erro,
 }: Props) {
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const [enviando, setEnviando] = React.useState(false);
+  const [erroVideo, setErroVideo] = React.useState(false);
 
   // `LivePresentation` é renderizado dentro de `SalaMidia`, mas a
   // checagem mantém a tela intacta se algum dia for usado fora da
@@ -222,6 +342,12 @@ export function LivePresentation({
       setEnviando(false);
     }
   };
+
+  // Troca de arquivo: o erro de vídeo anterior não se aplica
+  // ao novo conteúdo.
+  React.useEffect(() => {
+    setErroVideo(false);
+  }, [url]);
 
   // Vídeo: sincroniza reprodução e posição sem ecoar de volta.
   const sincronizandoRef = React.useRef(false);
@@ -250,56 +376,22 @@ export function LivePresentation({
 
   // Quando o modo é áudio, o anfitrião escolhe o material.
   if (modo === "audio") {
-    if (souAnfitriao && (onSelecionarArquivo || onIniciarTela)) {
+    if (souAnfitriao && (onSelecionarArquivo || onIniciarTela || onAbrirLink)) {
       return (
         <div className="space-y-2 rounded-xl border bg-card p-3">
           <p className="text-sm font-medium">📄 Apresentação</p>
-          <div className="flex flex-wrap gap-2">
-            {onSelecionarArquivo && (
-              <>
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept="application/pdf,video/mp4,video/webm"
-                  className="hidden"
-                  onChange={(e) => {
-                    const arquivo = e.target.files?.[0];
-                    if (arquivo) void escolherArquivo(arquivo);
-                    e.target.value = "";
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={enviando}
-                  onClick={() => inputRef.current?.click()}
-                >
-                  {enviando ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileText className="mr-2 h-4 w-4" />
-                  )}
-                  Enviar PDF ou vídeo
-                </Button>
-              </>
-            )}
-            {onIniciarTela && (
-              <Button variant="outline" size="sm" onClick={onIniciarTela}>
-                <MonitorUp className="mr-2 h-4 w-4" />
-                Compartilhar tela
-              </Button>
-            )}
-          </div>
-          {erro && (
-            <p className="flex items-start gap-1 text-xs text-destructive">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {descreverErroLive(erro).mensagem}
-            </p>
-          )}
+          <ControlesMaterial
+            enviando={enviando}
+            erro={erro}
+            aoSelecionarArquivo={onSelecionarArquivo ? escolherArquivo : undefined}
+            aoIniciarTela={onIniciarTela}
+            aoAbrirLink={onAbrirLink}
+            enviandoLink={enviandoLink}
+            inputRef={inputRef}
+          />
         </div>
       );
-    return null;
-  }
+    }
     return null;
   }
 
@@ -338,27 +430,55 @@ export function LivePresentation({
               </p>
             </div>
           )
-        ) : apresentacao?.tipo === "video" && url ? (
-          <div className="flex h-full items-center justify-center bg-black">
-            <video
-              ref={videoRef}
-              src={url}
-              controls
-              playsInline
-              className="max-h-full max-w-full"
-              onPlay={() => {
-                if (souAnfitriao && !sincronizandoRef.current) {
-                  onSincronizarVideo?.(true, videoRef.current?.currentTime ?? 0);
-                }
-              }}
-              onPause={() => {
-                if (souAnfitriao && !sincronizandoRef.current) {
-                  onSincronizarVideo?.(false, videoRef.current?.currentTime ?? 0);
-                }
-              }}
+        ) : falhaUrl ? (
+          <PainelFalha aoTentarNovamente={aoTentarNovamente} />
+        ) : !apresentacao ? (
+          souAnfitriao ? (
+            <PainelSemApresentacao
+              enviando={enviando}
+              erro={erro}
+              aoSelecionarArquivo={onSelecionarArquivo ? escolherArquivo : undefined}
+              aoIniciarTela={onIniciarTela}
+              aoAbrirLink={onAbrirLink}
+              enviandoLink={enviandoLink}
+              inputRef={inputRef}
             />
+          ) : (
+            <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
+              Aguardando o anfitrião iniciar a apresentação...
+            </div>
+          )
+        ) : !url ? (
+          <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
+            Carregando arquivo da apresentação...
           </div>
-        ) : url ? (
+        ) : apresentacao?.tipo === "video" ? (
+          erroVideo ? (
+            <PainelFalha aoTentarNovamente={aoTentarNovamente} />
+          ) : (
+            <div className="flex h-full items-center justify-center bg-black">
+              <video
+                key={url}
+                ref={videoRef}
+                src={url}
+                controls
+                playsInline
+                className="max-h-full max-w-full"
+                onError={() => setErroVideo(true)}
+                onPlay={() => {
+                  if (souAnfitriao && !sincronizandoRef.current) {
+                    onSincronizarVideo?.(true, videoRef.current?.currentTime ?? 0);
+                  }
+                }}
+                onPause={() => {
+                  if (souAnfitriao && !sincronizandoRef.current) {
+                    onSincronizarVideo?.(false, videoRef.current?.currentTime ?? 0);
+                  }
+                }}
+              />
+            </div>
+          )
+        ) : (
           <LivePdfViewer
             url={url}
             titulo={apresentacao?.titulo ?? "Apresentação"}
@@ -368,22 +488,6 @@ export function LivePresentation({
             aoMudarPagina={onMudarPagina}
             aoRegistrarTotal={onRegistrarTotal}
           />
-        ) : apresentacao ? (
-          <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
-            Carregando arquivo da apresentação...
-          </div>
-        ) : souAnfitriao ? (
-          <PainelSemApresentacao
-            enviando={enviando}
-            erro={erro}
-            aoSelecionarArquivo={escolherArquivo}
-            aoIniciarTela={onIniciarTela}
-            inputRef={inputRef}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
-            Aguardando o anfitrião iniciar a apresentação...
-          </div>
         )}
       </div>
 
