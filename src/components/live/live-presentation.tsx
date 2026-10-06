@@ -6,6 +6,7 @@ import { useMaybeRoomContext, useTracks, VideoTrack } from "@livekit/components-
 import { Track, LocalTrack } from "livekit-client";
 import { Button } from "@/components/ui/button";
 import { LivePdfViewer } from "./live-pdf-viewer";
+import { descreverErroLive } from "@/lib/live/erros";
 import type { LiveApresentacao } from "@/lib/live/types";
 
 type Props = {
@@ -101,6 +102,83 @@ function FaixaTelaRemota({
           />
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Painel de material quando o modo apresentação está ativo
+ * mas ainda não há conteúdo.
+ *
+ * "Iniciar apresentação" só troca o modo da sala; o material
+ * é escolhido aqui. Sem este painel a tela ficava presa em
+ * "Carregando arquivo da apresentação..." para sempre — sem
+ * saída visível, principalmente no celular, onde a barra de
+ * controles ficava abaixo da dobra.
+ */
+function PainelSemApresentacao({
+  enviando,
+  erro,
+  aoSelecionarArquivo,
+  aoIniciarTela,
+  inputRef,
+}: {
+  enviando: boolean;
+  erro?: string | null;
+  aoSelecionarArquivo: (arquivo: File) => Promise<void> | void;
+  aoIniciarTela?: () => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 overflow-y-auto p-4 text-center">
+      <MonitorUp className="h-8 w-8 text-primary" />
+      <p className="text-sm font-medium">Nenhuma apresentação em andamento</p>
+      <p className="max-w-sm text-xs text-muted-foreground">
+        Escolha o material para começar. O áudio da sala continua ativo
+        durante a apresentação.
+      </p>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {aoSelecionarArquivo && (
+          <>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="application/pdf,video/mp4,video/webm"
+              className="hidden"
+              onChange={(e) => {
+                const arquivo = e.target.files?.[0];
+                if (arquivo) void aoSelecionarArquivo(arquivo);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={enviando}
+              onClick={() => inputRef.current?.click()}
+            >
+              {enviando ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="mr-2 h-4 w-4" />
+              )}
+              Enviar PDF ou vídeo
+            </Button>
+          </>
+        )}
+        {aoIniciarTela && (
+          <Button variant="outline" size="sm" onClick={aoIniciarTela}>
+            <MonitorUp className="mr-2 h-4 w-4" />
+            Compartilhar tela
+          </Button>
+        )}
+      </div>
+      {erro && (
+        <p className="flex items-start gap-1 text-xs text-destructive">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {descreverErroLive(erro).mensagem}
+        </p>
+      )}
     </div>
   );
 }
@@ -215,12 +293,13 @@ export function LivePresentation({
           {erro && (
             <p className="flex items-start gap-1 text-xs text-destructive">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {erro}
+              {descreverErroLive(erro).mensagem}
             </p>
           )}
         </div>
       );
-    }
+    return null;
+  }
     return null;
   }
 
@@ -289,9 +368,21 @@ export function LivePresentation({
             aoMudarPagina={onMudarPagina}
             aoRegistrarTotal={onRegistrarTotal}
           />
-        ) : (
+        ) : apresentacao ? (
           <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
             Carregando arquivo da apresentação...
+          </div>
+        ) : souAnfitriao ? (
+          <PainelSemApresentacao
+            enviando={enviando}
+            erro={erro}
+            aoSelecionarArquivo={escolherArquivo}
+            aoIniciarTela={onIniciarTela}
+            inputRef={inputRef}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
+            Aguardando o anfitrião iniciar a apresentação...
           </div>
         )}
       </div>
@@ -299,7 +390,7 @@ export function LivePresentation({
       {erro && (
         <p className="flex items-start gap-1 border-t px-3 py-2 text-xs text-destructive">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          {erro}
+          {descreverErroLive(erro).mensagem}
         </p>
       )}
     </div>

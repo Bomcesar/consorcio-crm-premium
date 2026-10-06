@@ -125,7 +125,12 @@ export function LiveRoomView({ liveId, isHost }: Props) {
     | "ao_vivo"
     | "apresentacao"
     | "encerrada";
-  const emCadeira = sala.emCadeira;
+  // O anfitrião ocupa a cadeira 0 por construção (`registrarAnfitriao`
+  // insere `cadeira: 0`), então `isHost` já garante o assento. Somar
+  // `sala.emCadeira` cobre a janela em que a lista ainda não refletiu
+  // o registro — sem isso, em rede móvel instável o botão de microfone
+  // simplesmente não aparecia.
+  const emCadeira = sala.emCadeira || isHost;
   const silenciadoPeloAnfitriao = sala.meu?.silenciado_pelo_anfitriao === true;
 
   const credencial = useLiveCredencial(liveId);
@@ -190,11 +195,16 @@ export function LiveRoomView({ liveId, isHost }: Props) {
     const entrar = async () => {
         setEntrando(true);
         try {
-          if (isHost) {
-            await registrarAnfitriao(sala.sala!);
-          } else {
-            await entrarComoOuvinte(liveId);
-          }
+        if (isHost) {
+          await registrarAnfitriao(sala.sala!);
+        } else {
+          await entrarComoOuvinte(liveId);
+        }
+        // Recarga explícita após o registro: em rede móvel o
+        // evento de Realtime pode não chegar, e sem a própria
+        // linha na lista o anfitrião ficava sem microfone e
+        // sem controles.
+        await sala.recarregarParticipantes();
         } catch (e) {
           const codigo = e instanceof Error ? e.message : "";
           if (cancelado) return;
@@ -346,8 +356,27 @@ export function LiveRoomView({ liveId, isHost }: Props) {
    * a sala LiveKit continua montada e o microfone segue publicado.
    */
   const compartilharTela = async () => {
+    // iOS Safari e vários navegadores móveis não expõem
+    // `getDisplayMedia`. Falhar em silêncio deixava o botão
+    // "morto": o usuário não sabia que o caminho era enviar
+    // um arquivo. O aviso diz exatamente isso.
+    if (!publicacao.suportaTela) {
+      toast({
+        title: "Compartilhamento indisponível",
+        description:
+          "Este dispositivo não permite compartilhar a tela. Use “Enviar PDF ou vídeo” para apresentar.",
+        variant: "destructive",
+      });
+      return false;
+    }
     const tracks = await publicacao.iniciarCompartilhamento();
-    if (!tracks) return false;
+    if (!tracks) {
+      toast({
+        title: "Compartilhamento cancelado",
+        description: "Nenhuma tela foi selecionada. Nenhuma alteração foi feita.",
+      });
+      return false;
+    }
 
     await apresentacao.iniciarTela();
     if (modo !== "apresentacao") {
@@ -512,6 +541,7 @@ export function LiveRoomView({ liveId, isHost }: Props) {
                     onSelecionarArquivo={
                       isHost
                         ? async (f) => {
+                            publicacao.setErroApresentacao(null);
                             await apresentacao.abrirArquivo(f);
                           }
                         : undefined
@@ -523,7 +553,7 @@ export function LiveRoomView({ liveId, isHost }: Props) {
                           }
                         : undefined
                     }
-                    erro={apresentacao.erro}
+                    erro={apresentacao.erro ?? publicacao.erroApresentacao}
                   />
                 )}
 
@@ -576,8 +606,10 @@ acoesAnfitriao={
             </div>
           )}
 
-          {/* Controles */}
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3">
+          {/* Controles — fixos na parte inferior no celular
+              para que microfone, apresentação e encerramento
+              fiquem sempre ao alcance, sem precisar rolar. */}
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3 max-lg:sticky max-lg:bottom-0 max-lg:z-10 max-lg:shadow-lg">
             {isHost ? (
               <>
                 {/* Requisito 3: o anfitrião ocupa a cadeira 0 e é dono
