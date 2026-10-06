@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { createClient } from "@/lib/supabase/client";
+import { criarCanalLive } from "@/lib/live/realtime";
 import {
   atualizarApresentacao,
   encerrarApresentacao,
@@ -27,64 +27,76 @@ export function useLiveApresentacao(params: { liveId: string; souAnfitriao: bool
   const [carregando, setCarregando] = React.useState(true);
   const [erro, setErro] = React.useState<string | null>(null);
 
+  /**
+   * Caminho cuja URL já foi assinada.
+   *
+   * `createSignedUrl` gera um token NOVO a cada chamada. Se a
+   * assinatura fosse refeita a cada evento, dois custos apareceriam:
+   * uma requisição de storage por participante por evento, e — pior —
+   * o `src` do `<video>` mudaria de valor, recarregando o elemento e
+   * zerando a reprodução de todos a cada sincronização de play/pause.
+   * Assinar uma vez por caminho elimina os dois.
+   */
+  const caminhoAssinado = React.useRef<string | null>(null);
+
+  const resolverCaminho = React.useCallback(async (caminho: string | null) => {
+    if (!caminho) {
+      caminhoAssinado.current = null;
+      setUrl(null);
+      return;
+    }
+    if (caminhoAssinado.current === caminho) return;
+    caminhoAssinado.current = caminho;
+    setUrl(await getUrlApresentacao(caminho));
+  }, []);
+
   const carregar = React.useCallback(async () => {
     try {
       const atual = await getApresentacaoAtiva(liveId);
       setApresentacao(atual);
-      if (atual?.caminho) {
-        setUrl(await getUrlApresentacao(atual.caminho));
-      } else {
-        setUrl(null);
-      }
+      await resolverCaminho(atual?.caminho ?? null);
     } catch (e) {
       console.error("[useLiveApresentacao]:", e);
       setErro("falha_apresentacao");
     } finally {
       setCarregando(false);
     }
-  }, [liveId]);
+  }, [liveId, resolverCaminho]);
 
   React.useEffect(() => {
     void carregar();
   }, [carregar]);
 
-  React.useEffect(() => {
-    const supabase = createClient();
-
-    for (const canal of supabase.getChannels()) {
-      if (canal.topic === `live:apresentacao:${liveId}`) supabase.removeChannel(canal);
-    }
-
-    const canal = supabase
-      .channel(`live:apresentacao:${liveId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "live_apresentacoes",
-          filter: `live_id=eq.${liveId}`,
-        },
-        async (payload) => {
-          const linha = payload.new as LiveApresentacao;
-          if (payload.eventType === "DELETE") {
+  React.useEffect(
+    () =>
+      criarCanalLive({
+        topic: `live:apresentacao:${liveId}`,
+        assinaturas: [
+          {
+            event: "*",
+            schema: "public",
+            table: "live_apresentacoes",
+            filter: `live_id=eq.${liveId}`,
+          },
+        ],
+        aoEvento: async (_tabela, payload) => {
+          const evento = payload as { new: LiveApresentacao; eventType: string };
+          if (evento.eventType === "DELETE") {
             setApresentacao(null);
-            setUrl(null);
+            await resolverCaminho(null);
             return;
           }
+          const linha = evento.new;
           setApresentacao(linha);
-          if (linha.caminho && linha.caminho !== url) {
-            setUrl(await getUrlApresentacao(linha.caminho));
-          }
+          await resolverCaminho(linha.caminho);
         },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(canal);
-    };
+        aoReconectar: () => {
+          void carregar();
+        },
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveId]);
+    [liveId],
+  );
 
   const irParaPagina = React.useCallback(
     async (pagina: number) => {
@@ -179,11 +191,11 @@ export function useLiveApresentacao(params: { liveId: string; souAnfitriao: bool
     try {
       await encerrarApresentacao(apresentacao.id);
       setApresentacao(null);
-      setUrl(null);
+      await resolverCaminho(null);
     } catch (e) {
       console.error("[useLiveApresentacao] encerrar:", e);
     }
-  }, [apresentacao]);
+  }, [apresentacao, resolverCaminho]);
 
   return {
     apresentacao,

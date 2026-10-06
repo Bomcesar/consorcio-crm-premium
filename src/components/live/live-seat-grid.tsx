@@ -18,7 +18,12 @@ type Props = {
     silenciar?: () => void;
     remover?: () => void;
     bloquear?: () => void;
+    alternarAudio?: () => void;
   };
+  /** O anfitrião (ou admin) pode suspender o áudio da apresentação. */
+  podeSilenciarAudio?: boolean;
+  /** Consulta o estado de mute de áudio de uma cadeira. */
+  audioSilenciado?: (participanteId: string) => boolean;
 };
 
 /**
@@ -36,6 +41,8 @@ export function LiveSeatGrid({
   podeEnviarPresente = false,
   aoEnviarPresente,
   acoesAnfitriao,
+  podeSilenciarAudio = false,
+  audioSilenciado = () => false,
 }: Props) {
   const anfitriao = participantes.find((p) => p.tipo === "anfitriao" && p.saiu_em == null) ?? null;
 
@@ -88,6 +95,8 @@ export function LiveSeatGrid({
               acoesAnfitriao={
                 ocupante && acoesAnfitriao ? acoesAnfitriao(ocupante) : undefined
               }
+              podeSilenciarAudio={podeSilenciarAudio && !!ocupante}
+              audioSilenciado={ocupante ? audioSilenciado(ocupante.id) : false}
               compacto
             />
           );

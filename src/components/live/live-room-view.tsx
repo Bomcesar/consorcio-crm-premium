@@ -14,6 +14,8 @@ import {
   Loader2,
   Radio,
   ShieldAlert,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +38,11 @@ import { LiveGiftPanel } from "./live-gift-panel";
 import { LiveInvitePanel } from "./live-invite-panel";
 import { LivePresentation } from "./live-presentation";
 import { LiveConnectionState } from "./live-connection-state";
+import {
+  LiveAudioControlePonte,
+} from "./live-audio-controle";
+import type { ControleAudioSala } from "@/hooks/live/use-live-audio-sala";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useLiveRoom } from "@/hooks/live/use-live-room";
 import { useLiveChat } from "@/hooks/live/use-live-chat";
 import { useLivePresentes } from "@/hooks/live/use-live-presentes";
@@ -110,6 +117,7 @@ export function LiveRoomView({ liveId, isHost }: Props) {
   const [minhaSolicitacao, setMinhaSolicitacao] = React.useState<"pendente" | null>(null);
   const [confirmarEncerramento, setConfirmarEncerramento] = React.useState(false);
   const [encerrando, setEncerrando] = React.useState(false);
+  const [entrando, setEntrando] = React.useState(false);
 
   const modo = (sala.sala?.modo ?? "audio") as "audio" | "apresentacao";
   const status = (sala.sala?.status ?? "aguardando") as
@@ -118,11 +126,48 @@ export function LiveRoomView({ liveId, isHost }: Props) {
     | "apresentacao"
     | "encerrada";
   const emCadeira = sala.emCadeira;
+  const silenciadoPeloAnfitriao = sala.meu?.silenciado_pelo_anfitriao === true;
 
   const credencial = useLiveCredencial(liveId);
   const publicacao = useLivePublicacao({ podePublicar: emCadeira });
 
   const [conexao, setConexao] = React.useState<ConexaoMedia>("desconectado");
+
+  // Requisito 4: quem controla o áudio precisa ser o anfitrião da sala
+  // ou o Administrador. A permissão `live.audio.controlar` existe no
+  // catálogo e no banco para auditoria e para o RLS, mas NÃO é
+  // consultada aqui: `usePermissions` lê `user_permissoes` do
+  // localStorage, que o login grava sempre vazio — usá-la como porte
+  // trancaria fora anfitriões de perfis como Consultor, que são
+  // perfeitamente legítimos como donos da própria sala.
+  const permissoes = usePermissions();
+  const podeControlarAudio = isHost || permissoes.isAdmin;
+
+  // Requisito 2: o hook de mute precisa do RoomContext, então ele
+  // vive dentro de `SalaMidia`. A barra fica fora; a ponte entrega o
+  // controle por `reportar` e o valor fica num ref.
+  const controleAudio = React.useRef<ControleAudioSala | null>(null);
+  const [, forcarRender] = React.useReducer((n: number) => n + 1, 0);
+  const reportarControleAudio = React.useCallback((c: ControleAudioSala) => {
+    controleAudio.current = c;
+    forcarRender();
+  }, []);
+
+  // Requisito 1 (o outro lado): o mute do anfitrião só é honesto se o
+  // participante realmente parar de publicar. A linha chega por
+  // `postgres_changes`, então a reação é automática.
+  React.useEffect(() => {
+    if (!silenciadoPeloAnfitriao) return;
+    if (!publicacao.microfoneAtivo) return;
+    publicacao.desligarMicrofone();
+    if (sala.meuId) {
+      void atualizarMeuEstado(sala.meuId, { microfone_ativo: false }).catch(() => {});
+    }
+    toast({
+      title: "Micrófone silenciado pelo anfitrião",
+      description: "Você está na cadeira, mas foi silenciado. Peça ao anfitrião para liberar.",
+    });
+  }, [silenciadoPeloAnfitriao, publicacao, sala.meuId, toast]);
 
   // O fluxo real do microfone vem do track publicado pelo LiveKit:
   // o indicador de fala mede o áudio que está de fato indo para a sala.
@@ -133,10 +178,17 @@ export function LiveRoomView({ liveId, isHost }: Props) {
   const erro = publicacao.falha ?? credencial.falha;
   const descricaoErro = erro ? descreverErroLive(erro.codigo, erro.mensagem) : null;
 
+  const audioConectados = controleAudio.current?.conectados ?? 0;
+  const audioTodosSilenciados = controleAudio.current?.todosSilenciados ?? false;
+  const audioAlgumSilenciado = controleAudio.current?.algumSilenciado ?? false;
+  const audioIdsSilenciados = controleAudio.current?.idsSilenciados ?? [];
+
   // Entrada: o ouvinte registra presença; o anfitrião registra o palco.
   React.useEffect(() => {
     if (!sala.sala) return;
+    let cancelado = false;
     const entrar = async () => {
+        setEntrando(true);
         try {
           if (isHost) {
             await registrarAnfitriao(sala.sala!);
@@ -145,20 +197,32 @@ export function LiveRoomView({ liveId, isHost }: Props) {
           }
         } catch (e) {
           const codigo = e instanceof Error ? e.message : "";
-          // Duplicidade e sala encerrada são estados esperados, não falhas:
-          // a presença já consta no banco ou a live simplesmente acabou.
-          if (codigo !== "ja_participa") {
+          if (cancelado) return;
+          // `ja_participa` não é falha: a presença já consta no banco e
+          // a sala abre normalmente. Qualquer outro código é real e precisa
+          // chegar ao usuário — silenciar aqui deixava a tela sem nenhuma
+          // explicação quando o registro não ocorria.
+          if (codigo === "ja_participa") {
+            console.info("[LiveRoomView] entrada: participação já existente");
+          } else {
             console.error("[LiveRoomView] entrada:", codigo);
-            if (codigo === "live_encerrada") {
-              toast({
-                title: "Live encerrada",
-                description: "Esta Live não recebe mais novos participantes.",
-              });
-            }
+            const descricao = descreverErroLive(codigo, "Não foi possível entrar nesta sala.");
+            toast({
+              title: descricao.titulo,
+              description: descricao.mensagem,
+              variant: descricao.recuperavel ? "default" : "destructive",
+            });
           }
+        } finally {
+          // Encerra em todos os caminhos: sucesso, `ja_participa`,
+          // erro inesperado e falha de RLS na consulta.
+          if (!cancelado) setEntrando(false);
         }
       };
     void entrar();
+    return () => {
+      cancelado = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sala.sala?.id]);
 
@@ -193,6 +257,10 @@ export function LiveRoomView({ liveId, isHost }: Props) {
         maxCadeiras: sala.sala?.max_cadeiras ?? 8,
         participantes: sala.participantes,
       });
+      // A UI do anfitrião não fica esperando o evento: o resultado já vem
+      // persistido, então recarregar agora torna "Aceitar" imediato mesmo
+      // que o canal esteja se recuperando.
+      await Promise.all([sala.recarregarSolicitacoes(), sala.recarregarParticipantes()]);
       toast({ title: "Participante autorizado" });
     } catch (e) {
       const codigo = e instanceof Error ? e.message : "";
@@ -201,10 +269,43 @@ export function LiveRoomView({ liveId, isHost }: Props) {
     }
   };
 
-  const acao = async (participante: LiveParticipante, tipo: "silenciar" | "remover" | "bloquear") => {
+  const acao = async (
+    participante: LiveParticipante,
+    tipo: "silenciar" | "remover" | "bloquear",
+  ) => {
+    // "Silenciar" alterna: se a pessoa já estava silenciada, a mesma
+    // devolve a palavra. Um botão que só sabe silenciar obrigaria o
+    // anfitrião a adivinhar como reverter.
+    const efetivo =
+      tipo === "silenciar" && participante.silenciado_pelo_anfitriao
+        ? "permitir_falar"
+        : tipo;
+
+    const nome = participante.nome_exibicao;
+    const feedback: Record<string, { titulo: string; descricao: string }> = {
+      silenciar: {
+        titulo: "Microfone silenciado",
+        descricao: `${nome} foi silenciado. O áudio foi interrompido e o card mostra o estado.`,
+      },
+      permitir_falar: {
+        titulo: "Áudio liberado",
+        descricao: `${nome} pode falar novamente.`,
+      },
+      remover: {
+        titulo: "Participante removido",
+        descricao: `${nome} saiu da cadeira e o microfone foi desligado.`,
+      },
+      bloquear: {
+        titulo: "Participante bloqueado",
+        descricao: `${nome} foi bloqueado nesta Live e o microfone foi desligado.`,
+      },
+    };
+
     try {
-      await acaoSobreParticipante(participante.id, tipo);
-      toast({ title: "Ação aplicada" });
+      await acaoSobreParticipante(participante.id, efetivo);
+      await sala.recarregarParticipantes();
+      const fb = feedback[efetivo];
+      toast({ title: fb.titulo, description: fb.descricao });
     } catch {
       toast({ title: "Não foi possível aplicar a ação", variant: "destructive" });
     }
@@ -225,6 +326,34 @@ export function LiveRoomView({ liveId, isHost }: Props) {
     } catch {
       toast({ title: "Não foi possível alterar o modo", variant: "destructive" });
     }
+  };
+
+  /**
+   * Compartilhamento de tela do anfitrião.
+   *
+   * Uma única implementação para os dois pontos de entrada: o botão
+   * da barra de controles e o atalho de `LivePresentation`. Reaproveita
+   * o `getDisplayMedia` já existente em `iniciarCompartilhamento` e
+   * registra a apresentação como tipo "screen" pelo mesmo caminho de
+   * `iniciarTela`, sem uma segunda forma de fazer o mesmo registro.
+   *
+   * A ordem importa. O registro no banco e a troca de modo só acontecem
+   * DEPOIS que a captura é concedida: se a pessoa cancelar a seleção de
+   * janela, não pode sobrar uma apresentação "screen" fantasma nem a
+   * sala presa em modo apresentação sem vídeo nenhum.
+   *
+   * O áudio não é tocado. `alternarModo` altera apenas `live_rooms`;
+   * a sala LiveKit continua montada e o microfone segue publicado.
+   */
+  const compartilharTela = async () => {
+    const tracks = await publicacao.iniciarCompartilhamento();
+    if (!tracks) return false;
+
+    await apresentacao.iniciarTela();
+    if (modo !== "apresentacao") {
+      await alternarModo();
+    }
+    return true;
   };
 
   const alternarMicrofone = async () => {
@@ -365,6 +494,9 @@ export function LiveRoomView({ liveId, isHost }: Props) {
                 cam={publicacao.cam}
                 tela={publicacao.tela}
               />
+              {podeControlarAudio && (
+                <LiveAudioControlePonte reportar={reportarControleAudio} />
+              )}
               <div className="space-y-4">
                 {modo === "apresentacao" && (
                   <LivePresentation
@@ -372,6 +504,7 @@ export function LiveRoomView({ liveId, isHost }: Props) {
                     url={apresentacao.url}
                     souAnfitriao={isHost}
                     modo={modo}
+                    tela={publicacao.tela}
                     onMudarPagina={(p) => void apresentacao.irParaPagina(p)}
                     onRegistrarTotal={(t) => void apresentacao.definirTotalPaginas(t)}
                     onSincronizarVideo={(r, t) => void apresentacao.sincronizarReproducao(r, t)}
@@ -386,8 +519,7 @@ export function LiveRoomView({ liveId, isHost }: Props) {
                     onIniciarTela={
                       isHost
                         ? () => {
-                            void publicacao.iniciarCompartilhamento();
-                            void apresentacao.iniciarTela();
+                            void compartilharTela();
                           }
                         : undefined
                     }
@@ -406,15 +538,22 @@ export function LiveRoomView({ liveId, isHost }: Props) {
                     setDestinatarioPresente(p);
                     setGiftAberto(true);
                   }}
-                  acoesAnfitriao={
-                    isHost
-                      ? (p) => ({
-                          silenciar: () => void acao(p, "silenciar"),
-                          remover: () => void acao(p, "remover"),
-                          bloquear: () => void acao(p, "bloquear"),
-                        })
-                      : undefined
-                  }
+acoesAnfitriao={
+                isHost || permissoes.isAdmin
+                  ? (p) => ({
+                      silenciar: () => void acao(p, "silenciar"),
+                      remover: () => void acao(p, "remover"),
+                      bloquear: () => void acao(p, "bloquear"),
+                      alternarAudio: () => controleAudio.current?.alternarParticipante(p.id),
+                    })
+                  : undefined
+              }
+              podeSilenciarAudio={podeControlarAudio}
+              audioSilenciado={
+                podeControlarAudio
+                  ? (id) => controleAudio.current?.estaSilenciado(id) === true
+                  : () => false
+              }
                   podePublicar={emCadeira}
                   microfoneAtivo={publicacao.microfoneAtivo}
                   fluxoLocal={fluxoLocal}
@@ -423,13 +562,16 @@ export function LiveRoomView({ liveId, isHost }: Props) {
             </SalaMidia>
           ) : (
             <div className="flex h-32 items-center justify-center rounded-xl border">
-              <Button onClick={() => void credencial.conectar()} disabled={credencial.carregando}>
-                {credencial.carregando ? (
+              <Button
+                onClick={() => void credencial.conectar()}
+                disabled={credencial.carregando || entrando}
+              >
+                {credencial.carregando || entrando ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Mic className="mr-2 h-4 w-4" />
                 )}
-                Entrar na sala de áudio
+                {entrando ? "Registrando presença…" : "Entrar na sala de áudio"}
               </Button>
             </div>
           )}
@@ -438,6 +580,25 @@ export function LiveRoomView({ liveId, isHost }: Props) {
           <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3">
             {isHost ? (
               <>
+                {/* Requisito 3: o anfitrião ocupa a cadeira 0 e é dono
+                    da sala, então precisa do mesmo controle de microfone
+                    que os participantes tinham — antes ele só aparecia no
+                    ramo não-anfitrião e o anfitrião ficava sem ação. */}
+                {emCadeira && status !== "encerrada" && (
+                  <Button
+                    size="sm"
+                    variant={publicacao.microfoneAtivo ? "default" : "outline"}
+                    onClick={() => void alternarMicrofone()}
+                    disabled={publicacao.microfoneAtivo === false && silenciadoPeloAnfitriao}
+                  >
+                    {publicacao.microfoneAtivo ? (
+                      <Mic className="mr-2 h-4 w-4" />
+                    ) : (
+                      <MicOff className="mr-2 h-4 w-4" />
+                    )}
+                    {publicacao.microfoneAtivo ? "Desligar microfone" : "Ligar microfone"}
+                  </Button>
+                )}
                 {status === "aguardando" && (
                   <Button size="sm" onClick={() => void iniciar()}>
                     <Play className="mr-2 h-4 w-4" /> Iniciar Live
@@ -456,7 +617,7 @@ export function LiveRoomView({ liveId, isHost }: Props) {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => publicacao.iniciarCompartilhamento()}
+                      onClick={() => void compartilharTela()}
                     >
                       <MonitorUp className="mr-2 h-4 w-4" /> Compartilhar tela
                     </Button>
@@ -490,6 +651,7 @@ export function LiveRoomView({ liveId, isHost }: Props) {
                       size="sm"
                       variant={publicacao.microfoneAtivo ? "default" : "outline"}
                       onClick={() => void alternarMicrofone()}
+                      disabled={publicacao.microfoneAtivo === false && silenciadoPeloAnfitriao}
                     >
                       {publicacao.microfoneAtivo ? (
                         <Mic className="mr-2 h-4 w-4" />
@@ -516,6 +678,50 @@ export function LiveRoomView({ liveId, isHost }: Props) {
               </>
             )}
           </div>
+
+          {/* Requisito 2: mute coletivo do áudio da apresentação */}
+          {podeControlarAudio && status !== "encerrada" && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3">
+              <Volume2 className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Áudio da apresentação</span>
+
+              <Button
+                size="sm"
+                variant={audioTodosSilenciados ? "destructive" : "outline"}
+                onClick={() => {
+                  const alvo = controleAudio.current;
+                  if (!alvo) {
+                    toast({
+                      title: "Sala de áudio ainda não conectada",
+                      description:
+                        "Entre na sala de áudio para poder silenciar a apresentação.",
+                    });
+                    return;
+                  }
+                  alvo.alternarTodos();
+                }}
+                disabled={!controleAudio.current}
+                aria-pressed={audioTodosSilenciados}
+              >
+                {audioTodosSilenciados ? (
+                  <VolumeX className="mr-2 h-4 w-4" />
+                ) : (
+                  <Volume2 className="mr-2 h-4 w-4" />
+                )}
+                {audioTodosSilenciados ? "Restaurar áudio" : "Silenciar para todos"}
+              </Button>
+
+              <span className="text-xs text-muted-foreground">
+                {audioConectados === 0
+                  ? "Ninguém conectado à sala de áudio ainda."
+                  : audioTodosSilenciados
+                    ? `Todos os ${audioConectados} participante(s) estão sem áudio.`
+                    : audioAlgumSilenciado
+                      ? `${audioIdsSilenciados.length} de ${audioConectados} sem áudio. Use os botões nas cadeiras para ajustar.`
+                      : `${audioConectados} participante(s) ouvindo.`}
+              </span>
+            </div>
+          )}
 
           {/* Solicitações do anfitrião */}
           {isHost && sala.solicitacoes.length > 0 && (

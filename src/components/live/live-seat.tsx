@@ -3,7 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Crown, Gift, Mic, MicOff, ShieldAlert, UserMinus, Volume2 } from "lucide-react";
+import { Crown, Gift, Mic, MicOff, ShieldAlert, UserMinus, Volume2, VolumeX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCreditoBRL, iniciais } from "@/lib/live/format";
 import type { LiveParticipante, LivePresenteEnvio } from "@/lib/live/types";
@@ -22,7 +22,12 @@ type Props = {
     silenciar?: () => void;
     remover?: () => void;
     bloquear?: () => void;
+    /** Mute individual do áudio da apresentação para esta cadeira. */
+    alternarAudio?: () => void;
   };
+  /** O anfitrião (ou admin) pode suspender o áudio desta cadeira. */
+  podeSilenciarAudio?: boolean;
+  audioSilenciado?: boolean;
   compacto?: boolean;
 };
 
@@ -37,6 +42,8 @@ export function LiveSeat({
   podeEnviarPresente = false,
   aoEnviarPresente,
   acoesAnfitriao,
+  podeSilenciarAudio = false,
+  audioSilenciado = false,
   compacto = false,
 }: Props) {
   const [historicoAberto, setHistoricoAberto] = React.useState(false);
@@ -76,9 +83,17 @@ export function LiveSeat({
               "absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-card",
               participante.microfone_ativo
                 ? "bg-emerald-500 text-white"
-                : "bg-muted text-muted-foreground",
+                : participante.silenciado_pelo_anfitriao
+                  ? "bg-destructive text-white"
+                  : "bg-muted text-muted-foreground",
             )}
-            title={participante.microfone_ativo ? "Microfone ligado" : "Microfone desligado"}
+            title={
+              participante.microfone_ativo
+                ? "Microfone ligado"
+                : participante.silenciado_pelo_anfitriao
+                  ? "Silenciado pelo anfitrião"
+                  : "Microfone desligado"
+            }
           >
             {participante.microfone_ativo ? (
               <Mic className="h-3 w-3" />
@@ -108,9 +123,32 @@ export function LiveSeat({
             bloqueado
           </Badge>
         )}
+        {participante?.silenciado_pelo_anfitriao && (
+          <Badge variant="destructive" className="gap-1 text-[10px]">
+            <MicOff className="h-3 w-3" /> silenciado
+          </Badge>
+        )}
         {participante && estado === "ocupada" && !participante.microfone_ativo && (
           <Badge variant="secondary" className="text-[10px]">
             ouvindo
+          </Badge>
+        )}
+        {podeSilenciarAudio && (
+          <Badge
+            variant={audioSilenciado ? "destructive" : "outline"}
+            className="gap-1 text-[10px]"
+            title={
+              audioSilenciado
+                ? "Restaurar o áudio da apresentação para esta cadeira"
+                : "Silenciar o áudio da apresentação para esta cadeira"
+            }
+          >
+            {audioSilenciado ? (
+              <VolumeX className="h-3 w-3" />
+            ) : (
+              <Volume2 className="h-3 w-3" />
+            )}
+            {audioSilenciado ? "sem áudio" : "ouvindo"}
           </Badge>
         )}
       </div>
@@ -160,10 +198,46 @@ export function LiveSeat({
               <button
                 type="button"
                 onClick={acoesAnfitriao.silenciar}
-                className="flex h-7 w-7 items-center justify-center rounded-full border bg-background hover:bg-muted"
-                title="Silenciar"
+                className={cn(
+                  "flex h-7 w-7 items-center justify-center rounded-full border bg-background hover:bg-muted",
+                  participante?.silenciado_pelo_anfitriao &&
+                    "border-destructive/50 text-destructive hover:bg-destructive/10",
+                )}
+                title={
+                  participante?.silenciado_pelo_anfitriao
+                    ? "Devolver a palavra a esta pessoa"
+                    : "Silenciar o microfone desta pessoa"
+                }
+                aria-pressed={participante?.silenciado_pelo_anfitriao === true}
               >
-                <Volume2 className="h-3.5 w-3.5" />
+                {participante?.silenciado_pelo_anfitriao ? (
+                  <Mic className="h-3.5 w-3.5" />
+                ) : (
+                  <MicOff className="h-3.5 w-3.5" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={acoesAnfitriao.alternarAudio}
+                disabled={!acoesAnfitriao.alternarAudio}
+                className={cn(
+                  "flex h-7 w-7 items-center justify-center rounded-full border bg-background hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40",
+                  audioSilenciado && "border-destructive/50 text-destructive hover:bg-destructive/10",
+                )}
+                title={
+                  acoesAnfitriao.alternarAudio
+                    ? audioSilenciado
+                      ? "Restaurar o áudio da apresentação para esta cadeira"
+                      : "Silenciar o áudio da apresentação para esta cadeira"
+                    : "Silenciar o áudio da apresentação (disponível para usuários conectados)"
+                }
+                aria-pressed={audioSilenciado}
+              >
+                {audioSilenciado ? (
+                  <VolumeX className="h-3.5 w-3.5" />
+                ) : (
+                  <Volume2 className="h-3.5 w-3.5" />
+                )}
               </button>
               <button
                 type="button"

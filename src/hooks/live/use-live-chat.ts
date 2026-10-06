@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { criarCanalLive } from "@/lib/live/realtime";
 import type { LiveMensagem } from "@/lib/live/types";
 
 /**
@@ -74,6 +75,23 @@ export function useLiveChat(params: {
     };
   }, [recarregar]);
 
+  /**
+   * Adiciona uma mensagem ao estado local ignorando duplicatas pelo `id`.
+   *
+   * A mesma mensagem pode chegar por três caminhos independentes: o
+   * registro otimista do próprio remetente, o `postgres_changes` e o
+   * Broadcast. Comparar por `id` torna a inserção idempotente — a
+   * primeira passagem vence e as seguintes viram no-op. Comparar por
+   * conteúdo seria incorreto: duas mensagens legítimas podem ter
+   * exatamente o mesmo texto.
+   */
+  const adicionarMensagem = React.useCallback((mensagem: LiveMensagem) => {
+    if (!mensagem?.id) return;
+    setMensagens((atuais) =>
+      atuais.some((m) => m.id === mensagem.id) ? atuais : [...atuais, mensagem],
+    );
+  }, []);
+
   // Canal público de Broadcast da sala. Convidados não têm sessão
   // Supabase e não podem assinar `postgres_changes`; por isso toda
   // mensagem — inclusive as internas — é propagada aqui.
@@ -89,13 +107,15 @@ export function useLiveChat(params: {
     const canal = supabase
       .channel(`live:chat-bc:${liveId}`)
       .on("broadcast", { event: "mensagem" }, ({ payload }) => {
-        const mensagem = payload as LiveMensagem;
-        if (!mensagem?.id) return;
-        setMensagens((atuais) =>
-          atuais.some((m) => m.id === mensagem.id) ? atuais : [...atuais, mensagem],
-        );
+        adicionarMensagem(payload as LiveMensagem);
       })
-      .subscribe();
+      .subscribe((status, erro) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          console.warn(
+            `[live] live:chat-bc:${liveId} perdeu a inscrição (${status}${erro ? `: ${erro.message}` : ""}).`,
+          );
+        }
+      });
 
     canalRef.current = canal;
 
@@ -103,40 +123,33 @@ export function useLiveChat(params: {
       canalRef.current = null;
       void supabase.removeChannel(canal);
     };
-  }, [liveId]);
+  }, [liveId, adicionarMensagem]);
 
-  // Usuários internos: postgres_changes (RLS já restringe à sala)
+  // Usuários internos: postgres_changes (RLS já restringe à sala).
+  //
+  // Usa o canal com auto-recuperação: quando a inscrição cai, o
+  // histórico é recarregado na reconexão, porque as mensagens
+  // publicadas enquanto o canal estava morto não chegaram.
   React.useEffect(() => {
     if (modo !== "interno") return;
-    const supabase = createClient();
-
-    for (const canal of supabase.getChannels()) {
-      if (canal.topic === `live:chat-db:${liveId}`) supabase.removeChannel(canal);
-    }
-
-    const canal = supabase
-      .channel(`live:chat-db:${liveId}`)
-      .on(
-        "postgres_changes",
+    return criarCanalLive({
+      topic: `live:chat-db:${liveId}`,
+      assinaturas: [
         {
           event: "INSERT",
           schema: "public",
           table: "live_chat_mensagens",
           filter: `live_id=eq.${liveId}`,
         },
-        (payload) => {
-          const mensagem = payload.new as LiveMensagem;
-          setMensagens((atuais) =>
-            atuais.some((m) => m.id === mensagem.id) ? atuais : [...atuais, mensagem],
-          );
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(canal);
-    };
-  }, [liveId, modo]);
+      ],
+      aoEvento: (_tabela, payload) => {
+        adicionarMensagem((payload as { new: LiveMensagem }).new);
+      },
+      aoReconectar: () => {
+        void recarregar();
+      },
+    });
+  }, [liveId, modo, adicionarMensagem, recarregar]);
 
   const enviar = React.useCallback(
     async (mensagem: string) => {
@@ -145,6 +158,11 @@ export function useLiveChat(params: {
           "@/repositories/client/live/live-chat.repository"
         );
         const gravada = await enviarMensagem(liveId, mensagem);
+        // Registro otimista: o remetente vê a própria mensagem na hora.
+        // O Broadcast não faz eco a quem enviou, e o postgres_changes só
+        // voltaria por propagação do canal Realtime — sem isso a mensagem
+        // só aparecia depois de um recarregamento.
+        adicionarMensagem(gravada);
         // Espelha no canal público para que os convidados externos
         // recebam a mensagem: eles não escutam postgres_changes.
         await canalRef.current
@@ -164,7 +182,7 @@ export function useLiveChat(params: {
         throw new Error(corpo?.erro ?? "falha_carregamento");
       }
     },
-    [liveId, modo, meuNome, tokenConvite],
+    [liveId, modo, meuNome, tokenConvite, adicionarMensagem],
   );
 
   return { mensagens, carregando, erro, enviar, recarregar };

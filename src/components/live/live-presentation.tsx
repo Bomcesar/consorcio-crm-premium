@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { MonitorUp, FileText, X, Loader2, AlertTriangle } from "lucide-react";
+import { useMaybeRoomContext, useTracks, VideoTrack } from "@livekit/components-react";
+import { Track, LocalTrack } from "livekit-client";
 import { Button } from "@/components/ui/button";
 import { LivePdfViewer } from "./live-pdf-viewer";
 import type { LiveApresentacao } from "@/lib/live/types";
@@ -12,6 +14,7 @@ type Props = {
   souAnfitriao: boolean;
   modo: "audio" | "apresentacao";
   onMudarPagina: (pagina: number) => void;
+  tela: LocalTrack[];
   onRegistrarTotal: (total: number) => void;
   onSincronizarVideo?: (reproduzindo: boolean, tempo: number) => void;
   onEncerrar: () => void;
@@ -19,6 +22,88 @@ type Props = {
   onIniciarTela?: () => void;
   erro?: string | null;
 };
+
+/**
+ * Faixa de tela compartilhada que chega pela sala de mídia.
+ *
+ * O conteúdo da tela NÃO passa pelo banco: o anfitrião publica um
+ * track `ScreenShare` pelo LiveKit e cada participante o recebe como
+ * `RemoteTrackPublication`. Este é o mesmo padrão já usado pela sala
+ * de convidados (`live-guest-room.tsx`), replicado aqui para que a
+ * sala interna também o exiba.
+ *
+ * `useTracks` exige `RoomContext`, então este componente só é montado
+ * quando há sala conectada — daí o `room` checado no pai, que mantém
+ * as regras de hooks válidas e evita quebrar a apresentação quando o
+ * usuário ainda não entrou na sala de áudio.
+ */
+function FaixaTelaRemota({
+  souAnfitriao,
+  tela,
+}: {
+  souAnfitriao: boolean;
+  tela: LocalTrack[];
+}) {
+  const visoes = useTracks([
+    { source: Track.Source.ScreenShare, withPlaceholder: false },
+  ]).filter(
+    (visao): visao is typeof visao & { publication: NonNullable<typeof visao.publication> } =>
+      Boolean(visao.publication),
+  );
+
+  if (visoes.length === 0) {
+    if (souAnfitriao && tela.length > 0) {
+      const videoLocal = tela.find((t) => t.kind === "video");
+      if (videoLocal) {
+        const stream = new MediaStream([videoLocal.mediaStreamTrack]);
+        return (
+          <div className="flex flex-col gap-3">
+            <video
+              autoPlay
+              playsInline
+              className="w-full rounded-lg bg-black"
+              style={{ aspectRatio: "16 / 9" }}
+              ref={(el) => {
+                if (el) el.srcObject = stream;
+              }}
+            />
+          </div>
+        );
+      }
+    }
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <p>Aguardando a faixa de tela do anfitrião...</p>
+        <p className="text-xs">
+          O compartilhamento foi iniciado. A imagem aparece aqui assim que a sala
+          de mídia entregar o vídeo.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    // `aspectRatio` em vez de `h-full`: nenhum ancestral desta cadeia
+    // tem altura definida, então `h-full` resolvia para 0 e o
+    // VideoTrack era montado com 0x0 — uma caixa preta sem dimensões. Com
+    // `adaptiveStream: true` em `live-room.tsx`, LiveKit ainda deixa
+    // de inscrever a faixa de vídeo de elemento sem dimensão visível,
+    // então o 0x0 impedia a entrega do track, não só a pintura.
+    // É o mesmo padrão que funciona em `live-guest-room.tsx`.
+    <div className="flex flex-col gap-3">
+      {visoes.map((visao) => (
+        <div key={visao.publication.trackSid ?? visao.participant.identity}>
+          <VideoTrack
+            trackRef={visao}
+            className="w-full rounded-lg bg-black"
+            style={{ aspectRatio: "16 / 9" }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /**
  * 📄 APRESENTAÇÃO
@@ -32,6 +117,7 @@ export function LivePresentation({
   url,
   souAnfitriao,
   modo,
+  tela,
   onMudarPagina,
   onRegistrarTotal,
   onSincronizarVideo,
@@ -43,6 +129,11 @@ export function LivePresentation({
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const [enviando, setEnviando] = React.useState(false);
+
+  // `LivePresentation` é renderizado dentro de `SalaMidia`, mas a
+  // checagem mantém a tela intacta se algum dia for usado fora da
+  // sala: sem `room`, a faixa remota simplesmente não aparece.
+  const room = useMaybeRoomContext();
 
   const escolherArquivo = async (arquivo: File) => {
     if (!onSelecionarArquivo) return;
@@ -156,9 +247,18 @@ export function LivePresentation({
 
       <div className="min-h-0 flex-1">
         {apresentacao?.tipo === "screen" ? (
-          <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
-            A tela do anfitrião está sendo transmitida como faixa de vídeo da sala.
-          </div>
+          room ? (
+            <FaixaTelaRemota souAnfitriao={souAnfitriao} tela={tela} />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground">
+              <MonitorUp className="h-6 w-6 text-primary" />
+              <p>Entre na sala de áudio para ver a tela compartilhada.</p>
+              <p className="text-xs">
+                O vídeo da tela chega pela conexão de mídia, não pelo banco — sem ela
+                não há como exibir o conteúdo.
+              </p>
+            </div>
+          )
         ) : apresentacao?.tipo === "video" && url ? (
           <div className="flex h-full items-center justify-center bg-black">
             <video

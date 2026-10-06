@@ -194,24 +194,33 @@ export async function acaoSobreParticipante(
   const patch: Record<string, unknown> = {};
   switch (acao) {
     case "silenciar":
+      // `silenciado_pelo_anfitriao` é o que o cliente do participante
+      // observa para desligar o track de verdade. Zerar só
+      // `microfone_ativo` deixaria o ícone mentir: o banco diria
+      // "desligado" e o áudio continuaria no SFU.
+      patch.silenciado_pelo_anfitriao = true;
       patch.microfone_ativo = false;
       break;
     case "permitir_falar":
+      patch.silenciado_pelo_anfitriao = false;
       patch.bloqueado = false;
       break;
     case "remover":
       patch.saiu_em = agora;
+      patch.silenciado_pelo_anfitriao = false;
       patch.microfone_ativo = false;
       patch.camera_ativa = false;
       patch.cadeira = null;
       break;
     case "retirar_cadeira":
       patch.cadeira = null;
+      patch.silenciado_pelo_anfitriao = false;
       patch.microfone_ativo = false;
       patch.tipo = "ouvinte";
       break;
     case "bloquear":
       patch.bloqueado = true;
+      patch.silenciado_pelo_anfitriao = false;
       patch.microfone_ativo = false;
       patch.camera_ativa = false;
       patch.cadeira = null;

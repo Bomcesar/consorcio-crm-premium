@@ -19,7 +19,10 @@ type Props = {
     silenciar?: () => void;
     remover?: () => void;
     bloquear?: () => void;
+    alternarAudio?: () => void;
   };
+  podeSilenciarAudio?: boolean;
+  audioSilenciado?: (participanteId: string) => boolean;
   /** Publicação de mídia local, para medir o próprio microfone. */
   podePublicar: boolean;
   microfoneAtivo: boolean;
@@ -50,6 +53,8 @@ export function LiveSeatStage({
   podeEnviarPresente,
   aoEnviarPresente,
   acoesAnfitriao,
+  podeSilenciarAudio,
+  audioSilenciado,
   podePublicar,
   microfoneAtivo,
   fluxoLocal,
@@ -79,6 +84,8 @@ export function LiveSeatStage({
           podeEnviarPresente={podeEnviarPresente}
           aoEnviarPresente={aoEnviarPresente}
           acoesAnfitriao={acoesAnfitriao}
+          podeSilenciarAudio={podeSilenciarAudio}
+          audioSilenciado={audioSilenciado}
         />
       </CardContent>
     </Card>

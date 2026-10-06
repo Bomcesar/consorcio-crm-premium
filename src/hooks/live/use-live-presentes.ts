@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { createClient } from "@/lib/supabase/client";
+import { criarCanalLive } from "@/lib/live/realtime";
 import { getEnviosDaSala, enviarPresente } from "@/repositories/client/live/live-presentes.repository";
 import type { LivePresente, LivePresenteEnvio, LiveParticipante } from "@/lib/live/types";
 
@@ -41,36 +41,30 @@ export function useLivePresentes(params: { liveId: string }) {
   }, [recarregar]);
 
   // Tempo real: os presentes enviados aparecem nas cadeiras
-  React.useEffect(() => {
-    const supabase = createClient();
-
-    for (const canal of supabase.getChannels()) {
-      if (canal.topic === `live:presentes:${liveId}`) supabase.removeChannel(canal);
-    }
-
-    const canal = supabase
-      .channel(`live:presentes:${liveId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "live_presentes_envios",
-          filter: `live_id=eq.${liveId}`,
-        },
-        (payload) => {
-          const envio = payload.new as LivePresenteEnvio;
+  React.useEffect(
+    () =>
+      criarCanalLive({
+        topic: `live:presentes:${liveId}`,
+        assinaturas: [
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "live_presentes_envios",
+            filter: `live_id=eq.${liveId}`,
+          },
+        ],
+        aoEvento: (_tabela, payload) => {
+          const envio = (payload as { new: LivePresenteEnvio }).new;
           setEnvios((atuais) =>
             atuais.some((e) => e.id === envio.id) ? atuais : [envio, ...atuais],
           );
         },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(canal);
-    };
-  }, [liveId]);
+        aoReconectar: () => {
+          void recarregar();
+        },
+      }),
+    [liveId, recarregar],
+  );
 
   const enviar = React.useCallback(
     async (destinatario: LiveParticipante, presente: LivePresente) => {

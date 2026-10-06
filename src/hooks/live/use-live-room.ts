@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createClient } from "@/lib/supabase/client";
+import { criarCanalLive } from "@/lib/live/realtime";
 import { getParticipantes, getSolicitacoesPendentes } from "@/repositories/client/live/live-participants.repository";
 import type { LiveParticipante, LiveRoom, LiveSolicitacao } from "@/lib/live/types";
 
@@ -86,54 +87,51 @@ export function useLiveRoom(params: {
     };
   }, [liveId, recarregarParticipantes, recarregarSolicitacoes]);
 
-  // Realtime: sala (status/modo), participantes e solicitações
+  // Realtime: sala (status/modo), participantes e solicitações.
+  //
+  // O canal se recria sozinho quando a inscrição cai (celular em segundo
+  // plano, troca de rede): antes disso a tela só voltava a reagir após
+  // F5. Cada vez que a inscrição é (re)confirmada o estado é recarregado,
+  // porque as mudanças que ocorreram enquanto o canal estava morto não
+  // chegaram — é o que garante que "Aceitar" mude o participante para a
+  // cadeira sem ele precisar sair e entrar da sala.
   React.useEffect(() => {
-    const supabase = createClient();
-
-    // Remove canais duplicados (React 19 StrictMode / HMR)
-    for (const canal of supabase.getChannels()) {
-      if (canal.topic.startsWith("live:")) supabase.removeChannel(canal);
-    }
-
-    const canal = supabase
-      .channel(`live:room:${liveId}`)
-      .on(
-        "postgres_changes",
+    let cancelar = () => {};
+    cancelar = criarCanalLive({
+      topic: `live:room:${liveId}`,
+      assinaturas: [
         { event: "UPDATE", schema: "public", table: "live_rooms", filter: `id=eq.${liveId}` },
-        (payload) => {
-          setSala(payload.new as LiveRoom);
-        },
-      )
-      .on(
-        "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "live_participantes",
           filter: `live_id=eq.${liveId}`,
         },
-        () => {
-          void recarregarParticipantes();
-          if (souAnfitriao) void recarregarSolicitacoes();
-        },
-      )
-      .on(
-        "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "live_solicitacoes",
           filter: `live_id=eq.${liveId}`,
         },
-        () => {
+      ],
+      aoEvento: (tabela, payload) => {
+        if (tabela === "live_rooms") {
+          setSala((payload as { new: LiveRoom }).new as LiveRoom);
+          return;
+        }
+        if (tabela === "live_participantes") {
+          void recarregarParticipantes();
           if (souAnfitriao) void recarregarSolicitacoes();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(canal);
-    };
+          return;
+        }
+        if (souAnfitriao) void recarregarSolicitacoes();
+      },
+      aoReconectar: () => {
+        void recarregarParticipantes();
+        if (souAnfitriao) void recarregarSolicitacoes();
+      },
+    });
+    return () => cancelar();
   }, [liveId, souAnfitriao, recarregarParticipantes, recarregarSolicitacoes]);
 
   // Heartbeat de presença: mantém `last_seen_at` fresco.

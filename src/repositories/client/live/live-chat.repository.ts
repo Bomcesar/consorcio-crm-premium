@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/client";
-import { getAuthenticatedUser } from "@/lib/auth-user";
 import { LIVE_MENSAGEM_MAX, type LiveMensagem } from "@/lib/live/types";
 
 type SupabaseError = { message?: string; details?: string; hint?: string; code?: string };
@@ -36,25 +35,30 @@ export async function enviarMensagem(
   liveId: string,
   mensagem: string,
 ): Promise<LiveMensagem> {
-  const user = await getAuthenticatedUser();
   const supabase = createClient();
 
   const texto = mensagem.trim().slice(0, LIVE_MENSAGEM_MAX);
   if (!texto) throw new Error("Mensagem vazia.");
 
+  const { data: sess, error: authError } = await supabase.auth.getUser();
+  const userId = sess.user?.id;
+  if (authError || !userId) {
+    throw new Error("Não autenticado.");
+  }
+
   const { data: perfil } = await supabase
     .from("profiles")
     .select("nome, perfil")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
 
   const { data, error } = await supabase
     .from("live_chat_mensagens")
     .insert({
       live_id: liveId,
-      autor_usuario_id: user.id,
+      autor_usuario_id: userId,
       nome_exibicao:
-        (perfil as { nome?: string } | null)?.nome || user.email || "Participante",
+        (perfil as { nome?: string } | null)?.nome || sess.user?.email || "Participante",
       perfil: (perfil as { perfil?: string } | null)?.perfil ?? null,
       mensagem: texto,
       tipo: "texto",

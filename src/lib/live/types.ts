@@ -56,6 +56,13 @@ export type LiveParticipante = {
   cadeira: number | null;
   microfone_ativo: boolean;
   camera_ativa: boolean;
+  /**
+   * Mute IMPOSTO pelo anfitrião. Distinto de `microfone_ativo`,
+   * que é o que o próprio participante realmente publikou: o
+   * primeiro é uma ordem, o segundo é um fato. O painel do
+   * anfitrião só pode mostrar "ligado" quando os dois concordam.
+   */
+  silenciado_pelo_anfitriao: boolean;
   bloqueado: boolean;
   saiu_em: string | null;
   last_seen_at: string;

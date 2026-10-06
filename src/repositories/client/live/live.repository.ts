@@ -163,6 +163,28 @@ export async function entrarComoOuvinte(liveId: string): Promise<string> {
   const user = await getAuthenticatedUser();
   const supabase = createClient();
 
+  // Idempotência: o índice único parcial `live_participantes_usuario_unica`
+  // (live_id, usuario_id) WHERE saiu_em IS NULL rejeita um segundo INSERT
+  // com HTTP 409. Como o efeito de entrada roda a cada montagem, um
+  // F5 ou o Strict Mode do React disparavam o INSERT de novo. Verificar
+  // antes transforma a operação em reentrante, espelhando o que
+  // `registrarAnfitriao` já faz.
+  const { data: existente, error: erroConsulta } = await supabase
+    .from("live_participantes")
+    .select("id")
+    .eq("live_id", liveId)
+    .eq("usuario_id", user.id)
+    .is("saiu_em", null)
+    .maybeSingle();
+
+  if (erroConsulta) {
+    // Falha de RLS ou de rede ao consultar: registrar e seguir para o
+    // INSERT, que tentará de novo pelo caminho oficial.
+    logSupabaseError("entrarComoOuvinte.consulta", erroConsulta);
+  } else if (existente) {
+    return (existente as { id: string }).id;
+  }
+
   const { data: perfil } = await supabase
     .from("profiles")
     .select("nome, perfil")
@@ -183,20 +205,20 @@ export async function entrarComoOuvinte(liveId: string): Promise<string> {
 
   if (error || !data) {
     logSupabaseError("entrarComoOuvinte", error);
-    // Um 409 aqui significa registro duplicado — quase sempre o próprio
-    // usuário tentando entrar de novo. A presença já está no banco, então
-    // recuperar a linha existente é o comportamento correto, não um erro.
     const codigo = codigoDeErro(error);
+    // Corrida real (dois INSERT simultâneos venceram a consulta): a
+    // linha já está no banco, então recuperá-la é o resultado correto.
     if (codigo === "ja_participa") {
-      const { data: existente } = await supabase
+      const { data: recuperada } = await supabase
         .from("live_participantes")
         .select("id")
         .eq("live_id", liveId)
         .eq("usuario_id", user.id)
         .is("saiu_em", null)
         .maybeSingle();
-      if (existente) return (existente as { id: string }).id;
+      if (recuperada) return (recuperada as { id: string }).id;
     }
+    // Qualquer outro código é um erro real e sobe para a UI tratar.
     throw new Error(codigo);
   }
   return (data as { id: string }).id;
