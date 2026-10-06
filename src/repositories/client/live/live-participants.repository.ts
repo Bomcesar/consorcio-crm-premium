@@ -6,12 +6,15 @@ import { acharCadeiraLivre } from "@/lib/live/cadeira";
 type SupabaseError = { message?: string; details?: string; hint?: string; code?: string };
 
 function logSupabaseError(context: string, error: SupabaseError | null) {
-  console.error(`[Live Participantes] ${context} error:`, {
-    message: error?.message,
-    details: error?.details,
-    hint: error?.hint,
-    code: error?.code,
-  });
+  console.error(
+    `[Live Participantes] ${context} error:`,
+    JSON.stringify({
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+      code: error?.code,
+    }),
+  );
 }
 
 export async function getParticipantes(liveId: string): Promise<LiveParticipante[]> {
