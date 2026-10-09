@@ -11,6 +11,7 @@ import {
   getConvites,
   revogarConvite,
 } from "@/repositories/client/live/live-invites.repository";
+import { criarCanalLive } from "@/lib/live/realtime";
 import { formatDataHora } from "@/lib/live/format";
 import type { LiveConvite } from "@/lib/live/types";
 
@@ -41,6 +42,26 @@ export function LiveInvitePanel({ liveId }: Props) {
       console.error("[LiveInvitePanel]:", e);
     }
   }, [liveId]);
+
+  // Realtime: atualiza a lista quando um convidado entra (incrementa acessos)
+  // ou quando um convite é revogado/criado por outro anfitrião.
+  React.useEffect(() => {
+    const cancelar = criarCanalLive({
+      topic: `live:convites:${liveId}`,
+      assinaturas: [
+        {
+          event: "*",
+          schema: "public",
+          table: "live_convites",
+          filter: `live_id=eq.${liveId}`,
+        },
+      ],
+      aoEvento: () => {
+        void carregar();
+      },
+    });
+    return () => cancelar();
+  }, [liveId, carregar]);
 
   React.useEffect(() => {
     void carregar();
@@ -145,11 +166,7 @@ export function LiveInvitePanel({ liveId }: Props) {
           <div className="flex gap-2">
             <Input readOnly value={linkGerado} className="h-8 text-xs" />
             <Button size="sm" variant="outline" onClick={() => void copiar()}>
-              {copiado ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
+              {copiado ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>
         </div>
@@ -177,7 +194,13 @@ export function LiveInvitePanel({ liveId }: Props) {
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <Badge variant={inativo ? "secondary" : "default"} className="text-[10px]">
-                    {c.revogado ? "revogado" : expirado ? "expirado" : semAcesso ? "limite" : "ativo"}
+                    {c.revogado
+                      ? "revogado"
+                      : expirado
+                        ? "expirado"
+                        : semAcesso
+                          ? "limite"
+                          : "ativo"}
                   </Badge>
                   {!c.revogado && (
                     <Button
