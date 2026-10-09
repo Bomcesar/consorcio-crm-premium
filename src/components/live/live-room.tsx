@@ -4,6 +4,7 @@ import * as React from "react";
 import { LiveKitRoom, RoomAudioRenderer } from "@livekit/components-react";
 import type { RoomOptions } from "livekit-client";
 import { cn } from "@/lib/utils";
+import { classificarFalhaDeConexao } from "@/lib/live/erros";
 
 export type PropsSalaMidia = {
   token: string;
@@ -75,7 +76,11 @@ export function SalaMidia({
       onDisconnected={(motivo) => onDisconnected?.(String(motivo))}
       onError={(erro) => {
         console.error("[SalaMidia]", erro);
-        onError?.("falha_conexao_media");
+        // O WebSocket do navegador esconde o status HTTP do handshake,
+        // então o 429 de cota do LiveKit Cloud chega como erro genérico.
+        // `classificarFalhaDeConexao` sonda o endpoint de validação
+        // para distinguir "cota esgotada" de falha transitória.
+        void classificarFalhaDeConexao(erro, serverUrl, token).then((codigo) => onError?.(codigo));
       }}
       data-lk-theme="default"
       className={cn("flex h-full w-full flex-col overflow-hidden", className)}

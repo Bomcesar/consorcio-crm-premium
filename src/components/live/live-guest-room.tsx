@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Radio, Loader2, ShieldAlert, Users } from "lucide-react";
+import { Radio, Loader2, ShieldAlert, Users, AlertTriangle } from "lucide-react";
 import { useTracks, VideoTrack } from "@livekit/components-react";
 import { Track } from "livekit-client";
 import { LiveGuestChat } from "./live-guest-chat";
 import { LiveGuestPresentation } from "./live-guest-presentation";
 import { SalaMidia } from "./live-room";
+import { descreverErroLive } from "@/lib/live/erros";
 
 export type SessaoConvidado = {
   liveId: string;
@@ -72,8 +73,7 @@ export function LiveGuestRoom({ token, nomeInicial, dados }: Props) {
           { cache: "no-store" },
         );
         const corpo = (await resposta.json().catch(() => null)) as
-          | (SessaoConvidado & { erro?: string })
-          | null;
+          (SessaoConvidado & { erro?: string }) | null;
 
         if (!resposta.ok || !corpo?.tokenLivekit) {
           setErro(corpo?.erro ?? "convite_inexistente");
@@ -125,9 +125,10 @@ export function LiveGuestRoom({ token, nomeInicial, dados }: Props) {
         // A validação leve também devolve o modo atual: quando o
         // anfitrião entra ou sai da apresentação, o convidado
         // acompanha sem precisar abrir o link de novo.
-        const corpo = (await resposta.json().catch(() => null)) as
-          | { status?: string; modo?: string }
-          | null;
+        const corpo = (await resposta.json().catch(() => null)) as {
+          status?: string;
+          modo?: string;
+        } | null;
         if (corpo?.status || corpo?.modo) {
           setSessao((atual) =>
             atual
@@ -188,7 +189,11 @@ export function LiveGuestRoom({ token, nomeInicial, dados }: Props) {
                 {erro === "convite_inexistente" && "Link de convite inválido."}
               </p>
             )}
-            <Button className="w-full" onClick={() => void entrar(nome)} disabled={!nome.trim() || carregando}>
+            <Button
+              className="w-full"
+              onClick={() => void entrar(nome)}
+              disabled={!nome.trim() || carregando}
+            >
               {carregando ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -225,11 +230,7 @@ export function LiveGuestRoom({ token, nomeInicial, dados }: Props) {
           <>
             <SalaMidiaConvidada sessao={sessao} />
             <LiveGuestPresentation token={token} ativo={sessao.modo === "apresentacao"} />
-            <LiveGuestChat
-              token={token}
-              nome={nome.trim()}
-              liveId={sessao.liveId}
-            />
+            <LiveGuestChat token={token} nome={nome.trim()} liveId={sessao.liveId} />
           </>
         ) : (
           <Card>
@@ -258,8 +259,8 @@ function SalaEncerrada() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            O link de acesso não é mais válido. Entre em contato com o anfitrião se precisar de
-            uma nova Live.
+            O link de acesso não é mais válido. Entre em contato com o anfitrião se precisar de uma
+            nova Live.
           </p>
         </CardContent>
       </Card>
@@ -269,6 +270,9 @@ function SalaEncerrada() {
 
 function SalaMidiaConvidada({ sessao }: { sessao: SessaoConvidado }) {
   const [conectado, setConectado] = React.useState(false);
+  const [falha, setFalha] = React.useState<string | null>(null);
+
+  const descricao = falha ? descreverErroLive(falha) : null;
 
   return (
     <SalaMidia
@@ -281,9 +285,22 @@ function SalaMidiaConvidada({ sessao }: { sessao: SessaoConvidado }) {
       video={false}
       screen={false}
       onConnected={() => setConectado(true)}
+      onError={(codigo) => setFalha(codigo)}
     >
+      {descricao && (
+        <div
+          className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs"
+          role="alert"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">{descricao.titulo}</p>
+            <p className="text-muted-foreground">{descricao.mensagem}</p>
+          </div>
+        </div>
+      )}
       <div className="rounded-xl border bg-card p-4">
-        <PalcoDoConvidado conectado={conectado} modo={sessao.modo} />
+        <PalcoDoConvidado conectado={conectado} modo={sessao.modo} falhou={!!falha} />
       </div>
     </SalaMidia>
   );
@@ -297,9 +314,11 @@ function SalaMidiaConvidada({ sessao }: { sessao: SessaoConvidado }) {
 function PalcoDoConvidado({
   conectado,
   modo,
+  falhou,
 }: {
   conectado: boolean;
   modo: "audio" | "apresentacao";
+  falhou: boolean;
 }) {
   const visoes = useTracks([
     { source: Track.Source.ScreenShare, withPlaceholder: false },
@@ -326,16 +345,22 @@ function PalcoDoConvidado({
       ) : (
         <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-lg bg-muted/40 p-6 text-center">
           <Loader2
-            className={`h-7 w-7 text-primary ${conectado ? "hidden" : "animate-spin"}`}
+            className={`h-7 w-7 text-primary ${conectado && !falhou ? "hidden" : "animate-spin"}`}
           />
           <p className="font-medium">
-            {conectado ? "Você está ouvindo a Live" : "Conectando ao áudio..."}
+            {falhou
+              ? "Não foi possível conectar"
+              : conectado
+                ? "Você está ouvindo a Live"
+                : "Conectando ao áudio..."}
           </p>
-          <p className="text-xs text-muted-foreground">
-            {modo === "apresentacao"
-              ? "Quando o anfitrião iniciar a apresentação, o vídeo aparece aqui."
-              : "Use fone de ouvido para melhor qualidade de áudio."}
-          </p>
+          {!falhou && (
+            <p className="text-xs text-muted-foreground">
+              {modo === "apresentacao"
+                ? "Quando o anfitrião iniciar a apresentação, o vídeo aparece aqui."
+                : "Use fone de ouvido para melhor qualidade de áudio."}
+            </p>
+          )}
         </div>
       )}
     </div>

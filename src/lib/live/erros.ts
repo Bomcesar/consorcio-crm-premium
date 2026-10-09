@@ -49,6 +49,12 @@ export const LIVE_ERROS: Record<
       "A conexão de áudio ou vídeo foi perdida. Estamos tentando reconectar — permaneça nesta tela.",
     recuperavel: true,
   },
+  limite_conexoes: {
+    titulo: "Limite de conexões atingido",
+    mensagem:
+      "O serviço de áudio e vídeo atingiu o limite de uso deste período e não aceita novas conexões. Peça ao administrador da Live para verificar a capacidade da plataforma.",
+    recuperavel: false,
+  },
   falha_emissao_token: {
     titulo: "Não foi possível entrar na sala",
     mensagem:
@@ -138,7 +144,7 @@ export const LIVE_ERROS: Record<
     mensagem: "Tente novamente em alguns instantes.",
     recuperavel: true,
   },
-sem_permissao: {
+  sem_permissao: {
     titulo: "Acesso negado",
     mensagem: "Você não tem permissão para realizar esta ação.",
     recuperavel: false,
@@ -194,13 +200,56 @@ export function mapearErroDeMidia(erro: unknown): string {
   }
 }
 
+/**
+ * Classifica falhas de conexão com a sala LiveKit.
+ *
+ * O WebSocket do navegador não expõe o status HTTP do handshake, e o
+ * livekit-client só traduz 401/403/404 do endpoint de validação —
+ * um 429 de cota do LiveKit Cloud chega como erro genérico de
+ * WebSocket. Quando o erro não carrega o status, sonda o próprio
+ * endpoint de validação (`/rtc/v1/validate`) com o token da sala:
+ * ele é público (CORS `*`) e devolve 429 com a mensagem de cota
+ * quando o projeto estourou os minutos de conexão do período.
+ */
+export async function classificarFalhaDeConexao(
+  erro: unknown,
+  serverUrl: string,
+  token: string,
+): Promise<string> {
+  const status = (erro as { status?: number })?.status;
+  if (status === 429) return "limite_conexoes";
+
+  const mensagem = String((erro as { message?: string })?.message ?? "");
+  if (/connection minutes|too many requests|rate limit|quota/i.test(mensagem)) {
+    return "limite_conexoes";
+  }
+
+  if (serverUrl && token) {
+    const controle = new AbortController();
+    const tempoLimite = setTimeout(() => controle.abort(), 5000);
+    try {
+      const httpUrl = serverUrl.replace(/^wss:/i, "https:").replace(/^ws:/i, "http:");
+      const resposta = await fetch(
+        `${httpUrl.replace(/\/$/, "")}/rtc/v1/validate?access_token=${encodeURIComponent(token)}`,
+        { cache: "no-store", signal: controle.signal },
+      );
+      if (resposta.status === 429) return "limite_conexoes";
+    } catch {
+      // Servidor inacessível: mantém a classificação genérica.
+    } finally {
+      clearTimeout(tempoLimite);
+    }
+  }
+
+  return "falha_conexao_media";
+}
+
 /** O suporte a compartilhamento de tela varia muito entre navegadores. */
 export function suportaCompartilhamentoDeTela(): boolean {
   if (typeof window === "undefined") return false;
   return (
     typeof navigator !== "undefined" &&
-    typeof (navigator.mediaDevices as { getDisplayMedia?: unknown })?.getDisplayMedia ===
-      "function"
+    typeof (navigator.mediaDevices as { getDisplayMedia?: unknown })?.getDisplayMedia === "function"
   );
 }
 

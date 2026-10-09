@@ -26,11 +26,42 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Pencil, Trash2, Loader2, Upload, Download, Users, Phone, Mail, UserPlus, FolderOpen, ChevronRight, MessageSquare, ArrowRight, ClipboardList, Filter, MessageCircle, UserCheck } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
+  Upload,
+  Download,
+  Users,
+  Phone,
+  Mail,
+  UserPlus,
+  FolderOpen,
+  ChevronRight,
+  MessageSquare,
+  ArrowRight,
+  ClipboardList,
+  Filter,
+  MessageCircle,
+  UserCheck,
+} from "lucide-react";
 import type { Cliente, ClienteUpdate } from "@/repositories/client/clientes.repository";
 import type { Contato, ContatoImportPreview } from "@/lib/contatos";
 import type { Pasta, PastaItem } from "@/repositories/client/pastas.repository";
-import { exportCSV, exportVCF, exportTXT, exportXLSX, downloadFile, parseCSV, parseVCF, parseTXT, parseXLSX, detectDuplicates } from "@/lib/contatos";
+import {
+  exportCSV,
+  exportVCF,
+  exportTXT,
+  exportXLSX,
+  downloadFile,
+  parseCSV,
+  parseVCF,
+  parseTXT,
+  parseXLSX,
+  detectDuplicates,
+} from "@/lib/contatos";
 import { broadcastConversaoContato } from "@/lib/celebracao";
 
 const emptyForm = {
@@ -75,10 +106,20 @@ export default function ContatosPage() {
   const [selectedPastaId, setSelectedPastaId] = useState<string | null>(null);
   const [pastaItens, setPastaItens] = useState<PastaItem[]>([]);
   const [isPastaFormOpen, setIsPastaFormOpen] = useState(false);
-  const [pastaFormData, setPastaFormData] = useState({ nome: "", descricao: "", cor: "#3b82f6", origem: "", observacao: "" });
+  const [pastaFormData, setPastaFormData] = useState({
+    nome: "",
+    descricao: "",
+    cor: "#3b82f6",
+    origem: "",
+    observacao: "",
+  });
   const [isAddClienteToPastaOpen, setIsAddClienteToPastaOpen] = useState(false);
   const [selectedClienteForPasta, setSelectedClienteForPasta] = useState<Cliente | null>(null);
-  const [pastaItemForm, setPastaItemForm] = useState({ prospeccao_status: "Não contatado" as PastaItem["prospeccao_status"], proxima_acao: "", data_retorno: "" });
+  const [pastaItemForm, setPastaItemForm] = useState({
+    prospeccao_status: "Não contatado" as PastaItem["prospeccao_status"],
+    proxima_acao: "",
+    data_retorno: "",
+  });
   const [pastaFilter, setPastaFilter] = useState<string | null>(null);
   const [selectedPastaItemIds, setSelectedPastaItemIds] = useState<Set<string>>(new Set());
   const [selectedClienteIds, setSelectedClienteIds] = useState<Set<string>>(new Set());
@@ -89,7 +130,13 @@ export default function ContatosPage() {
   const [targetPastaIdForMove, setTargetPastaIdForMove] = useState<string>("");
   const [isEditPastaOpen, setIsEditPastaOpen] = useState(false);
   const [editingPasta, setEditingPasta] = useState<Pasta | null>(null);
-  const [editPastaForm, setEditPastaForm] = useState({ nome: "", descricao: "", cor: "#3b82f6", origem: "", observacao: "" });
+  const [editPastaForm, setEditPastaForm] = useState({
+    nome: "",
+    descricao: "",
+    cor: "#3b82f6",
+    origem: "",
+    observacao: "",
+  });
   const [isDeletePastaOpen, setIsDeletePastaOpen] = useState(false);
   const [deletingPasta, setDeletingPasta] = useState<Pasta | null>(null);
   const [isConvertOpen, setIsConvertOpen] = useState(false);
@@ -98,60 +145,65 @@ export default function ContatosPage() {
   const [isConverting, setIsConverting] = useState(false);
   const [pastaMestreId, setPastaMestreId] = useState<string | null>(null);
 
-   useEffect(() => {
-     let cancelled = false;
-     const initPastaMestre = async () => {
-       try {
-         const { getOrCreatePastaMestre } = await import("@/repositories/client/pastas.repository");
-         const pasta = await getOrCreatePastaMestre();
-         if (!cancelled) {
-           setPastaMestreId(pasta.id);
-         }
-       } catch (err) {
-         console.error("[Contatos] Erro ao criar pasta mestre:", err);
-       }
-     };
-     void initPastaMestre();
-     return () => {
-       cancelled = true;
-     };
-   }, []);
-
-   useEffect(() => {
-     let cancelled = false;
-     clientesHookRef.current.listAvailable()
-       .then((data) => {
-         if (!cancelled) {
-           setClientes(data);
-           setFiltered(data);
-         }
-       })
-       .catch((err) => {
-         if (!cancelled) {
-           const message = err instanceof Error ? err.message : "Não foi possível carregar os contatos.";
-           errorRef.current(message);
-           setImportError(message);
-         }
-       })
-       .finally(() => {
-         if (!cancelled) setIsLoading(false);
-       });
-     return () => {
-       cancelled = true;
-     };
-   }, []);
+  useEffect(() => {
+    let cancelled = false;
+    const initPastaMestre = async () => {
+      try {
+        const { getOrCreatePastaMestre } = await import("@/repositories/client/pastas.repository");
+        const pasta = await getOrCreatePastaMestre();
+        if (!cancelled) {
+          setPastaMestreId(pasta.id);
+        }
+      } catch (err) {
+        console.error("[Contatos] Erro ao criar pasta mestre:", err);
+      }
+    };
+    void initPastaMestre();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    clientesHookRef.current.loadPastas().then((data) => {
-      if (!cancelled) {
-        setPastas(data);
-      }
-    }).catch(() => {
-      if (!cancelled) {
-        errorRef.current("Não foi possível carregar as pastas.");
-      }
-    });
+    clientesHookRef.current
+      .listAvailable()
+      .then((data) => {
+        if (!cancelled) {
+          setClientes(data);
+          setFiltered(data);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          const message =
+            err instanceof Error ? err.message : "Não foi possível carregar os contatos.";
+          errorRef.current(message);
+          setImportError(message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    clientesHookRef.current
+      .loadPastas()
+      .then((data) => {
+        if (!cancelled) {
+          setPastas(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          errorRef.current("Não foi possível carregar as pastas.");
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -180,7 +232,7 @@ export default function ContatosPage() {
       clearTimeout(timeout);
       cancelled = true;
     };
-   }, [searchQuery]);
+  }, [searchQuery]);
 
   const contatosTotalPages = Math.max(1, Math.ceil(filtered.length / contatosPageSize));
   const safeContatosPage = Math.min(contatosPage, contatosTotalPages);
@@ -377,7 +429,12 @@ export default function ContatosPage() {
   const handleExport = async () => {
     const source = selectedPastaId ? pastaItens : filtered;
     const contatos: Contato[] = source.map((item) => {
-      const pastaItem = item as PastaItem & { cliente?: Cliente } & { nome?: string; telefone?: string; observacoes?: string; observacao?: string };
+      const pastaItem = item as PastaItem & { cliente?: Cliente } & {
+        nome?: string;
+        telefone?: string;
+        observacoes?: string;
+        observacao?: string;
+      };
       const cliente = pastaItem.cliente;
       return {
         nome: pastaItem.nome || cliente?.nome || "",
@@ -396,7 +453,11 @@ export default function ContatosPage() {
       downloadFile(exportVCF(contatos), `contatos_${timestamp}.vcf`, "text/vcard");
     } else if (exportFormat === "xlsx") {
       const content = await exportXLSX(contatos);
-      downloadFile(content, `contatos_${timestamp}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      downloadFile(
+        content,
+        `contatos_${timestamp}.xlsx`,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
     } else {
       downloadFile(exportTXT(contatos), `contatos_${timestamp}.txt`, "text/plain");
     }
@@ -412,7 +473,14 @@ export default function ContatosPage() {
         const buffer = await file.arrayBuffer();
         const contatos = await parseXLSX(buffer);
         console.log("[Contatos] handleFileChange xlsx parsed", contatos.length);
-        const preview = detectDuplicates(contatos, clientesRef.current.map((c) => ({ nome: c.nome, telefone: c.telefone, observacao: c.observacoes || "" })));
+        const preview = detectDuplicates(
+          contatos,
+          clientesRef.current.map((c) => ({
+            nome: c.nome,
+            telefone: c.telefone,
+            observacao: c.observacoes || "",
+          })),
+        );
         console.log("[Contatos] handleFileChange preview", preview.length);
         setImportPreview(preview);
       } else {
@@ -424,7 +492,14 @@ export default function ContatosPage() {
         else if (importFormat === "vcf") contatos = parseVCF(text);
         else contatos = parseTXT(text);
         console.log("[Contatos] handleFileChange parsed", contatos.length);
-        const preview = detectDuplicates(contatos, clientesRef.current.map((c) => ({ nome: c.nome, telefone: c.telefone, observacao: c.observacoes || "" })));
+        const preview = detectDuplicates(
+          contatos,
+          clientesRef.current.map((c) => ({
+            nome: c.nome,
+            telefone: c.telefone,
+            observacao: c.observacoes || "",
+          })),
+        );
         console.log("[Contatos] handleFileChange preview", preview.length);
         setImportPreview(preview);
       }
@@ -450,10 +525,16 @@ export default function ContatosPage() {
     try {
       const novos = importPreview.filter((p) => p.status === "Novo");
       const naoNovos = importPreview.filter((p) => p.status !== "Novo");
-      console.log("[Contatos] handleImport modos", { novos: novos.length, naoNovos: naoNovos.length, importMode });
+      console.log("[Contatos] handleImport modos", {
+        novos: novos.length,
+        naoNovos: naoNovos.length,
+        importMode,
+      });
 
       if (importMode === "new" && naoNovos.length > 0) {
-        const confirmar = window.confirm(`${naoNovos.length} contato(s) já existem e serão ignorados. Deseja continuar?`);
+        const confirmar = window.confirm(
+          `${naoNovos.length} contato(s) já existem e serão ignorados. Deseja continuar?`,
+        );
         if (!confirmar) {
           setIsImporting(false);
           return;
@@ -462,15 +543,26 @@ export default function ContatosPage() {
 
       if (importMode === "update" && naoNovos.length > 0) {
         for (const c of naoNovos) {
-          const existente = clientesRef.current.find((cl) => cl.telefone.replace(/\D/g, "") === c.telefone.replace(/\D/g, ""));
+          const existente = clientesRef.current.find(
+            (cl) => cl.telefone.replace(/\D/g, "") === c.telefone.replace(/\D/g, ""),
+          );
           if (existente) {
-            await clientesHookRef.current.update(existente.id, { nome: c.nome, telefone: c.telefone, observacoes: c.observacao || "" });
+            await clientesHookRef.current.update(existente.id, {
+              nome: c.nome,
+              telefone: c.telefone,
+              observacoes: c.observacao || "",
+            });
           }
         }
       }
 
       for (const c of novos) {
-        const created = await clientesHookRef.current.create({ nome: c.nome, telefone: c.telefone, observacoes: c.observacao || "", status: "Ativo" });
+        const created = await clientesHookRef.current.create({
+          nome: c.nome,
+          telefone: c.telefone,
+          observacoes: c.observacao || "",
+          status: "Ativo",
+        });
         if (pastaMestreId) {
           try {
             await clientesHookRef.current.addClienteToPasta(pastaMestreId, created.id);
@@ -489,7 +581,8 @@ export default function ContatosPage() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       successRef.current("Importação concluída com sucesso.");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Não foi possível concluir a importação.";
+      const message =
+        err instanceof Error ? err.message : "Não foi possível concluir a importação.";
       setImportError(message);
       errorRef.current(message);
     } finally {
@@ -505,7 +598,12 @@ export default function ContatosPage() {
 
   const openEdit = (cliente: Cliente) => {
     setSelectedCliente(cliente);
-    setFormData({ nome: cliente.nome, telefone: cliente.telefone, email: cliente.email || "", observacoes: cliente.observacoes || "" });
+    setFormData({
+      nome: cliente.nome,
+      telefone: cliente.telefone,
+      email: cliente.email || "",
+      observacoes: cliente.observacoes || "",
+    });
     setIsFormOpen(true);
   };
 
@@ -514,7 +612,7 @@ export default function ContatosPage() {
     setIsDeleteOpen(true);
   };
 
-   const openConvert = (cliente: Cliente) => {
+  const openConvert = (cliente: Cliente) => {
     setConvertingCliente(cliente);
     setConvertTarget("leads");
     setIsConvertOpen(true);
@@ -528,7 +626,8 @@ export default function ContatosPage() {
       setClientes(updated);
       setFiltered(updated);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Não foi possível enviar o contato para Clientes.";
+      const message =
+        err instanceof Error ? err.message : "Não foi possível enviar o contato para Clientes.";
       errorRef.current(message);
     }
   };
@@ -538,7 +637,9 @@ export default function ContatosPage() {
     setIsConverting(true);
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado.");
 
       if (convertTarget === "leads") {
@@ -618,7 +719,11 @@ export default function ContatosPage() {
       setIsConvertOpen(false);
       setConvertingCliente(null);
       successRef.current("Contato convertido com sucesso.");
-      broadcastConversaoContato(convertingCliente.nome, convertTarget as "leads" | "clientes" | "indicadores" | "parceiros" | "recrutamento" | "negociacoes");
+      broadcastConversaoContato(
+        convertingCliente.nome,
+        convertTarget as
+          "leads" | "clientes" | "indicadores" | "parceiros" | "recrutamento" | "negociacoes",
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Não foi possível converter o contato.";
       errorRef.current(message);
@@ -650,7 +755,14 @@ export default function ContatosPage() {
       if (format === "csv") parsed = parseCSV(text);
       else if (format === "vcf") parsed = parseVCF(text);
       else parsed = parseTXT(text);
-      const preview = detectDuplicates(parsed, clientes.map((c) => ({ nome: c.nome, telefone: c.telefone, observacao: c.observacoes || "" })));
+      const preview = detectDuplicates(
+        parsed,
+        clientes.map((c) => ({
+          nome: c.nome,
+          telefone: c.telefone,
+          observacao: c.observacoes || "",
+        })),
+      );
       setImportPreview(preview);
       setIsImportOpen(true);
     } catch {
@@ -703,14 +815,14 @@ export default function ContatosPage() {
     return stats;
   };
 
-   const sortedPastas = useMemo(() => {
-     const mestre = pastaMestreId ? pastas.find((p) => p.id === pastaMestreId) : null;
-     const outras = pastas.filter((p) => p.id !== pastaMestreId);
-     return mestre ? [mestre, ...outras] : pastas;
-   }, [pastas, pastaMestreId]);
+  const sortedPastas = useMemo(() => {
+    const mestre = pastaMestreId ? pastas.find((p) => p.id === pastaMestreId) : null;
+    const outras = pastas.filter((p) => p.id !== pastaMestreId);
+    return mestre ? [mestre, ...outras] : pastas;
+  }, [pastas, pastaMestreId]);
 
-   const pastaStats = useMemo(() => getPastaStats(), [pastaItens]);
-   const filteredPastaItens = pastaItens.filter((item) => {
+  const pastaStats = useMemo(() => getPastaStats(), [pastaItens]);
+  const filteredPastaItens = pastaItens.filter((item) => {
     if (!pastaFilter) return true;
     return item.prospeccao_status === pastaFilter;
   });
@@ -743,13 +855,17 @@ export default function ContatosPage() {
       setSelectedPastaItemIds(new Set([next.id]));
       return;
     }
-    const retornosPendentes = pastaItens.filter((i) => i.prospeccao_status === "Retorno pendente" && i.data_retorno && i.data_retorno <= hoje);
+    const retornosPendentes = pastaItens.filter(
+      (i) => i.prospeccao_status === "Retorno pendente" && i.data_retorno && i.data_retorno <= hoje,
+    );
     if (retornosPendentes.length > 0) {
       const next = retornosPendentes[0];
       setSelectedPastaItemIds(new Set([next.id]));
       return;
     }
-    const retornosHoje = pastaItens.filter((i) => i.prospeccao_status === "Retorno pendente" && i.data_retorno === hoje);
+    const retornosHoje = pastaItens.filter(
+      (i) => i.prospeccao_status === "Retorno pendente" && i.data_retorno === hoje,
+    );
     if (retornosHoje.length > 0) {
       const next = retornosHoje[0];
       setSelectedPastaItemIds(new Set([next.id]));
@@ -867,7 +983,8 @@ export default function ContatosPage() {
       setClientes(updated);
       setFiltered(updated);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Não foi possível adicionar os contatos à pasta.";
+      const message =
+        err instanceof Error ? err.message : "Não foi possível adicionar os contatos à pasta.";
       errorRef.current(message);
     }
   };
@@ -892,7 +1009,13 @@ export default function ContatosPage() {
 
   const handleOpenEditPasta = (pasta: Pasta) => {
     setEditingPasta(pasta);
-    setEditPastaForm({ nome: pasta.nome, descricao: pasta.descricao || "", cor: pasta.cor, origem: pasta.origem || "", observacao: pasta.observacao || "" });
+    setEditPastaForm({
+      nome: pasta.nome,
+      descricao: pasta.descricao || "",
+      cor: pasta.cor,
+      origem: pasta.origem || "",
+      observacao: pasta.observacao || "",
+    });
     setIsEditPastaOpen(true);
   };
 
@@ -944,8 +1067,14 @@ export default function ContatosPage() {
           <Users className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{selectedPastaId ? "Pasta de Prospecção" : "Central de Prospecção"}</h1>
-          <p className="text-sm text-muted-foreground">{selectedPastaId ? "Gerencie sua fila de contatos" : "Organize contatos por nicho, origem ou campanha"}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {selectedPastaId ? "Pasta de Prospecção" : "Central de Prospecção"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {selectedPastaId
+              ? "Gerencie sua fila de contatos"
+              : "Organize contatos por nicho, origem ou campanha"}
+          </p>
         </div>
       </div>
 
@@ -964,7 +1093,9 @@ export default function ContatosPage() {
               <div>
                 <CardTitle>Minhas Pastas</CardTitle>
                 <CardDescription>
-                  {pastas.length > 0 ? `${pastas.length} pasta(s) criada(s)` : "Nenhuma pasta criada ainda."}
+                  {pastas.length > 0
+                    ? `${pastas.length} pasta(s) criada(s)`
+                    : "Nenhuma pasta criada ainda."}
                 </CardDescription>
               </div>
               <Button type="button" onClick={() => setIsPastaFormOpen(true)}>
@@ -974,45 +1105,68 @@ export default function ContatosPage() {
             </CardHeader>
             <CardContent>
               {sortedPastas.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhuma pasta criada ainda. Crie sua primeira pasta para organizar seus contatos.</p>
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma pasta criada ainda. Crie sua primeira pasta para organizar seus contatos.
+                </p>
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {sortedPastas.map((pasta) => (
                     <Card key={pasta.id} className="relative">
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleOpenPasta(pasta)}>
-                            <div className="h-4 w-4 rounded-full" style={{ backgroundColor: pasta.cor }} />
+                          <div
+                            className="flex cursor-pointer items-center gap-2"
+                            onClick={() => handleOpenPasta(pasta)}
+                          >
+                            <div
+                              className="h-4 w-4 rounded-full"
+                              style={{ backgroundColor: pasta.cor }}
+                            />
                             <CardTitle className="text-base">
                               {pasta.nome}
-                              {pastaMestreId && pasta.id === pastaMestreId && <span className="ml-2 text-xs text-muted-foreground">(Mestre)</span>}
+                              {pastaMestreId && pasta.id === pastaMestreId && (
+                                <span className="ml-2 text-xs text-muted-foreground">(Mestre)</span>
+                              )}
                             </CardTitle>
                           </div>
                           <div className="flex items-center gap-1">
-                             <Button
-                               variant="ghost"
-                               size="icon"
-                               type="button"
-                               className="h-7 w-7"
-                               onClick={(e) => { e.stopPropagation(); handleOpenEditPasta(pasta); }}
-                             >
-                               <Pencil className="h-3.5 w-3.5" />
-                             </Button>
-                             <Button
-                               variant="ghost"
-                               size="icon"
-                               type="button"
-                               className="h-7 w-7 text-red-600"
-                               onClick={(e) => { e.stopPropagation(); handleOpenDeletePasta(pasta); }}
-                             >
-                               <Trash2 className="h-3.5 w-3.5" />
-                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              className="h-7 w-7"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditPasta(pasta);
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              className="h-7 w-7 text-red-600"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenDeletePasta(pasta);
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </div>
-                        <CardDescription className="line-clamp-2 cursor-pointer" onClick={() => handleOpenPasta(pasta)}>{pasta.descricao || "Sem descrição"}</CardDescription>
+                        <CardDescription
+                          className="line-clamp-2 cursor-pointer"
+                          onClick={() => handleOpenPasta(pasta)}
+                        >
+                          {pasta.descricao || "Sem descrição"}
+                        </CardDescription>
                       </CardHeader>
                       <CardContent className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">{pasta.origem || "Origem não definida"}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {pasta.origem || "Origem não definida"}
+                        </span>
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </CardContent>
                     </Card>
@@ -1026,10 +1180,12 @@ export default function ContatosPage() {
               <div>
                 <CardTitle>Contatos cadastrados</CardTitle>
                 <CardDescription>
-                  {filtered.length > 0 ? `${filtered.length} contato(s) encontrado(s)` : "Nenhum contato cadastrado ainda."}
+                  {filtered.length > 0
+                    ? `${filtered.length} contato(s) encontrado(s)`
+                    : "Nenhum contato cadastrado ainda."}
                 </CardDescription>
               </div>
-               <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => setIsImportOpen(true)}>
                   <Upload className="mr-2 h-4 w-4" />
                   Importar
@@ -1049,7 +1205,9 @@ export default function ContatosPage() {
                 <div className="flex items-center gap-2">
                   <select
                     value={exportFormat}
-                    onChange={(e) => setExportFormat(e.target.value as "csv" | "vcf" | "txt" | "xlsx")}
+                    onChange={(e) =>
+                      setExportFormat(e.target.value as "csv" | "vcf" | "txt" | "xlsx")
+                    }
                     className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
                     <option value="csv">CSV</option>
@@ -1057,7 +1215,7 @@ export default function ContatosPage() {
                     <option value="txt">TXT UTF-8</option>
                     <option value="xlsx">XLSX</option>
                   </select>
-                   <Button size="sm" onClick={handleExport} type="button">
+                  <Button size="sm" onClick={handleExport} type="button">
                     <Download className="mr-2 h-4 w-4" />
                     Exportar
                   </Button>
@@ -1066,9 +1224,19 @@ export default function ContatosPage() {
                   <Plus className="mr-2 h-4 w-4" />
                   Novo contato
                 </Button>
-                <Button variant="secondary" onClick={() => { if (selectedClienteIds.size === 0) { errorRef.current("Selecione pelo menos um contato."); } else { setIsMoveToPastaOpen(true); } }}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    if (selectedClienteIds.size === 0) {
+                      errorRef.current("Selecione pelo menos um contato.");
+                    } else {
+                      setIsMoveToPastaOpen(true);
+                    }
+                  }}
+                >
                   <FolderOpen className="mr-2 h-4 w-4" />
-                  Mover para pasta {selectedClienteIds.size > 0 ? `(${selectedClienteIds.size})` : ""}
+                  Mover para pasta{" "}
+                  {selectedClienteIds.size > 0 ? `(${selectedClienteIds.size})` : ""}
                 </Button>
                 {selectedClienteIds.size > 0 && (
                   <Button variant="destructive" onClick={() => setIsDeleteSelectedOpen(true)}>
@@ -1106,7 +1274,9 @@ export default function ContatosPage() {
                           <TableHead className="w-[40px]">
                             <input
                               type="checkbox"
-                              checked={selectedClienteIds.size === filtered.length && filtered.length > 0}
+                              checked={
+                                selectedClienteIds.size === filtered.length && filtered.length > 0
+                              }
                               onChange={(e) => handleSelectAllClientes(e.target.checked)}
                             />
                           </TableHead>
@@ -1133,32 +1303,109 @@ export default function ContatosPage() {
                                 {cliente.telefone}
                               </div>
                             </TableCell>
-                            <TableCell className="max-w-[200px] truncate">{cliente.observacoes || "—"}</TableCell>
+                            <TableCell className="max-w-[200px] truncate">
+                              {cliente.observacoes || "—"}
+                            </TableCell>
                             <TableCell className="flex justify-end gap-1">
-                               <Button variant="ghost" size="icon" type="button" aria-label="Ligar" onClick={() => window.location.href = `tel:+55${cliente.telefone.replace(/\D/g, "")}`}>
-                                 <Phone className="h-4 w-4" />
-                               </Button>
-                               <Button variant="ghost" size="icon" type="button" aria-label="WhatsApp" onClick={() => window.open(`https://wa.me/55${cliente.telefone.replace(/\D/g, "")}`, "_blank")}>
-                                 <MessageSquare className="h-4 w-4" />
-                               </Button>
-                               <Button variant="ghost" size="icon" type="button" aria-label="SMS" onClick={() => window.location.href = `sms:+55${cliente.telefone.replace(/\D/g, "")}`}>
-                                 <MessageCircle className="h-4 w-4" />
-                               </Button>
-                               <Button variant="ghost" size="icon" type="button" aria-label="E-mail" onClick={() => window.location.href = `mailto:${cliente.email || ""}`}>
-                                 <Mail className="h-4 w-4" />
-                               </Button>
-                               <Button variant="ghost" size="icon" type="button" onClick={() => openEdit(cliente)} aria-label="Editar">
-                                 <Pencil className="h-4 w-4" />
-                               </Button>
-                               <Button variant="ghost" size="icon" type="button" onClick={() => handleConvertToCliente(cliente)} aria-label="Enviar para Cliente">
-                                 <UserCheck className="h-4 w-4 text-green-600" />
-                               </Button>
-                               <Button variant="ghost" size="icon" type="button" onClick={() => openConvert(cliente)} aria-label="Converter">
-                                 <UserCheck className="h-4 w-4" />
-                               </Button>
-                               <Button variant="ghost" size="icon" type="button" onClick={() => openDelete(cliente)} aria-label="Excluir">
-                                 <Trash2 className="h-4 w-4 text-red-600" />
-                               </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                aria-label="Ligar"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.location.href = `tel:+55${cliente.telefone.replace(/\D/g, "")}`;
+                                }}
+                              >
+                                <Phone className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                aria-label="WhatsApp"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(
+                                    `https://wa.me/55${cliente.telefone.replace(/\D/g, "")}`,
+                                    "_blank",
+                                  );
+                                }}
+                              >
+                                <MessageSquare className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                aria-label="SMS"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.location.href = `sms:+55${cliente.telefone.replace(/\D/g, "")}`;
+                                }}
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                aria-label="E-mail"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.location.href = `mailto:${cliente.email || ""}`;
+                                }}
+                              >
+                                <Mail className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEdit(cliente);
+                                }}
+                                aria-label="Editar"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleConvertToCliente(cliente);
+                                }}
+                                aria-label="Enviar para Cliente"
+                              >
+                                <UserCheck className="h-4 w-4 text-green-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openConvert(cliente);
+                                }}
+                                aria-label="Converter"
+                              >
+                                <UserCheck className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openDelete(cliente);
+                                }}
+                                aria-label="Excluir"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1177,7 +1424,9 @@ export default function ContatosPage() {
                         >
                           Anterior
                         </Button>
-                        <span className="text-xs text-muted-foreground">Página {safeContatosPage} de {contatosTotalPages}</span>
+                        <span className="text-xs text-muted-foreground">
+                          Página {safeContatosPage} de {contatosTotalPages}
+                        </span>
                         <Button
                           type="button"
                           variant="outline"
@@ -1191,7 +1440,10 @@ export default function ContatosPage() {
                       <select
                         className="flex h-9 rounded-md border border-input bg-background px-3 py-2 text-sm"
                         value={contatosPageSize}
-                        onChange={(e) => { setContatosPageSize(Number(e.target.value)); setContatosPage(1); }}
+                        onChange={(e) => {
+                          setContatosPageSize(Number(e.target.value));
+                          setContatosPage(1);
+                        }}
                       >
                         <option value="20">20</option>
                         <option value="50">50</option>
@@ -1208,19 +1460,37 @@ export default function ContatosPage() {
         <Card>
           <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={() => handleNavigatePasta("prev")} aria-label="Pasta anterior">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleNavigatePasta("prev")}
+                aria-label="Pasta anterior"
+              >
                 <ArrowRight className="h-4 w-4 rotate-180" />
               </Button>
-                <Button variant="ghost" size="icon" onClick={handleBackToMain} aria-label="Voltar para pastas">
-                  <FolderOpen className="h-4 w-4" />
-                </Button>
-              <Button variant="ghost" size="icon" onClick={() => handleNavigatePasta("next")} aria-label="Próxima pasta">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleBackToMain}
+                aria-label="Voltar para pastas"
+              >
+                <FolderOpen className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleNavigatePasta("next")}
+                aria-label="Próxima pasta"
+              >
                 <ArrowRight className="h-4 w-4" />
               </Button>
               <div>
-                <CardTitle>{pastas.find((p) => p.id === selectedPastaId)?.nome || "Pasta"}</CardTitle>
+                <CardTitle>
+                  {pastas.find((p) => p.id === selectedPastaId)?.nome || "Pasta"}
+                </CardTitle>
                 <CardDescription>
-                  {pastaStats.total} contato(s) • {pastaStats.naoContatado} não contatados • {pastaStats.retornoPendente} retornos pendentes
+                  {pastaStats.total} contato(s) • {pastaStats.naoContatado} não contatados •{" "}
+                  {pastaStats.retornoPendente} retornos pendentes
                 </CardDescription>
               </div>
             </div>
@@ -1233,17 +1503,31 @@ export default function ContatosPage() {
                 <UserPlus className="mr-2 h-4 w-4" />
                 Adicionar contato
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setPastaFilter(pastaFilter === "Não contatado" ? null : "Não contatado")}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setPastaFilter(pastaFilter === "Não contatado" ? null : "Não contatado")
+                }
+              >
                 <Filter className="mr-2 h-4 w-4" />
                 {pastaFilter === "Não contatado" ? "Mostrar todos" : "Não contatados"}
               </Button>
               {selectedPastaItemIds.size > 0 && (
                 <>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenPastaMassAction("move")}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenPastaMassAction("move")}
+                  >
                     <FolderOpen className="mr-2 h-4 w-4" />
                     Mover selecionados ({selectedPastaItemIds.size})
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={() => handleOpenPastaMassAction("remove")}>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleOpenPastaMassAction("remove")}
+                  >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Remover selecionados ({selectedPastaItemIds.size})
                   </Button>
@@ -1281,7 +1565,10 @@ export default function ContatosPage() {
                       <TableHead className="w-[40px]">
                         <input
                           type="checkbox"
-                          checked={selectedPastaItemIds.size === filteredPastaItens.length && filteredPastaItens.length > 0}
+                          checked={
+                            selectedPastaItemIds.size === filteredPastaItens.length &&
+                            filteredPastaItens.length > 0
+                          }
                           onChange={(e) => handleSelectAllPastaItems(e.target.checked)}
                         />
                       </TableHead>
@@ -1293,61 +1580,151 @@ export default function ContatosPage() {
                       <TableHead className="w-[180px] text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
-                      <TableBody>
-                        {filteredPastaItens.map((item) => {
-                          const cliente = item.cliente as Cliente | undefined;
-                          return (
-                            <TableRow key={item.id}>
-                              <TableCell>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedPastaItemIds.has(item.id)}
-                                  onChange={() => handleTogglePastaItem(item.id)}
-                                />
-                              </TableCell>
-                              <TableCell className="font-medium">{cliente?.nome || "—"}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <Phone className="h-4 w-4 text-muted-foreground" />
-                                  {cliente?.telefone || "—"}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800">
-                                  {item.prospeccao_status || "Não contatado"}
-                                </span>
-                              </TableCell>
-                              <TableCell>{item.ultimo_contato || "—"}</TableCell>
-                              <TableCell>{item.proxima_acao || "—"}</TableCell>
-                              <TableCell className="flex justify-end gap-1">
-                                <Button variant="ghost" size="icon" aria-label="Ligar" onClick={() => window.location.href = `tel:+55${(cliente?.telefone || "").replace(/\D/g, "")}`}>
-                                  <Phone className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" aria-label="WhatsApp" onClick={() => window.open(`https://wa.me/55${(cliente?.telefone || "").replace(/\D/g, "")}`, "_blank")}>
-                                  <MessageSquare className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" aria-label="SMS" onClick={() => window.location.href = `sms:+55${(cliente?.telefone || "").replace(/\D/g, "")}`}>
-                                  <MessageCircle className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" aria-label="E-mail" onClick={() => window.location.href = `mailto:${cliente?.email || ""}`}>
-                                  <Mail className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" aria-label="Editar status" onClick={() => {
-                                  const novoStatus = prompt("Novo status de prospecção:", item.prospeccao_status || "Não contatado");
-                                  if (novoStatus !== null) {
-                                    handleUpdatePastaItemStatus(item.id, novoStatus);
-                                  }
-                                }}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" aria-label="Remover da pasta" onClick={() => handleRemoveClienteFromPasta(item.id)}>
-                                  <Trash2 className="h-4 w-4 text-red-600" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
+                  <TableBody>
+                    {filteredPastaItens.map((item) => {
+                      const cliente = item.cliente as Cliente | undefined;
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              checked={selectedPastaItemIds.has(item.id)}
+                              onChange={() => handleTogglePastaItem(item.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{cliente?.nome || "—"}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Phone className="h-4 w-4 text-muted-foreground" />
+                              {cliente?.telefone || "—"}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                              {item.prospeccao_status || "Não contatado"}
+                            </span>
+                          </TableCell>
+                          <TableCell>{item.ultimo_contato || "—"}</TableCell>
+                          <TableCell>{item.proxima_acao || "—"}</TableCell>
+                          <TableCell className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              aria-label="Ligar"
+                              onClick={() =>
+                                (window.location.href = `tel:+55${(cliente?.telefone || "").replace(/\D/g, "")}`)
+                              }
+                            >
+                              <Phone className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              aria-label="WhatsApp"
+                              onClick={() =>
+                                window.open(
+                                  `https://wa.me/55${(cliente?.telefone || "").replace(/\D/g, "")}`,
+                                  "_blank",
+                                )
+                              }
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              aria-label="SMS"
+                              onClick={() =>
+                                (window.location.href = `sms:+55${(cliente?.telefone || "").replace(/\D/g, "")}`)
+                              }
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              aria-label="E-mail"
+                              onClick={() =>
+                                (window.location.href = `mailto:${cliente?.email || ""}`)
+                              }
+                            >
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              aria-label="Editar contato"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEdit(cliente!);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              aria-label="Enviar para Cliente"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleConvertToCliente(cliente!);
+                              }}
+                            >
+                              <UserCheck className="h-4 w-4 text-green-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              aria-label="Converter"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openConvert(cliente!);
+                              }}
+                            >
+                              <UserCheck className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              aria-label="Editar status"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const novoStatus = prompt(
+                                  "Novo status de prospecção:",
+                                  item.prospeccao_status || "Não contatado",
+                                );
+                                if (novoStatus !== null) {
+                                  handleUpdatePastaItemStatus(item.id, novoStatus);
+                                }
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              aria-label="Remover da pasta"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveClienteFromPasta(item.id);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
                 </Table>
               </div>
             )}
@@ -1359,31 +1736,58 @@ export default function ContatosPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{selectedCliente ? "Editar contato" : "Novo contato"}</DialogTitle>
-            <DialogDescription>{selectedCliente ? "Atualize os dados do contato." : "Cadastre um novo contato."}</DialogDescription>
+            <DialogDescription>
+              {selectedCliente ? "Atualize os dados do contato." : "Cadastre um novo contato."}
+            </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <Label htmlFor="nome">Nome</Label>
-              <Input id="nome" value={formData.nome} onChange={(e) => handleChange("nome", e.target.value)} required />
+              <Input
+                id="nome"
+                value={formData.nome}
+                onChange={(e) => handleChange("nome", e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="telefone">Telefone</Label>
-              <Input id="telefone" value={formData.telefone} onChange={(e) => handleChange("telefone", e.target.value)} required />
+              <Input
+                id="telefone"
+                value={formData.telefone}
+                onChange={(e) => handleChange("telefone", e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" value={formData.email} onChange={(e) => handleChange("email", e.target.value)} />
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleChange("email", e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="observacoes">Observação</Label>
-              <Input id="observacoes" value={formData.observacoes} onChange={(e) => handleChange("observacoes", e.target.value)} />
+              <Input
+                id="observacoes"
+                value={formData.observacoes}
+                onChange={(e) => handleChange("observacoes", e.target.value)}
+              />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
                 Cancelar
               </Button>
               <Button type="submit" disabled={isSaving}>
-                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : selectedCliente ? "Salvar alterações" : "Salvar"}
+                {isSaving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : selectedCliente ? (
+                  "Salvar alterações"
+                ) : (
+                  "Salvar"
+                )}
               </Button>
             </DialogFooter>
           </form>
@@ -1394,7 +1798,9 @@ export default function ContatosPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Excluir contato</DialogTitle>
-            <DialogDescription>Tem certeza que deseja excluir este contato? Esta ação não pode ser desfeita.</DialogDescription>
+            <DialogDescription>
+              Tem certeza que deseja excluir este contato? Esta ação não pode ser desfeita.
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" type="button" onClick={() => setIsDeleteOpen(false)}>
@@ -1411,13 +1817,23 @@ export default function ContatosPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Excluir contatos selecionados</DialogTitle>
-            <DialogDescription>Tem certeza que deseja excluir {selectedClienteIds.size} contato(s)? Esta ação não pode ser desfeita.</DialogDescription>
+            <DialogDescription>
+              Tem certeza que deseja excluir {selectedClienteIds.size} contato(s)? Esta ação não
+              pode ser desfeita.
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" type="button" onClick={() => setIsDeleteSelectedOpen(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" type="button" onClick={() => { setIsDeleteSelectedOpen(false); void handleDeleteSelected(); }}>
+            <Button
+              variant="destructive"
+              type="button"
+              onClick={() => {
+                setIsDeleteSelectedOpen(false);
+                void handleDeleteSelected();
+              }}
+            >
               Excluir selecionados
             </Button>
           </DialogFooter>
@@ -1430,7 +1846,12 @@ export default function ContatosPage() {
             <DialogTitle>Importar contatos</DialogTitle>
             <DialogDescription>Selecione o formato e o arquivo para importar.</DialogDescription>
           </DialogHeader>
-            <Tabs value={importFormat} defaultValue="csv" onValueChange={(v) => setImportFormat(v as "csv" | "vcf" | "txt" | "xlsx")} className="w-full">
+          <Tabs
+            value={importFormat}
+            defaultValue="csv"
+            onValueChange={(v) => setImportFormat(v as "csv" | "vcf" | "txt" | "xlsx")}
+            className="w-full"
+          >
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="csv">CSV</TabsTrigger>
               <TabsTrigger value="vcf">VCF/vCard</TabsTrigger>
@@ -1443,15 +1864,23 @@ export default function ContatosPage() {
                 <Input
                   ref={fileInputRef}
                   type="file"
-                  accept={importFormat === "csv" ? ".csv" : importFormat === "vcf" ? ".vcf" : importFormat === "xlsx" ? ".xlsx" : ".txt"}
+                  accept={
+                    importFormat === "csv"
+                      ? ".csv"
+                      : importFormat === "vcf"
+                        ? ".vcf"
+                        : importFormat === "xlsx"
+                          ? ".xlsx"
+                          : ".txt"
+                  }
                   onChange={handleFileChange}
                 />
-                <p className="text-xs text-muted-foreground">Você também pode arrastar e soltar o arquivo nesta área.</p>
+                <p className="text-xs text-muted-foreground">
+                  Você também pode arrastar e soltar o arquivo nesta área.
+                </p>
               </div>
 
-              {importError && (
-                <p className="text-sm text-red-600">{importError}</p>
-              )}
+              {importError && <p className="text-sm text-red-600">{importError}</p>}
               {importPreview.length > 0 && (
                 <div className="space-y-2">
                   <Label>Prévia da importação</Label>
@@ -1472,7 +1901,15 @@ export default function ContatosPage() {
                             <TableCell>{item.telefone || "—"}</TableCell>
                             <TableCell>{item.email || "—"}</TableCell>
                             <TableCell>
-                              <Badge variant={item.status === "Novo" ? "success" : item.status === "Já cadastrado" ? "secondary" : "outline"}>
+                              <Badge
+                                variant={
+                                  item.status === "Novo"
+                                    ? "success"
+                                    : item.status === "Já cadastrado"
+                                      ? "secondary"
+                                      : "outline"
+                                }
+                              >
                                 {item.status}
                               </Badge>
                             </TableCell>
@@ -1500,8 +1937,16 @@ export default function ContatosPage() {
             <Button variant="outline" type="button" onClick={() => setIsImportOpen(false)}>
               Fechar
             </Button>
-            <Button type="button" onClick={handleImport} disabled={isImporting || importPreview.length === 0}>
-              {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirmar importação"}
+            <Button
+              type="button"
+              onClick={handleImport}
+              disabled={isImporting || importPreview.length === 0}
+            >
+              {isImporting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Confirmar importação"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1516,29 +1961,63 @@ export default function ContatosPage() {
           <form className="space-y-4" onSubmit={handleCreatePasta}>
             <div className="space-y-2">
               <Label htmlFor="pasta-nome">Nome</Label>
-              <Input id="pasta-nome" value={pastaFormData.nome} onChange={(e) => setPastaFormData((current) => ({ ...current, nome: e.target.value }))} required />
+              <Input
+                id="pasta-nome"
+                value={pastaFormData.nome}
+                onChange={(e) =>
+                  setPastaFormData((current) => ({ ...current, nome: e.target.value }))
+                }
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="pasta-descricao">Descrição</Label>
-              <Input id="pasta-descricao" value={pastaFormData.descricao} onChange={(e) => setPastaFormData((current) => ({ ...current, descricao: e.target.value }))} />
+              <Input
+                id="pasta-descricao"
+                value={pastaFormData.descricao}
+                onChange={(e) =>
+                  setPastaFormData((current) => ({ ...current, descricao: e.target.value }))
+                }
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="pasta-cor">Cor</Label>
-              <Input id="pasta-cor" type="color" value={pastaFormData.cor} onChange={(e) => setPastaFormData((current) => ({ ...current, cor: e.target.value }))} />
+              <Input
+                id="pasta-cor"
+                type="color"
+                value={pastaFormData.cor}
+                onChange={(e) =>
+                  setPastaFormData((current) => ({ ...current, cor: e.target.value }))
+                }
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="pasta-origem">Origem</Label>
-              <Input id="pasta-origem" value={pastaFormData.origem} onChange={(e) => setPastaFormData((current) => ({ ...current, origem: e.target.value }))} />
+              <Input
+                id="pasta-origem"
+                value={pastaFormData.origem}
+                onChange={(e) =>
+                  setPastaFormData((current) => ({ ...current, origem: e.target.value }))
+                }
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="pasta-observacao">Observação</Label>
-              <Input id="pasta-observacao" value={pastaFormData.observacao} onChange={(e) => setPastaFormData((current) => ({ ...current, observacao: e.target.value }))} />
+              <Input
+                id="pasta-observacao"
+                value={pastaFormData.observacao}
+                onChange={(e) =>
+                  setPastaFormData((current) => ({ ...current, observacao: e.target.value }))
+                }
+              />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsPastaFormOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="button" onClick={createPastaNow}>Criar pasta</Button>
+              <Button type="button" onClick={createPastaNow}>
+                Criar pasta
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -1548,7 +2027,9 @@ export default function ContatosPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Adicionar contato à pasta</DialogTitle>
-            <DialogDescription>Selecione um contato para adicionar à pasta atual.</DialogDescription>
+            <DialogDescription>
+              Selecione um contato para adicionar à pasta atual.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -1574,7 +2055,12 @@ export default function ContatosPage() {
               <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={pastaItemForm.prospeccao_status}
-                onChange={(e) => setPastaItemForm((current) => ({ ...current, prospeccao_status: e.target.value as PastaItem["prospeccao_status"] }))}
+                onChange={(e) =>
+                  setPastaItemForm((current) => ({
+                    ...current,
+                    prospeccao_status: e.target.value as PastaItem["prospeccao_status"],
+                  }))
+                }
               >
                 <option value="Não contatado">Não contatado</option>
                 <option value="Ligação realizada">Ligação realizada</option>
@@ -1606,7 +2092,9 @@ export default function ContatosPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Mover contatos para pasta</DialogTitle>
-            <DialogDescription>Selecione a pasta de destino para os contatos selecionados.</DialogDescription>
+            <DialogDescription>
+              Selecione a pasta de destino para os contatos selecionados.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -1631,12 +2119,14 @@ export default function ContatosPage() {
                   <p className="text-sm text-muted-foreground">Nenhum contato selecionado.</p>
                 ) : (
                   <ul className="space-y-1 text-sm">
-                    {clientes.filter((c) => selectedClienteIds.has(c.id)).map((cliente) => (
-                      <li key={cliente.id} className="flex items-center justify-between">
-                        <span className="font-medium">{cliente.nome}</span>
-                        <span className="text-muted-foreground">{cliente.telefone}</span>
-                      </li>
-                    ))}
+                    {clientes
+                      .filter((c) => selectedClienteIds.has(c.id))
+                      .map((cliente) => (
+                        <li key={cliente.id} className="flex items-center justify-between">
+                          <span className="font-medium">{cliente.nome}</span>
+                          <span className="text-muted-foreground">{cliente.telefone}</span>
+                        </li>
+                      ))}
                   </ul>
                 )}
               </div>
@@ -1646,7 +2136,10 @@ export default function ContatosPage() {
             <Button variant="outline" onClick={() => setIsMoveToPastaOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleMoveSelectedToPasta} disabled={!targetPastaId || selectedClienteIds.size === 0}>
+            <Button
+              onClick={handleMoveSelectedToPasta}
+              disabled={!targetPastaId || selectedClienteIds.size === 0}
+            >
               Mover para pasta
             </Button>
           </DialogFooter>
@@ -1657,7 +2150,9 @@ export default function ContatosPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {pastaMassActionType === "move" ? "Mover contatos da pasta" : "Remover contatos da pasta"}
+              {pastaMassActionType === "move"
+                ? "Mover contatos da pasta"
+                : "Remover contatos da pasta"}
             </DialogTitle>
             <DialogDescription>
               {pastaMassActionType === "move"
@@ -1713,30 +2208,59 @@ export default function ContatosPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Nome</Label>
-              <Input value={editPastaForm.nome} onChange={(e) => setEditPastaForm((current) => ({ ...current, nome: e.target.value }))} required />
+              <Input
+                value={editPastaForm.nome}
+                onChange={(e) =>
+                  setEditPastaForm((current) => ({ ...current, nome: e.target.value }))
+                }
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label>Descrição</Label>
-              <Input value={editPastaForm.descricao} onChange={(e) => setEditPastaForm((current) => ({ ...current, descricao: e.target.value }))} />
+              <Input
+                value={editPastaForm.descricao}
+                onChange={(e) =>
+                  setEditPastaForm((current) => ({ ...current, descricao: e.target.value }))
+                }
+              />
             </div>
             <div className="space-y-2">
               <Label>Cor</Label>
-              <Input type="color" value={editPastaForm.cor} onChange={(e) => setEditPastaForm((current) => ({ ...current, cor: e.target.value }))} />
+              <Input
+                type="color"
+                value={editPastaForm.cor}
+                onChange={(e) =>
+                  setEditPastaForm((current) => ({ ...current, cor: e.target.value }))
+                }
+              />
             </div>
             <div className="space-y-2">
               <Label>Origem</Label>
-              <Input value={editPastaForm.origem} onChange={(e) => setEditPastaForm((current) => ({ ...current, origem: e.target.value }))} />
+              <Input
+                value={editPastaForm.origem}
+                onChange={(e) =>
+                  setEditPastaForm((current) => ({ ...current, origem: e.target.value }))
+                }
+              />
             </div>
             <div className="space-y-2">
               <Label>Observação</Label>
-              <Input value={editPastaForm.observacao} onChange={(e) => setEditPastaForm((current) => ({ ...current, observacao: e.target.value }))} />
+              <Input
+                value={editPastaForm.observacao}
+                onChange={(e) =>
+                  setEditPastaForm((current) => ({ ...current, observacao: e.target.value }))
+                }
+              />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" type="button" onClick={() => setIsEditPastaOpen(false)}>
               Cancelar
             </Button>
-            <Button type="button" onClick={handleSaveEditPasta}>Salvar alterações</Button>
+            <Button type="button" onClick={handleSaveEditPasta}>
+              Salvar alterações
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1746,7 +2270,8 @@ export default function ContatosPage() {
           <DialogHeader>
             <DialogTitle>Excluir pasta</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir a pasta <strong>{deletingPasta?.nome}</strong>? Os contatos continuarão cadastrados no CRM, mas serão removidos desta pasta.
+              Tem certeza que deseja excluir a pasta <strong>{deletingPasta?.nome}</strong>? Os
+              contatos continuarão cadastrados no CRM, mas serão removidos desta pasta.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1764,7 +2289,10 @@ export default function ContatosPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Converter contato</DialogTitle>
-            <DialogDescription>Selecione para qual módulo deseja converter <strong>{convertingCliente?.nome}</strong>.</DialogDescription>
+            <DialogDescription>
+              Selecione para qual módulo deseja converter <strong>{convertingCliente?.nome}</strong>
+              .
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
