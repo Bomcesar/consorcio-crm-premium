@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   Volume2,
   VolumeX,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,9 +39,7 @@ import { LiveGiftPanel } from "./live-gift-panel";
 import { LiveInvitePanel } from "./live-invite-panel";
 import { LivePresentation } from "./live-presentation";
 import { LiveConnectionState } from "./live-connection-state";
-import {
-  LiveAudioControlePonte,
-} from "./live-audio-controle";
+import { LiveAudioControlePonte } from "./live-audio-controle";
 import type { ControleAudioSala } from "@/hooks/live/use-live-audio-sala";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useLiveRoom } from "@/hooks/live/use-live-room";
@@ -69,14 +68,10 @@ import {
   pedirParaFalar,
   sairDaCadeira,
 } from "@/repositories/client/live/live-participants.repository";
-import {
-  LIVE_STATUS_LABEL,
-  type LiveParticipante,
-  type LivePresente,
-} from "@/lib/live/types";
+import { LIVE_STATUS_LABEL, type LiveParticipante, type LivePresente } from "@/lib/live/types";
 import { descreverErroLive } from "@/lib/live/erros";
 import { rotuloEstado, statusParaModo } from "@/lib/live/live-state";
-import { formatCreditoBRL, tempoRelativo } from "@/lib/live/format";
+import { formatCreditoBRL, tempoRelativo, formatDuracao } from "@/lib/live/format";
 import { getAuthenticatedUser } from "@/lib/auth-user";
 
 type Props = {
@@ -118,13 +113,16 @@ export function LiveRoomView({ liveId, isHost }: Props) {
   const [confirmarEncerramento, setConfirmarEncerramento] = React.useState(false);
   const [encerrando, setEncerrando] = React.useState(false);
   const [entrando, setEntrando] = React.useState(false);
+  // Cronômetro de duração da live. Atualiza a cada 30s para que os
+  // alertas de 30/60/90 min disparem no tempo certo sem pollinar.
+  const [duracaoSegundos, setDuracaoSegundos] = React.useState(0);
+  // Ref de quais alertas já foram exibidos: evita repetir o mesmo
+  // aviso após re-renderizações, reconexões do Realtime ou Strict Mode.
+  const alertasExibidos = React.useRef<Set<number>>(new Set());
 
   const modo = (sala.sala?.modo ?? "audio") as "audio" | "apresentacao";
   const status = (sala.sala?.status ?? "aguardando") as
-    | "aguardando"
-    | "ao_vivo"
-    | "apresentacao"
-    | "encerrada";
+    "aguardando" | "ao_vivo" | "apresentacao" | "encerrada";
   // O anfitrião ocupa a cadeira 0 por construção (`registrarAnfitriao`
   // insere `cadeira: 0`), então `isHost` já garante o assento. Somar
   // `sala.emCadeira` cobre a janela em que a lista ainda não refletiu
@@ -193,8 +191,8 @@ export function LiveRoomView({ liveId, isHost }: Props) {
     if (!sala.sala) return;
     let cancelado = false;
     const entrar = async () => {
-        setEntrando(true);
-        try {
+      setEntrando(true);
+      try {
         if (isHost) {
           await registrarAnfitriao(sala.sala!);
         } else {
@@ -205,30 +203,30 @@ export function LiveRoomView({ liveId, isHost }: Props) {
         // linha na lista o anfitrião ficava sem microfone e
         // sem controles.
         await sala.recarregarParticipantes();
-        } catch (e) {
-          const codigo = e instanceof Error ? e.message : "";
-          if (cancelado) return;
-          // `ja_participa` não é falha: a presença já consta no banco e
-          // a sala abre normalmente. Qualquer outro código é real e precisa
-          // chegar ao usuário — silenciar aqui deixava a tela sem nenhuma
-          // explicação quando o registro não ocorria.
-          if (codigo === "ja_participa") {
-            console.info("[LiveRoomView] entrada: participação já existente");
-          } else {
-            console.error("[LiveRoomView] entrada:", codigo);
-            const descricao = descreverErroLive(codigo, "Não foi possível entrar nesta sala.");
-            toast({
-              title: descricao.titulo,
-              description: descricao.mensagem,
-              variant: descricao.recuperavel ? "default" : "destructive",
-            });
-          }
-        } finally {
-          // Encerra em todos os caminhos: sucesso, `ja_participa`,
-          // erro inesperado e falha de RLS na consulta.
-          if (!cancelado) setEntrando(false);
+      } catch (e) {
+        const codigo = e instanceof Error ? e.message : "";
+        if (cancelado) return;
+        // `ja_participa` não é falha: a presença já consta no banco e
+        // a sala abre normalmente. Qualquer outro código é real e precisa
+        // chegar ao usuário — silenciar aqui deixava a tela sem nenhuma
+        // explicação quando o registro não ocorria.
+        if (codigo === "ja_participa") {
+          console.info("[LiveRoomView] entrada: participação já existente");
+        } else {
+          console.error("[LiveRoomView] entrada:", codigo);
+          const descricao = descreverErroLive(codigo, "Não foi possível entrar nesta sala.");
+          toast({
+            title: descricao.titulo,
+            description: descricao.mensagem,
+            variant: descricao.recuperavel ? "default" : "destructive",
+          });
         }
-      };
+      } finally {
+        // Encerra em todos os caminhos: sucesso, `ja_participa`,
+        // erro inesperado e falha de RLS na consulta.
+        if (!cancelado) setEntrando(false);
+      }
+    };
     void entrar();
     return () => {
       cancelado = true;
@@ -241,6 +239,46 @@ export function LiveRoomView({ liveId, isHost }: Props) {
       .then((s) => setMinhaSolicitacao(s?.status === "pendente" ? "pendente" : null))
       .catch(() => {});
   }, [liveId, sala.meu]);
+
+  // Cronômetro e alertas de duração. Só roda para a live em andamento
+  // (ao_vivo/apresentacao). O `iniciada_em` é imutável: o trigger
+  // `live_rooms_transicao_status` preserva o valor original quando a
+  // sala muda de modo, então a contagem nunca é reinada.
+  React.useEffect(() => {
+    const inicio = sala.sala?.iniciada_em ? new Date(sala.sala.iniciada_em).getTime() : null;
+    if (!inicio || status === "encerrada" || status === "aguardando") {
+      setDuracaoSegundos(0);
+      return;
+    }
+
+    const atualizar = () => {
+      const agora = Date.now();
+      const seg = Math.floor((agora - inicio) / 1000);
+      setDuracaoSegundos(Math.max(0, seg));
+
+      if (!isHost) return;
+
+      // Alertas em 30, 60 e 90 minutos. Cada marco é exibido uma
+      // única vez: a ref protege contra re-renderizações, reconexões
+      // do Realtime e o Strict Mode do React, que disparam o effect
+      // duas vezes em desenvolvimento.
+      const marcos = [30, 60, 90];
+      for (const minuto of marcos) {
+        if (seg >= minuto * 60 && !alertasExibidos.current.has(minuto)) {
+          alertasExibidos.current.add(minuto);
+          toast({
+            title: `Live em andamento há ${minuto} minuto${minuto > 1 ? "s" : ""}`,
+            description:
+              "Você pode encerrar a live a qualquer momento. O alerta é apenas informativo.",
+          });
+        }
+      }
+    };
+
+    atualizar();
+    const intervalo = setInterval(atualizar, 30000);
+    return () => clearInterval(intervalo);
+  }, [sala.sala?.iniciada_em, status, isHost, toast]);
 
   // Solicitações pendentes (anfitrião)
   const pedirFala = async () => {
@@ -287,9 +325,7 @@ export function LiveRoomView({ liveId, isHost }: Props) {
     // devolve a palavra. Um botão que só sabe silenciar obrigaria o
     // anfitrião a adivinhar como reverter.
     const efetivo =
-      tipo === "silenciar" && participante.silenciado_pelo_anfitriao
-        ? "permitir_falar"
-        : tipo;
+      tipo === "silenciar" && participante.silenciado_pelo_anfitriao ? "permitir_falar" : tipo;
 
     const nome = participante.nome_exibicao;
     const feedback: Record<string, { titulo: string; descricao: string }> = {
@@ -483,6 +519,11 @@ export function LiveRoomView({ liveId, isHost }: Props) {
           <Badge variant={status === "encerrada" ? "secondary" : "default"}>
             {LIVE_STATUS_LABEL[status]}
           </Badge>
+          {duracaoSegundos > 0 && (
+            <Badge variant="outline" className="gap-1 font-mono tabular-nums">
+              <Clock className="h-3 w-3" /> {formatDuracao(duracaoSegundos)}
+            </Badge>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -518,14 +559,8 @@ export function LiveRoomView({ liveId, isHost }: Props) {
                 publicacao.setFalha({ codigo: c });
               }}
             >
-              <LiveMediaBridge
-                mic={publicacao.mic}
-                cam={publicacao.cam}
-                tela={publicacao.tela}
-              />
-              {podeControlarAudio && (
-                <LiveAudioControlePonte reportar={reportarControleAudio} />
-              )}
+              <LiveMediaBridge mic={publicacao.mic} cam={publicacao.cam} tela={publicacao.tela} />
+              {podeControlarAudio && <LiveAudioControlePonte reportar={reportarControleAudio} />}
               <div className="space-y-4">
                 {modo === "apresentacao" && (
                   <LivePresentation
@@ -579,22 +614,22 @@ export function LiveRoomView({ liveId, isHost }: Props) {
                     setDestinatarioPresente(p);
                     setGiftAberto(true);
                   }}
-acoesAnfitriao={
-                isHost || permissoes.isAdmin
-                  ? (p) => ({
-                      silenciar: () => void acao(p, "silenciar"),
-                      remover: () => void acao(p, "remover"),
-                      bloquear: () => void acao(p, "bloquear"),
-                      alternarAudio: () => controleAudio.current?.alternarParticipante(p.id),
-                    })
-                  : undefined
-              }
-              podeSilenciarAudio={podeControlarAudio}
-              audioSilenciado={
-                podeControlarAudio
-                  ? (id) => controleAudio.current?.estaSilenciado(id) === true
-                  : () => false
-              }
+                  acoesAnfitriao={
+                    isHost || permissoes.isAdmin
+                      ? (p) => ({
+                          silenciar: () => void acao(p, "silenciar"),
+                          remover: () => void acao(p, "remover"),
+                          bloquear: () => void acao(p, "bloquear"),
+                          alternarAudio: () => controleAudio.current?.alternarParticipante(p.id),
+                        })
+                      : undefined
+                  }
+                  podeSilenciarAudio={podeControlarAudio}
+                  audioSilenciado={
+                    podeControlarAudio
+                      ? (id) => controleAudio.current?.estaSilenciado(id) === true
+                      : () => false
+                  }
                   podePublicar={emCadeira}
                   microfoneAtivo={publicacao.microfoneAtivo}
                   fluxoLocal={fluxoLocal}
@@ -657,11 +692,7 @@ acoesAnfitriao={
                       )}
                       {modo === "apresentacao" ? "Voltar para áudio" : "Iniciar apresentação"}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void compartilharTela()}
-                    >
+                    <Button size="sm" variant="outline" onClick={() => void compartilharTela()}>
                       <MonitorUp className="mr-2 h-4 w-4" /> Compartilhar tela
                     </Button>
                     <Button
@@ -736,8 +767,7 @@ acoesAnfitriao={
                   if (!alvo) {
                     toast({
                       title: "Sala de áudio ainda não conectada",
-                      description:
-                        "Entre na sala de áudio para poder silenciar a apresentação.",
+                      description: "Entre na sala de áudio para poder silenciar a apresentação.",
                     });
                     return;
                   }
