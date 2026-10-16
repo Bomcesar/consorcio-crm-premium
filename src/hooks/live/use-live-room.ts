@@ -2,8 +2,11 @@
 
 import * as React from "react";
 import { createClient } from "@/lib/supabase/client";
-import { criarCanalLive } from "@/lib/live/realtime";
-import { getParticipantes, getSolicitacoesPendentes } from "@/repositories/client/live/live-participants.repository";
+import { criarCanalLive, type PayloadPostgres } from "@/lib/live/realtime";
+import {
+  getParticipantes,
+  getSolicitacoesPendentes,
+} from "@/repositories/client/live/live-participants.repository";
 import type { LiveParticipante, LiveRoom, LiveSolicitacao } from "@/lib/live/types";
 
 /**
@@ -120,8 +123,30 @@ export function useLiveRoom(params: {
           return;
         }
         if (tabela === "live_participantes") {
-          void recarregarParticipantes();
+          // Mescla o payload em tempo real no estado local antes de
+          // recarregar. Sem isso, a UI só reflete a nova cadeira
+          // depois de um refetch completo — o que, em redes instáveis
+          // ou quando o áudio via LiveKit já liga, deixa o perfil
+          // sumindo até F5.
+          const ev = payload as PayloadPostgres;
+          setParticipantes((prev) => {
+            const next = [...prev];
+            if (ev.eventType === "DELETE") {
+              const id = (ev.old as { id?: string })?.id;
+              return id ? next.filter((p) => p.id !== id) : next;
+            }
+            const row = (ev.new ?? ev.old) as LiveParticipante | null;
+            if (!row?.id) return next;
+            const idx = next.findIndex((p) => p.id === row.id);
+            if (idx >= 0) {
+              next[idx] = { ...next[idx], ...row };
+            } else if (row.saiu_em == null) {
+              next.push(row);
+            }
+            return next;
+          });
           if (souAnfitriao) void recarregarSolicitacoes();
+          void recarregarParticipantes();
           return;
         }
         if (souAnfitriao) void recarregarSolicitacoes();

@@ -8,7 +8,7 @@ export type AssinaturaLive = {
   filter?: string;
 };
 
-type PayloadPostgres = {
+export type PayloadPostgres = {
   eventType: "INSERT" | "UPDATE" | "DELETE";
   new: unknown;
   old: unknown;
@@ -90,14 +90,10 @@ export function criarCanalLive(params: {
     const novo = supabase.channel(topic) as unknown as CanalPostgres;
 
     for (const assinatura of assinaturas) {
-      novo.on(
-        "postgres_changes",
-        assinatura,
-        (payload) => {
-          tentativas = 0;
-          aoEvento(assinatura.table, payload);
-        },
-      );
+      novo.on("postgres_changes", assinatura, (payload) => {
+        tentativas = 0;
+        aoEvento(assinatura.table, payload);
+      });
     }
 
     canal = novo as unknown as RealtimeChannel;
