@@ -1,6 +1,6 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-export type Perfil = "Administrador" | "Gestor" | "Consultor" | "Trainee" | "Secretaria" | "Indicador";
+export type Perfil = "Administrador" | "Gestor Pleno" | "Gestor" | "Consultor Pleno" | "Consultor" | "Consultor em prévia" | "Líder em treinamento" | "Indicador" | "Trainee" | "Secretaria";
 
 export type StatusLead = "Novo" | "Em contato" | "Qualificado" | "Em análise" | "Proposta" | "Ganho" | "Perdido" | "Cancelado" | "Contactando" | "Ligar" | "Reunião Agendada" | "Não Compareceu na Reunião" | "Follow-Up" | "Deixou para depois";
 export type StatusIndicador = "Ativo" | "Inativo" | "Pendente";
@@ -106,6 +106,7 @@ export interface Database {
           valor_estimado: number;
           probabilidade: number;
           ultimo_contato: string | null;
+          tags?: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -121,6 +122,7 @@ export interface Database {
           valor_estimado?: number;
           probabilidade?: number;
           ultimo_contato?: string | null;
+          tags?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -136,6 +138,7 @@ export interface Database {
           valor_estimado?: number;
           probabilidade?: number;
           ultimo_contato?: string | null;
+          tags?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -2704,9 +2707,189 @@ export interface Database {
             encerrada_em?: string | null;
             updated_at?: string;
           };
-        };
       };
-     Views: Record<string, never>;
+      pessoas: {
+        Row: {
+          id: string;
+          nome: string;
+          email: string | null;
+          telefone: string | null;
+          cpf_cnpj: string | null;
+          cidade: string | null;
+          estado: string | null;
+          observacoes: string | null;
+          usuario_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          nome: string;
+          email?: string | null;
+          telefone?: string | null;
+          cpf_cnpj?: string | null;
+          cidade?: string | null;
+          estado?: string | null;
+          observacoes?: string | null;
+          usuario_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          nome?: string;
+          email?: string | null;
+          telefone?: string | null;
+          cpf_cnpj?: string | null;
+          cidade?: string | null;
+          estado?: string | null;
+          observacoes?: string | null;
+          usuario_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      pessoa_vinculos: {
+        Row: {
+          id: string;
+          pessoa_id: string;
+          tipo_entidade: "cliente" | "lead" | "indicador" | "recrutamento";
+          entidade_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          pessoa_id: string;
+          tipo_entidade: "cliente" | "lead" | "indicador" | "recrutamento";
+          entidade_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          pessoa_id?: string;
+          tipo_entidade?: "cliente" | "lead" | "indicador" | "recrutamento";
+          entidade_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      jornadas: {
+        Row: {
+          id: string;
+          pessoa_id: string | null;
+          contato_id: string;
+          contato_tipo: "cliente" | "lead";
+          jornada_tipo: "cliente" | "indicador" | "recrutamento";
+          ativa: boolean;
+          etapa: string | null;
+          iniciada_em: string | null;
+          encerrada_em: string | null;
+          responsavel: string | null;
+          observacoes: string | null;
+          usuario_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          pessoa_id?: string | null;
+          contato_id: string;
+          contato_tipo: "cliente" | "lead";
+          jornada_tipo: "cliente" | "indicador" | "recrutamento";
+          ativa?: boolean;
+          etapa?: string | null;
+          iniciada_em?: string | null;
+          encerrada_em?: string | null;
+          responsavel?: string | null;
+          observacoes?: string | null;
+          usuario_id: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          pessoa_id?: string | null;
+          contato_id?: string;
+          contato_tipo?: "cliente" | "lead";
+          jornada_tipo?: "cliente" | "indicador" | "recrutamento";
+          ativa?: boolean;
+          etapa?: string | null;
+          iniciada_em?: string | null;
+          encerrada_em?: string | null;
+          responsavel?: string | null;
+          observacoes?: string | null;
+          usuario_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      jornada_historico: {
+        Row: {
+          id: string;
+          jornada_id: string;
+          etapa: string;
+          data: string;
+          responsavel: string | null;
+          observacao: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          jornada_id: string;
+          etapa: string;
+          data?: string;
+          responsavel?: string | null;
+          observacao?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          jornada_id?: string;
+          etapa?: string;
+          data?: string;
+          responsavel?: string | null;
+          observacao?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      jornada_reunioes: {
+        Row: {
+          id: string;
+          jornada_id: string;
+          data: string;
+          resultado: "positivo" | "neutro" | "negativo";
+          oportunidades: string[] | null;
+          observacoes: string | null;
+          responsavel: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          jornada_id: string;
+          data: string;
+          resultado: "positivo" | "neutro" | "negativo";
+          oportunidades?: string[] | null;
+          observacoes?: string | null;
+          responsavel?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          jornada_id?: string;
+          data?: string;
+          resultado?: "positivo" | "neutro" | "negativo";
+          oportunidades?: string[] | null;
+          observacoes?: string | null;
+          responsavel?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+    };
+    Views: Record<string, never>;
      Functions: Record<string, never>;
      Enums: Record<string, never>;
    };

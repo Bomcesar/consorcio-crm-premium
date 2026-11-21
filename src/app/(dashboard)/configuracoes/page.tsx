@@ -36,7 +36,7 @@ type TabValue = "perfil" | "usuarios" | "permissoes" | "visibilidade";
 type UsuarioForm = {
   nome: string;
   email: string;
-  perfil: "Administrador" | "Gestor" | "Consultor" | "Trainee" | "Secretaria" | "Indicador";
+  perfil: Perfil["perfil"];
   ativo: boolean;
   senha?: string;
 };
@@ -279,7 +279,7 @@ export default function ConfiguracoesPage() {
     setIsSaving(true);
     try {
       const authUser = await getAuthenticatedUser();
-      const updated = await updateProfile(authUser.id, { nome, email });
+      const updated = await updateProfile(authUser.id, { nome, email }, { id: authUser.id, perfil: authUser.perfil });
       setPerfil(updated);
       success("Perfil atualizado com sucesso.");
     } catch {
@@ -335,7 +335,7 @@ export default function ConfiguracoesPage() {
           email: usuarioForm.email,
           perfil: selectedProfile,
           ativo: usuarioForm.ativo,
-        });
+        }, { id: authUser.id, perfil: authUser.perfil });
 
         setUsuarios((prev) =>
           prev.map((u) => (u.id === updated.id ? updated : u))
@@ -913,7 +913,7 @@ export default function ConfiguracoesPage() {
                 id="perfil"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={usuarioForm.perfil}
-                onChange={(e) => setUsuarioForm({ ...usuarioForm, perfil: e.target.value as "Administrador" | "Gestor" | "Consultor" | "Trainee" | "Secretaria" | "Indicador" })}
+                onChange={(e) => setUsuarioForm({ ...usuarioForm, perfil: e.target.value as Perfil["perfil"] })}
                 disabled={userRole === "Gestor"}
               >
                 <option value="Administrador" disabled={userRole === "Gestor"}>Administrador</option>

@@ -13,6 +13,14 @@ import { hasPermission, canAssignProfile } from "@/lib/auth-user";
  * build de produção, o Next substitui a mensagem por um texto genérico com
  * um `digest` — o detalhe real só aparece no log do servidor. Por isso
  * todo erro é registrado aqui antes de repropagar.
+ *
+ * Fluxo de autorização:
+ * 1. Identifica o chamador via createClient() (anon key + cookies).
+ * 2. Valida que o chamador está autenticado e ativo.
+ * 3. Valida permissões funcionais (hasPermission, canAssignProfile).
+ * 4. Apenas então utiliza createAdminClient() (service_role) para operações privilegiadas.
+ * 5. gestor_id NÃO é preenchido automaticamente com o ID do criador;
+ *    somente será definido por operação administrativa explícita.
  */
 export async function createUsuarioAction(
   email: string,
@@ -39,6 +47,7 @@ async function criarUsuario(
   nome: string,
   perfil: Perfil
 ): Promise<Usuario> {
+  // 1. Identificar chamador via cliente autenticado (anon key)
   const serverClient = await createClient();
   const { data: { user: authUser }, error: authError } = await serverClient.auth.getUser();
 
@@ -46,16 +55,14 @@ async function criarUsuario(
     throw new Error("Não autenticado. É necessário estar logado para criar usuários.");
   }
 
+  // 2. Carregar perfil do chamador e validar ativo
   const { data: callerProfile, error: callerProfileError } = await serverClient
     .from("profiles")
-    .select("perfil")
+    .select("perfil, ativo")
     .eq("id", authUser.id)
     .single();
 
   if (callerProfileError || !callerProfile) {
-    // Sem este log, um simples "perfil não encontrado" chega ao usuário
-    // como erro genérico de Server Components, indistinguível de uma
-    // falha de infraestrutura.
     console.error("[createUsuarioAction] perfil do caller não carregou:", {
       callerId: authUser.id,
       erro: callerProfileError?.message,
@@ -65,10 +72,15 @@ async function criarUsuario(
     throw new Error("Não foi possível carregar o perfil do usuário autenticado.");
   }
 
+  if (!callerProfile.ativo) {
+    throw new Error("Usuário inativo não pode criar novos usuários.");
+  }
+
   const caller = {
     id: authUser.id,
     email: authUser.email,
     perfil: callerProfile.perfil as string | undefined,
+    ativo: callerProfile.ativo,
     permissoes: [],
   };
 
@@ -78,14 +90,16 @@ async function criarUsuario(
     perfilAlvo: perfil,
   });
 
+  // 3. Validações funcionais antes de qualquer operação privilegiada
   if (!hasPermission(caller, "usuarios.criar")) {
     throw new Error("Sem permissão para criar usuários. Apenas Administradores e Gestores podem criar usuários.");
   }
 
   if (!canAssignProfile(caller, perfil)) {
-    throw new Error("Sem permissão para atribuir este perfil. Gestores não podem criar usuários como Administrador ou Gestor.");
+    throw new Error("Sem permissão para atribuir este perfil.");
   }
 
+  // 4. Apenas então utilizar service_role para operações privilegiadas
   let supabase;
   try {
     supabase = createAdminClient();
@@ -94,6 +108,7 @@ async function criarUsuario(
     throw new Error("Não foi possível inicializar o cliente de administrador. Verifique as variáveis de ambiente.");
   }
 
+  // 5. Criar usuário no Auth (dispara trigger handle_new_user que cria perfil com 'Indicador')
   const { data, error } = await supabase.auth.admin.createUser({
     email,
     password,
@@ -116,18 +131,8 @@ async function criarUsuario(
 
   console.log("[createUsuarioAction] auth user criado", { id: data.user.id });
 
-  const { error: confirmError } = await supabase.auth.admin.updateUserById(data.user.id, {
-    password,
-  });
-
-  if (confirmError) {
-    console.error("[createUsuarioAction] auth.admin.updateUserById password reset error", {
-      message: confirmError.message,
-      status: confirmError.status,
-      code: confirmError.code,
-    });
-  }
-
+  // 6. Atualizar perfil com o cargo autorizado (service_role, pre-validado pelo Server Action)
+  // gestor_id NÃO é preenchido aqui; fica NULL para designação explícita posterior.
   const { error: profileError } = await supabase
     .from("profiles")
     .upsert(
@@ -154,6 +159,7 @@ async function criarUsuario(
 
   console.log("[createUsuarioAction] profile criado/atualizado", { userId: data.user.id });
 
+  // 7. Para perfil Indicador, criar registro em indicadores
   if (perfil === "Indicador") {
     try {
       const { error: indicadorError } = await supabase.from("indicadores").insert({
@@ -189,6 +195,15 @@ async function criarUsuario(
     }
   }
 
+  // 8. Registrar operação administrativa (audit log via console; tabela audit_log criada na migration)
+  console.log("[createUsuarioAction] auditoria: criacao_usuario", {
+    criado_por: caller.id,
+    perfil_criador: caller.perfil,
+    usuario_criado: data.user.id,
+    perfil_atribuido: perfil,
+    data_criacao: new Date().toISOString(),
+  });
+
   revalidatePath("/configuracoes");
 
   return {
@@ -215,7 +230,7 @@ export async function resetSenhaUsuarioAction(usuarioId: string, novaSenha: stri
 
   const { data: callerProfile, error: callerProfileError } = await serverClient
     .from("profiles")
-    .select("perfil")
+    .select("perfil, ativo")
     .eq("id", authUser.id)
     .single();
 
@@ -223,8 +238,27 @@ export async function resetSenhaUsuarioAction(usuarioId: string, novaSenha: stri
     throw new Error("Não foi possível carregar o perfil do usuário autenticado.");
   }
 
+  if (!callerProfile.ativo) {
+    throw new Error("Usuário inativo não pode redefinir senhas.");
+  }
+
   if (callerProfile.perfil !== "Administrador") {
     throw new Error("Sem permissão para redefinir senhas. Apenas Administradores podem redefinir senhas de usuários.");
+  }
+
+  // Validar que o usuário alvo existe e está ativo
+  const { data: targetProfile, error: targetProfileError } = await serverClient
+    .from("profiles")
+    .select("perfil, ativo")
+    .eq("id", usuarioId)
+    .single();
+
+  if (targetProfileError || !targetProfile) {
+    throw new Error("Usuário alvo não encontrado.");
+  }
+
+  if (!targetProfile.ativo) {
+    throw new Error("Não é possível redefinir senha de usuário inativo.");
   }
 
   const supabase = createAdminClient();
@@ -242,6 +276,14 @@ export async function resetSenhaUsuarioAction(usuarioId: string, novaSenha: stri
     throw new Error("Não foi possível atualizar a senha.");
   }
 
+  // Registrar auditoria
+  console.log("[resetSenhaUsuarioAction] auditoria: redefinicao_senha", {
+    executado_por: authUser.id,
+    perfil_executor: callerProfile.perfil,
+    usuario_afetado: usuarioId,
+    data_execucao: new Date().toISOString(),
+  });
+
   revalidatePath("/configuracoes");
 }
 
@@ -255,7 +297,7 @@ export async function deleteUsuarioAction(usuarioId: string) {
 
   const { data: callerProfile, error: callerProfileError } = await serverClient
     .from("profiles")
-    .select("perfil")
+    .select("perfil, ativo")
     .eq("id", authUser.id)
     .single();
 
@@ -263,8 +305,28 @@ export async function deleteUsuarioAction(usuarioId: string) {
     throw new Error("Não foi possível carregar o perfil do usuário autenticado.");
   }
 
+  if (!callerProfile.ativo) {
+    throw new Error("Usuário inativo não pode excluir usuários.");
+  }
+
   if (callerProfile.perfil !== "Administrador") {
     throw new Error("Sem permissão para excluir usuários. Apenas Administradores podem excluir usuários.");
+  }
+
+  // Não permitir autoexclusão
+  if (authUser.id === usuarioId) {
+    throw new Error("Não é possível excluir o próprio usuário.");
+  }
+
+  // Validar que o usuário alvo existe
+  const { data: targetProfile, error: targetProfileError } = await serverClient
+    .from("profiles")
+    .select("perfil, ativo")
+    .eq("id", usuarioId)
+    .single();
+
+  if (targetProfileError || !targetProfile) {
+    throw new Error("Usuário alvo não encontrado.");
   }
 
   const supabase = createAdminClient();
@@ -314,6 +376,15 @@ export async function deleteUsuarioAction(usuarioId: string) {
       code: deleteGrantsError.code,
     });
   }
+
+  // Registrar auditoria
+  console.log("[deleteUsuarioAction] auditoria: exclusao_usuario", {
+    executado_por: authUser.id,
+    perfil_executor: callerProfile.perfil,
+    usuario_excluido: usuarioId,
+    perfil_excluido: targetProfile.perfil,
+    data_execucao: new Date().toISOString(),
+  });
 
   revalidatePath("/configuracoes");
 }
