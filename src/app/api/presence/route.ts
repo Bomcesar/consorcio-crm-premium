@@ -21,41 +21,17 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString();
-    const payload = {
-      usuario_id: user.id,
-      status,
-      last_seen: now,
-      updated_at: now,
-    };
 
-    const { data, error } = await supabase
+    const { error: upsertError } = await supabase
       .from("usuario_status")
-      .select("id")
-      .eq("usuario_id", user.id)
-      .maybeSingle();
+      .upsert(
+        { usuario_id: user.id, status, last_seen: now, updated_at: now },
+        { onConflict: "usuario_id" },
+      );
 
-    if (error) {
-      console.error("Erro ao localizar status:", error);
+    if (upsertError) {
+      console.error("Erro ao atualizar status:", upsertError);
       return NextResponse.json({ error: "Não foi possível atualizar o status." }, { status: 500 });
-    }
-
-    if (data?.id) {
-      const { error: updateError } = await supabase
-        .from("usuario_status")
-        .update({ status, last_seen: now, updated_at: now })
-        .eq("id", data.id);
-
-      if (updateError) {
-        console.error("Erro ao atualizar status:", updateError);
-        return NextResponse.json({ error: "Não foi possível atualizar o status." }, { status: 500 });
-      }
-    } else {
-      const { error: insertError } = await supabase.from("usuario_status").insert(payload);
-
-      if (insertError) {
-        console.error("Erro ao inserir status:", insertError);
-        return NextResponse.json({ error: "Não foi possível atualizar o status." }, { status: 500 });
-      }
     }
 
     return NextResponse.json({ success: true });
