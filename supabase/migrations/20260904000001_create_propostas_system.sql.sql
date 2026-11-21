@@ -52,10 +52,6 @@ CREATE POLICY "Public can view proposals by token"
   ON public.propostas FOR SELECT
   USING (true);
 
-CREATE POLICY "Public can insert proposal events"
-  ON public.proposta_eventos FOR INSERT
-  WITH CHECK (true);
-
 CREATE INDEX IF NOT EXISTS propostas_usuario_id_idx
   ON public.propostas (usuario_id);
 
@@ -76,6 +72,10 @@ CREATE TABLE IF NOT EXISTS public.proposta_eventos (
 );
 
 ALTER TABLE public.proposta_eventos ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public can insert proposal events"
+  ON public.proposta_eventos FOR INSERT
+  WITH CHECK (true);
 
 CREATE POLICY "Users can view events for their proposals"
   ON public.proposta_eventos FOR SELECT

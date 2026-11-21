@@ -273,8 +273,7 @@ CREATE POLICY "Gestors can update team profiles"
   WITH CHECK (
     public.is_gestor()
     AND profiles.gestor_id = auth.uid()
-    AND NEW.perfil <> 'Administrador'
-    AND NEW.gestor_id = OLD.gestor_id
+    AND profiles.perfil <> 'Administrador'
   );
 
 -- METAS

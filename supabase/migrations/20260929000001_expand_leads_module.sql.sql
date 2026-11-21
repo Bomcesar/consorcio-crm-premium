@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS public.lead_historico (
   lead_id UUID NOT NULL REFERENCES public.leads(id) ON DELETE CASCADE,
   tipo TEXT NOT NULL DEFAULT 'observacao',
   descricao TEXT NOT NULL DEFAULT '',
-  usuario_id TEXT,
+  usuario_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS public.lead_anexos (
   url TEXT NOT NULL DEFAULT '',
   tipo TEXT NOT NULL DEFAULT '',
   tamanho INTEGER NOT NULL DEFAULT 0,
-  usuario_id TEXT,
+  usuario_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

@@ -1,5 +1,9 @@
 BEGIN;
 
+-- Garante que a constraint permite 'venda' (adicionada posteriormente ao schema original)
+ALTER TABLE public.metas DROP CONSTRAINT IF EXISTS metas_tipo_check;
+ALTER TABLE public.metas ADD CONSTRAINT metas_tipo_check CHECK (tipo IN ('individual', 'equipe', 'venda'));
+
 -- Meta padrão de venda fechada para Consultor (R$ 20.000,00)
 INSERT INTO public.metas (
   titulo,
