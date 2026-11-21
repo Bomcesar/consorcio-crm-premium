@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { isDemoEnabled } from "@/lib/validations/auth";
 
 interface AuthContextValue {
   user: User | null;
@@ -20,6 +21,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const retryRef = useRef(0);
 
   const refresh = async () => {
+    // Modo demo: criar usuário fictício se a sessão demo estiver ativa
+    if (isDemoEnabled) {
+      const demoActive = document.cookie.includes("crm-demo-session=active");
+      if (demoActive) {
+        const fakeUser = {
+          id: "demo-user-001",
+          email: process.env.NEXT_PUBLIC_DEMO_EMAIL ?? "demo@crm.com",
+          user_metadata: { name: "Consultor Demo", full_name: "Consultor Demo" },
+          app_metadata: {},
+          aud: "authenticated",
+          created_at: new Date().toISOString(),
+        } as unknown as User;
+        setUser(fakeUser);
+        setIsLoading(false);
+        return;
+      }
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
     if (!isSupabaseConfigured()) {
       setUser(null);
       setIsLoading(false);
@@ -52,6 +74,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     void refresh();
+
+    // Modo demo: não inscrever no auth state do Supabase
+    if (isDemoEnabled) {
+      const handleFocus = () => void refresh();
+      window.addEventListener("focus", handleFocus);
+      return () => window.removeEventListener("focus", handleFocus);
+    }
 
     if (!isSupabaseConfigured()) return;
 

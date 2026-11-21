@@ -12,6 +12,12 @@ export function isSupabaseConfigured(): boolean {
   );
 }
 
+export function isDemoEnabled(): boolean {
+  // Segurança: demo mode SOMENTE em desenvolvimento
+  if (process.env.NODE_ENV !== "development") return false;
+  return (process.env.NEXT_PUBLIC_DEMO_MODE ?? "false").toLowerCase() === "true";
+}
+
 export async function updateSession(request: NextRequest) {
   const supabaseResponse = NextResponse.next({ request });
 
@@ -28,6 +34,22 @@ export async function updateSession(request: NextRequest) {
   const isPublicLiveRoute = isPublicLive || isPublicLiveApi;
 
   if (isPublicAsset) {
+    return supabaseResponse;
+  }
+
+  // --- Modo demo: bypass de autenticação Supabase ---
+  if (isDemoEnabled()) {
+    const demoSession = request.cookies.get("crm-demo-session");
+    if (demoSession?.value === "active") {
+      // Sessão demo ativa — permitir acesso a todas as rotas protegidas
+      return supabaseResponse;
+    }
+    // Sem sessão demo — redirecionar para login (exceto rotas públicas)
+    if (!isAuthRoute && !isPublicProposal && !isPublicProposalApi && !isPublicLiveRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
     return supabaseResponse;
   }
 

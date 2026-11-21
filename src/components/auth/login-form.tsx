@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { loginSchema, type LoginFormData } from "@/lib/validations/auth";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { isDemoEnabled } from "@/lib/validations/auth";
 
 export function LoginForm() {
   const router = useRouter();
@@ -33,6 +34,26 @@ export function LoginForm() {
     setError(null);
 
     try {
+      // Modo demo: usar rota de autenticação local (sem Supabase)
+      if (isDemoEnabled) {
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+          const result = (await response.json()) as { error?: string };
+          setError(result.error ?? "Erro ao fazer login.");
+          return;
+        }
+
+        localStorage.setItem("user_perfil", "Indicador");
+        localStorage.setItem("user_permissoes", "");
+        router.push("/");
+        return;
+      }
+
       if (isSupabaseConfigured()) {
         const supabase = createClient();
         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({

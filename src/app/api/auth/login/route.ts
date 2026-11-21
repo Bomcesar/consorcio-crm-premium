@@ -3,6 +3,14 @@ import { loginSchema } from "@/lib/validations/auth";
 import { isRateLimited, getRateLimitKey } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
+  // Segurança: demo mode SOMENTE em desenvolvimento
+  if (process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "Não disponível." }, { status: 404 });
+  }
+  if ((process.env.NEXT_PUBLIC_DEMO_MODE ?? "false").toLowerCase() !== "true") {
+    return NextResponse.json({ error: "Não disponível." }, { status: 404 });
+  }
+
   if (isRateLimited(getRateLimitKey(request))) {
     return NextResponse.json({ error: "Muitas tentativas. Tente novamente mais tarde." }, { status: 429 });
   }
@@ -24,7 +32,7 @@ export async function POST(request: Request) {
     const response = NextResponse.json({ success: true });
     response.cookies.set("crm-demo-session", "active", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: (process.env.NODE_ENV as string) === "production",
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 7,

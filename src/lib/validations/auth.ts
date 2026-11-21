@@ -32,4 +32,5 @@ export const DEMO_EMAIL = process.env.NEXT_PUBLIC_DEMO_EMAIL ?? "";
 export const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? "";
 
 export const isDemoEnabled =
+  process.env.NODE_ENV === "development" &&
   (process.env.NEXT_PUBLIC_DEMO_MODE ?? "false").toLowerCase() === "true";
