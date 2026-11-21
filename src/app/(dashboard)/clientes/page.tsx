@@ -44,6 +44,19 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { Cliente, ClienteHistorico, ClienteContato } from "@/repositories/client/clientes.repository";
 import { converterClientePara } from "@/repositories/client/clientes.repository";
+import { EtiquetaBadge, EtiquetaList } from "@/components/ui/etiqueta-badge";
+import { EtiquetaSelector } from "@/components/ui/etiqueta-selector";
+import { JornadaPanel } from "@/components/ui/jornada-panel";
+import {
+  type EtiquetaId,
+  stringParaEtiquetas,
+  validarCombinacaoEtiquetas,
+  separarTags,
+  combinarTags,
+  ETIQUETAS_RELACIONAMENTO,
+  ETIQUETAS_INTERESSE,
+  ETIQUETAS_PAPEL,
+} from "@/lib/etiquetas";
 
 const emptyForm = {
   nome: "",
@@ -59,6 +72,7 @@ const emptyForm = {
   valor_medio_contrato: "",
   score: 3,
   tags: "",
+  etiquetas: [] as EtiquetaId[],
   proxima_acao: "",
   data_proxima_acao: "",
   numero_cota: "",
@@ -87,6 +101,7 @@ type ClienteFormData = {
   valor_medio_contrato: string;
   score: number;
   tags: string;
+  etiquetas: EtiquetaId[];
   proxima_acao: string;
   data_proxima_acao: string;
   numero_cota: string;
@@ -143,6 +158,8 @@ export default function ClientesPage() {
   const [filteredClientes, setFilteredClientes] = useState<Cliente[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [etiquetasError, setEtiquetasError] = useState<string | null>(null);
+  const [etiquetaFilter, setEtiquetaFilter] = useState<string>("todas");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -215,6 +232,12 @@ export default function ClientesPage() {
     if (statusFilter !== "todos") {
       result = result.filter((c) => c.status === statusFilter);
     }
+    if (etiquetaFilter !== "todas") {
+      result = result.filter((c) => {
+        const tags = stringParaEtiquetas(c.tags);
+        return tags.includes(etiquetaFilter as EtiquetaId);
+      });
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       result = result.filter(
@@ -227,7 +250,7 @@ export default function ClientesPage() {
       );
     }
     setFilteredClientes(result);
-  }, [searchQuery, statusFilter, clientes]);
+  }, [searchQuery, statusFilter, etiquetaFilter, clientes]);
 
   const handleChange = (field: keyof ClienteFormData, value: string) => {
     setFormData((current) => ({ ...current, [field]: value }));
@@ -259,7 +282,8 @@ export default function ClientesPage() {
       preferencia_contato: atendimento.preferencia_contato ?? "WhatsApp",
       valor_medio_contrato: atendimento.valor_medio_contrato != null ? String(atendimento.valor_medio_contrato) : "",
       score: atendimento.score ?? 3,
-      tags: atendimento.tags ?? "",
+      tags: separarTags(atendimento.tags).livres.join(","),
+      etiquetas: stringParaEtiquetas(atendimento.tags ?? ""),
       proxima_acao: atendimento.proxima_acao ?? "",
       data_proxima_acao: atendimento.data_proxima_acao ?? "",
       numero_cota: (atendimento as ClienteAtendimento).numero_cota ?? "",
@@ -306,6 +330,14 @@ export default function ClientesPage() {
     event.preventDefault();
     if (!formData.nome.trim()) return;
 
+    // Validar combinação de etiquetas
+    const etiquetasValidation = validarCombinacaoEtiquetas(formData.etiquetas);
+    if (!etiquetasValidation.valid) {
+      setEtiquetasError(etiquetasValidation.error);
+      return;
+    }
+    setEtiquetasError(null);
+
     setIsSaving(true);
     try {
       const payload = {
@@ -321,7 +353,7 @@ export default function ClientesPage() {
         preferencia_contato: formData.preferencia_contato,
         valor_medio_contrato: formData.valor_medio_contrato ? Number(formData.valor_medio_contrato) : null,
         score: formData.score,
-        tags: formData.tags.trim(),
+        tags: combinarTags(formData.etiquetas, formData.tags),
         proxima_acao: formData.proxima_acao.trim(),
         data_proxima_acao: formData.data_proxima_acao || null,
         numero_cota: formData.numero_cota.trim(),
@@ -562,6 +594,35 @@ export default function ClientesPage() {
                 </option>
               ))}
             </select>
+            <select
+              value={etiquetaFilter}
+              onChange={(event) => setEtiquetaFilter(event.target.value)}
+              className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              title="Filtrar por etiqueta"
+            >
+              <option value="todas">Todas etiquetas</option>
+              <optgroup label="Situação do relacionamento">
+                {ETIQUETAS_RELACIONAMENTO.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Perfil de interesse">
+                {ETIQUETAS_INTERESSE.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Papel comercial">
+                {ETIQUETAS_PAPEL.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.label}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
           </div>
 
           {isLoading ? (
@@ -606,12 +667,18 @@ export default function ClientesPage() {
                         />
                       </TableCell>
                       <TableCell className="font-medium">{cliente.nome}</TableCell>
-                      <TableCell>{cliente.cidade || "—"}</TableCell>
                       <TableCell>
-                        <Badge variant={cliente.status === "Ativo" ? "success" : cliente.status === "Inativo" ? "secondary" : "destructive"}>
-                          {cliente.status}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={cliente.status === "Ativo" ? "success" : cliente.status === "Inativo" ? "secondary" : "destructive"}>
+                            {cliente.status}
+                          </Badge>
+                          <EtiquetaList
+                            etiquetas={stringParaEtiquetas(cliente.tags)}
+                            maxVisible={3}
+                          />
+                        </div>
                       </TableCell>
+                      <TableCell>{cliente.cidade || "—"}</TableCell>
                       <TableCell>{cliente.origem || "—"}</TableCell>
                       <TableCell className="flex justify-end gap-2">
                         <Button variant="ghost" size="icon" onClick={() => openDetail(cliente)} aria-label="Ver detalhes">
@@ -739,9 +806,23 @@ export default function ClientesPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tags">Tags</Label>
+              <Label>Etiquetas</Label>
+              <p className="text-xs text-muted-foreground">
+                Classifique o contato com etiquetas comerciais. Uma etiqueta de situação, múltiplas de interesse.
+              </p>
+              <EtiquetaSelector
+                value={formData.etiquetas}
+                onChange={(etiquetas) => {
+                  setFormData((current) => ({ ...current, etiquetas }));
+                  setEtiquetasError(null);
+                }}
+                error={etiquetasError}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tags">Tags (texto livre)</Label>
               <Input id="tags" value={formData.tags} onChange={(e) => handleChange("tags", e.target.value)} placeholder="Ex: VIP, Indicação, Renovação" />
-              <p className="text-xs text-muted-foreground">Separe as tags por vírgula.</p>
+              <p className="text-xs text-muted-foreground">Separe as tags por vírgula. As etiquetas acima são independentes.</p>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -847,6 +928,7 @@ export default function ClientesPage() {
                 <Button variant={tab === "historico" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("historico")}>Histórico</Button>
                 <Button variant={tab === "contatos" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("contatos")}>Contatos</Button>
                 <Button variant={tab === "acoes" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("acoes")}>Ações</Button>
+                <Button variant={tab === "jornadas" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("jornadas")}>Jornadas</Button>
               </div>
               {tab === "atendimento" && (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -872,15 +954,36 @@ export default function ClientesPage() {
                     </div>
                   </div>
                   <div className="md:col-span-2">
-                    <p className="text-xs font-medium text-muted-foreground">Tags</p>
+                    <p className="text-xs font-medium text-muted-foreground">Etiquetas</p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {(() => {
+                        const all = stringParaEtiquetas((selectedCliente as ClienteAtendimento).tags);
+                        return all.length > 0 ? (
+                          <EtiquetaList etiquetas={all} />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Nenhuma etiqueta</span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <p className="text-xs font-medium text-muted-foreground">Tags (texto livre)</p>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {((selectedCliente as ClienteAtendimento).tags || "")
                         .split(",")
                         .map((tag) => tag.trim())
                         .filter(Boolean)
+                        .filter((tag) => !ETIQUETAS_RELACIONAMENTO.some((e) => e.id === tag) && !ETIQUETAS_INTERESSE.some((e) => e.id === tag) && !ETIQUETAS_PAPEL.some((e) => e.id === tag))
                         .map((tag) => (
                           <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                         ))}
+                      {((selectedCliente as ClienteAtendimento).tags || "")
+                        .split(",")
+                        .map((tag) => tag.trim())
+                        .filter(Boolean)
+                        .filter((tag) => !ETIQUETAS_RELACIONAMENTO.some((e) => e.id === tag) && !ETIQUETAS_INTERESSE.some((e) => e.id === tag) && !ETIQUETAS_PAPEL.some((e) => e.id === tag)).length === 0 && (
+                          <span className="text-xs text-muted-foreground">Nenhuma tag livre</span>
+                        )}
                     </div>
                   </div>
                   <div className="md:col-span-2">
@@ -1110,6 +1213,13 @@ export default function ClientesPage() {
                     Ligar
                   </Button>
                 </div>
+              )}
+              {tab === "jornadas" && (
+                <JornadaPanel
+                  contatoId={selectedCliente.id}
+                  contatoTipo="cliente"
+                  contatoNome={selectedCliente.nome}
+                />
               )}
             </>
           )}

@@ -53,6 +53,18 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { broadcastConversaoContato, broadcastCelebration, mensagemIndicacaoQualificada, getUsuarioAutenticado } from "@/lib/celebracao";
 import type { Lead, LeadHistorico, LeadAnexo } from "@/repositories/client/leads.repository";
+import { EtiquetaList } from "@/components/ui/etiqueta-badge";
+import { EtiquetaSelector } from "@/components/ui/etiqueta-selector";
+import { JornadaPanel } from "@/components/ui/jornada-panel";
+import {
+  type EtiquetaId,
+  stringParaEtiquetas,
+  etiquetasParaString,
+  validarCombinacaoEtiquetas,
+  ETIQUETAS_RELACIONAMENTO,
+  ETIQUETAS_INTERESSE,
+  ETIQUETAS_PAPEL,
+} from "@/lib/etiquetas";
 
 const emptyForm = {
   nome: "",
@@ -64,6 +76,7 @@ const emptyForm = {
   probabilidade: "0",
   status: "Novo" as Lead["status"],
   observacoes: "",
+  etiquetas: [] as EtiquetaId[],
 };
 
 type LeadFormData = typeof emptyForm;
@@ -83,6 +96,8 @@ export default function LeadsPage() {
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [etiquetasError, setEtiquetasError] = useState<string | null>(null);
+  const [etiquetaFilter, setEtiquetaFilter] = useState<string>("todas");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -130,6 +145,12 @@ export default function LeadsPage() {
     if (statusFilter !== "todos") {
       result = result.filter((lead) => lead.status === statusFilter);
     }
+    if (etiquetaFilter !== "todas") {
+      result = result.filter((lead) => {
+        const tags = stringParaEtiquetas(lead.tags ?? "");
+        return tags.includes(etiquetaFilter as EtiquetaId);
+      });
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       result = result.filter(
@@ -142,7 +163,7 @@ export default function LeadsPage() {
       );
     }
     setFilteredLeads(result);
-  }, [searchQuery, statusFilter, leads]);
+  }, [searchQuery, statusFilter, etiquetaFilter, leads]);
 
   const handleChange = (field: keyof LeadFormData, value: string) => {
     setFormData((current) => ({ ...current, [field]: value }));
@@ -166,7 +187,9 @@ export default function LeadsPage() {
       probabilidade: String(lead.probabilidade ?? 0),
       status: lead.status,
       observacoes: lead.observacoes || "",
+      etiquetas: stringParaEtiquetas(lead.tags ?? ""),
     });
+    setEtiquetasError(null);
     setIsFormOpen(true);
   };
 
@@ -200,6 +223,14 @@ export default function LeadsPage() {
     event.preventDefault();
     if (!formData.nome.trim()) return;
 
+    // Validar combinação de etiquetas
+    const etiquetasValidation = validarCombinacaoEtiquetas(formData.etiquetas);
+    if (!etiquetasValidation.valid) {
+      setEtiquetasError(etiquetasValidation.error);
+      return;
+    }
+    setEtiquetasError(null);
+
     setIsSaving(true);
     setErrorMessage(null);
     try {
@@ -213,6 +244,7 @@ export default function LeadsPage() {
         probabilidade: Number(formData.probabilidade) || 0,
         status: formData.status,
         observacoes: formData.observacoes.trim(),
+        tags: etiquetasParaString(formData.etiquetas),
       };
       if (selectedLead) {
         const updated = await update(selectedLead.id, payload);
@@ -583,6 +615,35 @@ export default function LeadsPage() {
                   </option>
                 ))}
               </select>
+              <select
+                value={etiquetaFilter}
+                onChange={(event) => setEtiquetaFilter(event.target.value)}
+                className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                title="Filtrar por etiqueta"
+              >
+                <option value="todas">Todas etiquetas</option>
+                <optgroup label="Situação do relacionamento">
+                  {ETIQUETAS_RELACIONAMENTO.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Perfil de interesse">
+                  {ETIQUETAS_INTERESSE.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Papel comercial">
+                  {ETIQUETAS_PAPEL.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.label}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
             </div>
           </div>
 
@@ -633,9 +694,15 @@ export default function LeadsPage() {
                       </TableCell>
                       <TableCell className="font-medium">{lead.nome}</TableCell>
                       <TableCell>
-                        <Badge variant={lead.status === "Ganho" ? "success" : lead.status === "Perdido" ? "destructive" : "secondary"}>
-                          {lead.status}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={lead.status === "Ganho" ? "success" : lead.status === "Perdido" ? "destructive" : "secondary"}>
+                            {lead.status}
+                          </Badge>
+                          <EtiquetaList
+                            etiquetas={stringParaEtiquetas(lead.tags ?? "")}
+                            maxVisible={3}
+                          />
+                        </div>
                       </TableCell>
                       <TableCell>{lead.cidade || "—"}</TableCell>
                       <TableCell>{lead.telefone || "—"}</TableCell>
@@ -812,6 +879,20 @@ export default function LeadsPage() {
               </select>
             </div>
             <div className="space-y-2">
+              <Label>Etiquetas</Label>
+              <p className="text-xs text-muted-foreground">
+                Classifique o lead com etiquetas comerciais. Uma etiqueta de situação, múltiplas de interesse.
+              </p>
+              <EtiquetaSelector
+                value={formData.etiquetas}
+                onChange={(etiquetas) => {
+                  setFormData((current) => ({ ...current, etiquetas }));
+                  setEtiquetasError(null);
+                }}
+                error={etiquetasError}
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="observacoes">Observações</Label>
               <Textarea
                 id="observacoes"
@@ -885,6 +966,7 @@ export default function LeadsPage() {
                 <Button variant={tab === "historico" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("historico")}>Histórico</Button>
                 <Button variant={tab === "anexos" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("anexos")}>Anexos</Button>
                 <Button variant={tab === "acoes" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("acoes")}>Ações</Button>
+                <Button variant={tab === "jornadas" ? "secondary" : "ghost"} size="sm" onClick={() => setTab("jornadas")}>Jornadas</Button>
               </div>
               {tab === "info" && (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1056,6 +1138,13 @@ export default function LeadsPage() {
                     Converter contato
                   </Button>
                 </div>
+              )}
+              {tab === "jornadas" && selectedLead && (
+                <JornadaPanel
+                  contatoId={selectedLead.id}
+                  contatoTipo="lead"
+                  contatoNome={selectedLead.nome}
+                />
               )}
             </>
           )}
