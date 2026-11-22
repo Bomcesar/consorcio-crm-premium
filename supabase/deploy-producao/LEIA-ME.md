@@ -1,16 +1,40 @@
 # Implantação em produção — Sistema Operacional do Consultor
 
-## Estado atual
+## Estado atual (aplicado em produção)
 
-- Produção (Supabase `ejmhqmdogdmhiczpbize`) está no schema da migration
-  `20260929000002`.
-- Branch de homologação `homologacao/entrega-operacional` com **9 commits**
-  à frente de `origin/main` (`7bc0f59`). `main` **não** foi alterado.
-- Aplicação publicada (`https://crm-consorcio.vercel.app`) responde 200 e não
-  foi modificada nesta etapa.
-- 24 migrations pendentes em produção, separadas em dois pacotes:
-  - `01-pacote-aditivo.sql` → `20260930000000`, `20261121000001` (2 migrations).
-  - `02-pacote-permissoes.sql` → demais **22** migrations.
+- **Migrations: 24/24 aplicadas em produção** (0 pendentes). Banco compatível
+  com o código.
+- **Backup validado** (restaurável, contagens conferidas):
+  `backups/backup_prod_20261121_212912_schema.sql` +
+  `backups/backup_prod_20261121_212912_data.sql`.
+- **Pré-voo aprovado**: os 4 valores de `profiles.perfil` existentes
+  (Administrador, Gestor, Indicador, Trainee) estão dentro do novo CHECK de 10
+  cargos; RLS habilitado em todas as tabelas.
+- **Dados preservados**: clientes=92, leads=84, profiles=15, negociacoes=25
+  (idênticos antes e depois).
+- Branch `homologacao/entrega-operacional` com **12 commits** à frente de
+  `origin/main` (`7bc0f59`). `main` **não** foi alterado.
+- Aplicação publicada (`https://crm-consorcio.vercel.app`) responde 200; código
+  novo **ainda não** promovido (aguarda Preview + aprovação).
+
+### Como as migrations foram aplicadas (Opção B + reconciliação)
+
+1. Backup (schema + data) e pré-voo (somente leitura).
+2. Estágio 01 (`01-pacote-aditivo.sql`) aplicado e validado.
+3. B1 revelou **estado parcial não rastreado** em produção (metas policies e
+   núcleo Live já existiam). Reconciliação:
+   - Verificação objeto a objeto de 13 migrations já aplicadas.
+   - `supabase migration repair --status applied` para essas 13.
+   - Correção de idempotência em `20261108000013` (DROP POLICY IF EXISTS).
+   - `supabase db push --remote --include-all` aplicou as 11 pendentes.
+4. Validação final: 0 pendentes, tabelas `pessoas`/`jornadas`/`jornada_historico`/
+   `jornada_reunioes` presentes, CHECK de 10 cargos, funções auxiliares,
+   RLS ativo, contagens intactas.
+
+## Roteiro original (referência para reprovisionar)
+
+> Este roteiro descreve o procedimento completo. Já foi executado; mantido para
+> reexecução/rollback a partir do backup validado.
 
 ## Por que o banco precisa vir antes do deploy
 
