@@ -66,6 +66,7 @@ CREATE POLICY "Users can update own personal fields"
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Only admins can update profile administrative fields" ON public.profiles;
 CREATE POLICY "Only admins can update profile administrative fields"
   ON public.profiles
   FOR UPDATE
@@ -74,6 +75,7 @@ CREATE POLICY "Only admins can update profile administrative fields"
 
 -- Corrigir policy SELECT para evitar recursão RLS
 DROP POLICY IF EXISTS "Authenticated users can view own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 
 CREATE POLICY "Users can view own profile"
   ON public.profiles
