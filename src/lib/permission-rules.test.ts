@@ -41,4 +41,20 @@ describe("hasPermissionForPerfil", () => {
     expect(hasPermissionForPerfil("Novo Perfil", "cobranca.ver", ["cobranca.ver"])).toBe(true);
     expect(hasPermissionForPerfil("Novo Perfil", "cobranca.ver")).toBe(false);
   });
+
+  it("Permissão individual concedida libera módulo para Consultor", () => {
+    expect(hasPermissionForPerfil("Consultor", "cobranca.ver", ["cobranca.ver"])).toBe(true);
+    expect(hasPermissionForPerfil("Consultor", "comissoes.ver_proprias", ["comissoes.ver_proprias"])).toBe(true);
+  });
+
+  it("Permissão individual não libera funções administrativas restritas", () => {
+    expect(hasPermissionForPerfil("Consultor", "usuarios.excluir", ["usuarios.excluir"])).toBe(false);
+    expect(hasPermissionForPerfil("Consultor", "usuarios.criar", ["usuarios.criar"])).toBe(false);
+    expect(hasPermissionForPerfil("Secretaria", "usuarios.criar", ["usuarios.criar"])).toBe(false);
+  });
+
+  it("Gestor Pleno pode criar usuários; Gestor não", () => {
+    expect(hasPermissionForPerfil("Gestor Pleno", "usuarios.criar")).toBe(true);
+    expect(hasPermissionForPerfil("Gestor", "usuarios.criar")).toBe(false);
+  });
 });

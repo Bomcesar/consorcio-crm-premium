@@ -103,9 +103,24 @@ export async function updateSession(request: NextRequest) {
       .eq("id", user.id)
       .maybeSingle();
 
+    let permissoes: string[] = [];
+    const { data: grants } = await supabase
+      .from("user_permission_grants")
+      .select("permissao_id")
+      .eq("usuario_id", user.id);
+
+    const grantIds = (grants ?? []).map((grant: { permissao_id: string }) => grant.permissao_id);
+    if (grantIds.length > 0) {
+      const { data: permissaoRows } = await supabase
+        .from("user_permissions")
+        .select("codigo")
+        .in("id", grantIds);
+      permissoes = (permissaoRows ?? []).map((row: { codigo: string }) => row.codigo);
+    }
+
     if (profile?.perfil) {
       const allowed = requiredPermissions.some((permission) =>
-        hasPermissionForPerfil(profile.perfil, permission),
+        hasPermissionForPerfil(profile.perfil, permission, permissoes),
       );
 
       if (!allowed) {
