@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { useAgenda } from "@/hooks/use-agenda";
 import { useToast } from "@/hooks/use-toast";
+import { useAgendaPermissions } from "@/hooks/use-agenda-permissions";
+import { AccessDenied } from "@/components/access-denied";
 import { useLeads } from "@/hooks/use-leads";
 import { useClientes } from "@/hooks/use-clientes";
 import { Button } from "@/components/ui/button";
@@ -97,6 +99,7 @@ export default function AgendaPage() {
   const agenda = useAgenda();
   const leadsHook = useLeads();
   const clientesHook = useClientes();
+  const permissions = useAgendaPermissions();
   const [activeTab, setActiveTab] = useState<"eventos" | "tarefas" | "followups">("eventos");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -174,19 +177,27 @@ export default function AgendaPage() {
   }, []);
 
   const filteredEventos = useMemo(() => {
-    if (!searchQuery.trim()) return eventos;
+    const base = eventos.filter(
+      (evento) => evento.tipo !== "Reunião" || permissions?.reunioes.visualizar === true,
+    );
+
+    if (!searchQuery.trim()) return base;
+
     const q = searchQuery.trim().toLowerCase();
-    return eventos.filter(
+    return base.filter(
       (e) =>
         e.titulo.toLowerCase().includes(q) ||
         e.descricao.toLowerCase().includes(q) ||
         e.local.toLowerCase().includes(q) ||
         e.tipo.toLowerCase().includes(q)
     );
-  }, [eventos, searchQuery]);
+  }, [eventos, searchQuery, permissions]);
 
   const filteredTarefas = useMemo(() => {
+    if (!permissions?.tarefas.visualizar) return [];
+
     if (!searchQuery.trim()) return tarefas;
+
     const q = searchQuery.trim().toLowerCase();
     return tarefas.filter(
       (t) =>
@@ -194,9 +205,23 @@ export default function AgendaPage() {
         t.descricao.toLowerCase().includes(q) ||
         t.local.toLowerCase().includes(q)
     );
-  }, [tarefas, searchQuery]);
+  }, [tarefas, searchQuery, permissions]);
 
   const handleOpenEventoForm = (evento?: AgendaEvento) => {
+    if (!permissions) return;
+
+    if (evento) {
+      const podeEditar =
+        evento.tipo === "Reunião" ? permissions.reunioes.editar : permissions.agenda.editar;
+      if (!podeEditar) {
+        error("Você não tem permissão para editar este evento.");
+        return;
+      }
+    } else if (!permissions.reunioes.criar) {
+      error("Você não tem permissão para criar reuniões.");
+      return;
+    }
+
     if (evento) {
       setSelectedEvento(evento);
       setEventoForm({
@@ -225,6 +250,18 @@ export default function AgendaPage() {
   };
 
   const handleOpenTarefaForm = (tarefa?: AgendaTarefa) => {
+    if (!permissions) return;
+
+    if (tarefa) {
+      if (!permissions.tarefas.editar) {
+        error("Você não tem permissão para editar tarefas.");
+        return;
+      }
+    } else if (!permissions.tarefas.criar) {
+      error("Você não tem permissão para criar tarefas.");
+      return;
+    }
+
     if (tarefa) {
       setSelectedTarefa(tarefa);
       setTarefaForm({
@@ -270,6 +307,22 @@ export default function AgendaPage() {
     e.preventDefault();
     if (!eventoForm.titulo?.trim()) return;
 
+    if (!permissions) return;
+
+    if (selectedEvento) {
+      const podeEditar =
+        selectedEvento.tipo === "Reunião"
+          ? permissions.reunioes.editar
+          : permissions.agenda.editar;
+      if (!podeEditar) {
+        error("Você não tem permissão para editar este evento.");
+        return;
+      }
+    } else if (!permissions.reunioes.criar) {
+      error("Você não tem permissão para criar reuniões.");
+      return;
+    }
+
     setIsSaving(true);
     try {
       const payload: AgendaEventoInsert = {
@@ -311,6 +364,18 @@ export default function AgendaPage() {
   const handleSubmitTarefa = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!tarefaForm.titulo?.trim()) return;
+
+    if (!permissions) return;
+
+    if (selectedTarefa) {
+      if (!permissions.tarefas.editar) {
+        error("Você não tem permissão para editar tarefas.");
+        return;
+      }
+    } else if (!permissions.tarefas.criar) {
+      error("Você não tem permissão para criar tarefas.");
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -380,6 +445,24 @@ export default function AgendaPage() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+
+    if (!permissions) return;
+
+    if (deleteTarget.type === "evento") {
+      const evento = eventos.find((item) => item.id === deleteTarget.id);
+      const podeExcluir =
+        evento?.tipo === "Reunião" ? permissions.reunioes.editar : permissions.agenda.editar;
+      if (!podeExcluir) {
+        error("Você não tem permissão para excluir este evento.");
+        return;
+      }
+    }
+
+    if (deleteTarget.type === "tarefa" && !permissions.tarefas.editar) {
+      error("Você não tem permissão para excluir tarefas.");
+      return;
+    }
+
     try {
       if (deleteTarget.type === "evento") {
         await agenda.removeEvento(deleteTarget.id);
@@ -436,6 +519,20 @@ export default function AgendaPage() {
     return map[tipo] || "secondary";
   };
 
+  if (!permissions) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!permissions.agenda.visualizar) {
+    return <AccessDenied />;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -464,12 +561,14 @@ export default function AgendaPage() {
           >
             Eventos
           </Button>
-          <Button
-            variant={activeTab === "tarefas" ? "default" : "outline"}
-            onClick={() => setActiveTab("tarefas")}
-          >
-            Tarefas
-          </Button>
+          {permissions.tarefas.visualizar && (
+            <Button
+              variant={activeTab === "tarefas" ? "default" : "outline"}
+              onClick={() => setActiveTab("tarefas")}
+            >
+              Tarefas
+            </Button>
+          )}
           <Button
             variant={activeTab === "followups" ? "default" : "outline"}
             onClick={() => setActiveTab("followups")}
@@ -478,13 +577,13 @@ export default function AgendaPage() {
           </Button>
         </div>
         <div className="flex gap-2">
-          {activeTab === "eventos" && (
+          {activeTab === "eventos" && permissions.reunioes.criar && (
             <Button onClick={() => handleOpenEventoForm()}>
               <Plus className="mr-2 h-4 w-4" />
               Novo Evento
             </Button>
           )}
-          {activeTab === "tarefas" && (
+          {activeTab === "tarefas" && permissions.tarefas.criar && (
             <Button onClick={() => handleOpenTarefaForm()}>
               <Plus className="mr-2 h-4 w-4" />
               Nova Tarefa
@@ -514,7 +613,11 @@ export default function AgendaPage() {
       ) : activeTab === "eventos" && filteredEventos.length === 0 ? (
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Nenhum evento cadastrado ainda.</p>
+            <p className="text-sm text-muted-foreground">
+              {permissions.reunioes.visualizar
+                ? "Nenhum evento cadastrado ainda."
+                : "Você não tem permissão para visualizar reuniões."}
+            </p>
           </CardContent>
         </Card>
       ) : activeTab === "tarefas" && filteredTarefas.length === 0 ? (
@@ -598,26 +701,32 @@ export default function AgendaPage() {
                         </TableCell>
                         <TableCell>{evento.proxima_acao || "—"}</TableCell>
                         <TableCell className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenEventoForm(evento)}
-                            aria-label="Editar evento"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setSelectedEvento(evento);
-                              setDeleteTarget({ type: "evento", id: evento.id });
-                              setIsDeleteOpen(true);
-                            }}
-                            aria-label="Excluir evento"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
+                          {(evento.tipo === "Reunião"
+                            ? permissions.reunioes.editar
+                            : permissions.agenda.editar) && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleOpenEventoForm(evento)}
+                                aria-label="Editar evento"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setSelectedEvento(evento);
+                                  setDeleteTarget({ type: "evento", id: evento.id });
+                                  setIsDeleteOpen(true);
+                                }}
+                                aria-label="Excluir evento"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -634,26 +743,30 @@ export default function AgendaPage() {
                           <Badge variant={getStatusBadge(tarefa.status)}>{tarefa.status}</Badge>
                         </TableCell>
                         <TableCell className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenTarefaForm(tarefa)}
-                            aria-label="Editar tarefa"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setSelectedTarefa(tarefa);
-                              setDeleteTarget({ type: "tarefa", id: tarefa.id });
-                              setIsDeleteOpen(true);
-                            }}
-                            aria-label="Excluir tarefa"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
+                          {permissions.tarefas.editar && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleOpenTarefaForm(tarefa)}
+                                aria-label="Editar tarefa"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setSelectedTarefa(tarefa);
+                                  setDeleteTarget({ type: "tarefa", id: tarefa.id });
+                                  setIsDeleteOpen(true);
+                                }}
+                                aria-label="Excluir tarefa"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

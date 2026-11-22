@@ -57,4 +57,37 @@ describe("hasPermissionForPerfil", () => {
     expect(hasPermissionForPerfil("Gestor Pleno", "usuarios.criar")).toBe(true);
     expect(hasPermissionForPerfil("Gestor", "usuarios.criar")).toBe(false);
   });
+
+  it("Reuniões: visualizar não implica criar nem editar", () => {
+    const permissoes = ["reunioes.visualizar"];
+
+    expect(hasPermissionForPerfil("Indicador", "reunioes.visualizar", permissoes)).toBe(true);
+    expect(hasPermissionForPerfil("Indicador", "reunioes.criar", permissoes)).toBe(false);
+    expect(hasPermissionForPerfil("Indicador", "reunioes.editar", permissoes)).toBe(false);
+  });
+
+  it("Reuniões: visualizar e criar não implicam editar", () => {
+    const permissoes = ["reunioes.visualizar", "reunioes.criar"];
+
+    expect(hasPermissionForPerfil("Indicador", "reunioes.visualizar", permissoes)).toBe(true);
+    expect(hasPermissionForPerfil("Indicador", "reunioes.criar", permissoes)).toBe(true);
+    expect(hasPermissionForPerfil("Indicador", "reunioes.editar", permissoes)).toBe(false);
+  });
+
+  it("Tarefas: visualizar não implica criar nem editar", () => {
+    const permissoes = ["tarefas.visualizar"];
+
+    expect(hasPermissionForPerfil("Indicador", "tarefas.visualizar", permissoes)).toBe(true);
+    expect(hasPermissionForPerfil("Indicador", "tarefas.criar", permissoes)).toBe(false);
+    expect(hasPermissionForPerfil("Indicador", "tarefas.editar", permissoes)).toBe(false);
+  });
+
+  it("Administrador mantém acesso total a reuniões e tarefas", () => {
+    expect(hasPermissionForPerfil("Administrador", "reunioes.visualizar")).toBe(true);
+    expect(hasPermissionForPerfil("Administrador", "reunioes.criar")).toBe(true);
+    expect(hasPermissionForPerfil("Administrador", "reunioes.editar")).toBe(true);
+    expect(hasPermissionForPerfil("Administrador", "tarefas.visualizar")).toBe(true);
+    expect(hasPermissionForPerfil("Administrador", "tarefas.criar")).toBe(true);
+    expect(hasPermissionForPerfil("Administrador", "tarefas.editar")).toBe(true);
+  });
 });
