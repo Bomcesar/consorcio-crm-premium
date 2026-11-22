@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Loader2, DollarSign } from "lucide-react";
 import type { CobrancaInsert } from "@/repositories/client/cobranca.repository";
+import { useModuleAccess } from "@/hooks/use-module-access";
+import { AccessDenied } from "@/components/access-denied";
 
 const emptyForm: CobrancaInsert = {
   valor: 0,
@@ -52,6 +54,7 @@ export default function CobrancaPage() {
   const [clientes, setClientes] = useState<{ id: string; nome: string }[]>([]);
   const [historicoForm, setHistoricoForm] = useState({ tipo: "observacao", descricao: "" });
   const [isHistorySaving, setIsHistorySaving] = useState(false);
+  const hasAccess = useModuleAccess(["cobranca.ver"]);
 
   useEffect(() => {
     void listClientes().then((data) => {
@@ -102,6 +105,20 @@ export default function CobrancaPage() {
     };
     return map[status] || "secondary";
   };
+
+  if (hasAccess === null) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!hasAccess) {
+    return <AccessDenied />;
+  }
 
   return (
     <div className="space-y-6">

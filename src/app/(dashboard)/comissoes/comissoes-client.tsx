@@ -31,6 +31,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, Pencil, Trash2, Search } from "lucide-react";
 import type { ComissaoIndicador } from "@/repositories/client/comissoes-indicadores.repository";
 import { formatCurrency } from "@/lib/utils";
+import { useModuleAccess } from "@/hooks/use-module-access";
+import { AccessDenied } from "@/components/access-denied";
 
 export function ComissoesClient() {
   const { success, error } = useToast();
@@ -39,6 +41,7 @@ export function ComissoesClient() {
   const { list: listLeads } = useLeads();
   const { list: listClientes } = useClientes();
   const { list: listNegociacoes } = useNegociacoes();
+  const hasAccess = useModuleAccess(["comissoes.ver_proprias", "comissoes.ver_todas"]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("todos");
@@ -107,6 +110,20 @@ export function ComissoesClient() {
     };
     return map[status] || "secondary";
   };
+
+  if (hasAccess === null) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!hasAccess) {
+    return <AccessDenied />;
+  }
 
   return (
     <div className="space-y-6">

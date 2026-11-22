@@ -29,7 +29,8 @@ import { getProfiles, updateProfile } from "@/repositories/client/profiles.repos
 import type { Perfil } from "@/repositories/client/profiles.repository";
 import { createUsuarioAction, resetSenhaUsuarioAction, deleteUsuarioAction } from "@/app/actions/usuarios.actions";
 import { broadcastCadastroUsuario } from "@/lib/celebracao";
-import { ALL_NAV_ITEMS } from "@/config/navigation";
+import { ALL_NAV_ITEMS, PERFIS_VISIBILIDADE } from "@/config/navigation";
+import { notifyModuleVisibilityChanged } from "@/lib/module-visibility";
 
 type TabValue = "perfil" | "usuarios" | "permissoes" | "visibilidade";
 
@@ -177,7 +178,7 @@ export default function ConfiguracoesPage() {
         }
 
         const existing = data ?? [];
-        const perfis = ["Administrador", "Gestor", "Consultor", "Trainee", "Secretaria", "Indicador"];
+        const perfis = PERFIS_VISIBILIDADE;
         const merged: typeof modulosVisibilidade = [];
 
         for (const item of ALL_NAV_ITEMS) {
@@ -214,6 +215,10 @@ export default function ConfiguracoesPage() {
   const toggleVisibilidade = async (perfil: string, modulo: string) => {
     if (userRole !== "Administrador") {
       console.warn("[Visibilidade] Tentativa de alterar visibilidade sem permissão:", userRole);
+      return;
+    }
+
+    if (perfil === "Administrador") {
       return;
     }
 
@@ -261,6 +266,7 @@ export default function ConfiguracoesPage() {
       }
 
       success("Visibilidade atualizada.");
+      notifyModuleVisibilityChanged();
     } catch (err) {
       console.error("[Visibilidade] Falha ao atualizar visibilidade:", err);
       errorRef.current("Não foi possível atualizar a visibilidade.");
@@ -820,7 +826,7 @@ export default function ConfiguracoesPage() {
                         <TableRow>
                           <TableHead>Módulo</TableHead>
                           <TableHead>Rota</TableHead>
-                          {["Administrador", "Gestor", "Consultor", "Trainee", "Secretaria", "Indicador"].map((perfil) => (
+                          {PERFIS_VISIBILIDADE.map((perfil) => (
                             <TableHead key={perfil} className="text-center">{perfil}</TableHead>
                           ))}
                         </TableRow>
@@ -833,7 +839,18 @@ export default function ConfiguracoesPage() {
                             <TableRow key={modulo}>
                               <TableCell className="font-medium">{item.titulo}</TableCell>
                               <TableCell className="text-xs text-muted-foreground">{item.href}</TableCell>
-                              {["Administrador", "Gestor", "Consultor", "Trainee", "Secretaria", "Indicador"].map((perfil) => {
+                              {PERFIS_VISIBILIDADE.map((perfil) => {
+                                if (perfil === "Administrador") {
+                                  return (
+                                    <TableCell key={perfil} className="text-center">
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700">
+                                        <Eye className="h-3 w-3" />
+                                        Mostrar
+                                      </span>
+                                    </TableCell>
+                                  );
+                                }
+
                                 const visibilidade = modulosVisibilidade.find((i) => i.perfil === perfil && i.modulo === modulo);
                                 const isVisible = visibilidade?.visivel ?? false;
                                 return (

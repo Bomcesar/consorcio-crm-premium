@@ -1,5 +1,11 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { hasPermissionForPerfil } from "@/lib/permission-rules";
+
+const ROUTE_PERMISSIONS: Record<string, string[]> = {
+  "/cobranca": ["cobranca.ver"],
+  "/comissoes": ["comissoes.ver_proprias", "comissoes.ver_todas"],
+};
 
 export function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -87,6 +93,29 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
+  }
+
+  const requiredPermissions = ROUTE_PERMISSIONS[request.nextUrl.pathname];
+  if (user && requiredPermissions) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("perfil")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profile?.perfil) {
+      const allowed = requiredPermissions.some((permission) =>
+        hasPermissionForPerfil(profile.perfil, permission),
+      );
+
+      if (!allowed) {
+        const denied = new NextResponse("Acesso não autorizado", { status: 403 });
+        supabaseResponse.cookies.getAll().forEach((cookie) => {
+          denied.cookies.set(cookie);
+        });
+        return denied;
+      }
+    }
   }
 
   if (user && isAuthRoute && !shouldAllowReset) {

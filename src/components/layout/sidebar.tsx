@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { getNavItemsForRole, type NavItem } from "@/config/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Gem } from "lucide-react";
-import { getAuthenticatedUser } from "@/lib/auth-user";
+import { getAuthenticatedUser, hasPermission } from "@/lib/auth-user";
 import { createClient } from "@/lib/supabase/client";
+import { MODULE_VISIBILITY_CHANGED_EVENT } from "@/lib/module-visibility";
 
 interface SidebarProps {
   onNavigate?: () => void;
@@ -19,68 +20,86 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const [navItems, setNavItems] = useState<NavItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
-      setIsLoading(true);
-      try {
-        const authUser = await getAuthenticatedUser();
-        const supabase = createClient();
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const authUser = await getAuthenticatedUser();
+      const supabase = createClient();
 
-        const [visibilityRes, leadsCount, clientesCount, indicadoresCount, parceirosCount, recrutamentoCount] = await Promise.all([
-          supabase.from("module_visibility").select("href, visivel").eq("perfil", authUser.perfil).eq("visivel", true),
-          supabase.from("leads").select("*", { count: "exact", head: true }).eq("usuario_id", authUser.id),
-          supabase.from("clientes").select("*", { count: "exact", head: true }).eq("usuario_id", authUser.id),
-          supabase.from("indicadores").select("*", { count: "exact", head: true }).eq("usuario_id", authUser.id),
-          supabase.from("parceiros").select("*", { count: "exact", head: true }).eq("usuario_id", authUser.id),
-          supabase.from("recrutamento").select("*", { count: "exact", head: true }).eq("usuario_id", authUser.id),
-        ]);
+      const [visibilityRes, leadsCount, clientesCount, indicadoresCount, parceirosCount, recrutamentoCount] = await Promise.all([
+        supabase.from("module_visibility").select("href, visivel").eq("perfil", authUser.perfil).eq("visivel", true),
+        supabase.from("leads").select("*", { count: "exact", head: true }).eq("usuario_id", authUser.id),
+        supabase.from("clientes").select("*", { count: "exact", head: true }).eq("usuario_id", authUser.id),
+        supabase.from("indicadores").select("*", { count: "exact", head: true }).eq("usuario_id", authUser.id),
+        supabase.from("parceiros").select("*", { count: "exact", head: true }).eq("usuario_id", authUser.id),
+        supabase.from("recrutamento").select("*", { count: "exact", head: true }).eq("usuario_id", authUser.id),
+      ]);
 
-        if (visibilityRes.error) {
-          console.error("[Sidebar] Erro ao carregar module_visibility:", visibilityRes.error);
-          const items = getNavItemsForRole(authUser.perfil);
-          setNavItems(items);
-          return;
-        }
-
-        const visibleModules = new Set((visibilityRes.data ?? []).map((row) => row.href));
-        const isAdminOrGestor = authUser.perfil === "Administrador" || authUser.perfil === "Gestor";
-
-        const modulesWithData = new Set<string>();
-        if (!isAdminOrGestor) {
-          if ((leadsCount.count ?? 0) > 0) modulesWithData.add("/leads");
-          if ((clientesCount.count ?? 0) > 0) modulesWithData.add("/clientes");
-          if ((indicadoresCount.count ?? 0) > 0) modulesWithData.add("/central-de-indicadores");
-          if ((parceirosCount.count ?? 0) > 0) modulesWithData.add("/parceiros");
-          if ((recrutamentoCount.count ?? 0) > 0) modulesWithData.add("/recrutamento");
-        } else {
-          modulesWithData.add("/leads");
-          modulesWithData.add("/clientes");
-          modulesWithData.add("/central-de-indicadores");
-          modulesWithData.add("/parceiros");
-          modulesWithData.add("/recrutamento");
-        }
-
-        const items = getNavItemsForRole(authUser.perfil, visibleModules).filter((item) => {
-          if (isAdminOrGestor) return true;
-          const isDataModule = ["/leads", "/clientes", "/central-de-indicadores", "/parceiros", "/recrutamento"].includes(item.href);
-          if (!isDataModule) return true;
-          return modulesWithData.has(item.href);
-        });
+      if (visibilityRes.error) {
+        console.error("[Sidebar] Erro ao carregar module_visibility:", visibilityRes.error);
+        const items = getNavItemsForRole(authUser.perfil);
         setNavItems(items);
-      } catch (err) {
-        console.error("[Sidebar] Falha ao carregar menu:", err);
-        const authUser = await getAuthenticatedUser().catch(() => null);
-        if (authUser) {
-          const items = getNavItemsForRole(authUser.perfil);
-          setNavItems(items);
-        }
-      } finally {
-        setIsLoading(false);
+        return;
       }
+
+      const visibleModules = new Set((visibilityRes.data ?? []).map((row) => row.href));
+      const isAdminOrGestor = authUser.perfil === "Administrador" || authUser.perfil === "Gestor";
+
+      const modulesWithData = new Set<string>();
+      if (!isAdminOrGestor) {
+        if ((leadsCount.count ?? 0) > 0) modulesWithData.add("/leads");
+        if ((clientesCount.count ?? 0) > 0) modulesWithData.add("/clientes");
+        if ((indicadoresCount.count ?? 0) > 0) modulesWithData.add("/central-de-indicadores");
+        if ((parceirosCount.count ?? 0) > 0) modulesWithData.add("/parceiros");
+        if ((recrutamentoCount.count ?? 0) > 0) modulesWithData.add("/recrutamento");
+      } else {
+        modulesWithData.add("/leads");
+        modulesWithData.add("/clientes");
+        modulesWithData.add("/central-de-indicadores");
+        modulesWithData.add("/parceiros");
+        modulesWithData.add("/recrutamento");
+      }
+
+      const items = getNavItemsForRole(authUser.perfil, visibleModules).filter((item) => {
+        const requiredPermissions =
+          item.requiredPermissions ?? (item.requiredPermission ? [item.requiredPermission] : []);
+        if (
+          requiredPermissions.length > 0 &&
+          !requiredPermissions.some((permission) => hasPermission(authUser, permission))
+        ) {
+          return false;
+        }
+
+        if (isAdminOrGestor) return true;
+        const isDataModule = ["/leads", "/clientes", "/central-de-indicadores", "/parceiros", "/recrutamento"].includes(item.href);
+        if (!isDataModule) return true;
+        return modulesWithData.has(item.href);
+      });
+      setNavItems(items);
+    } catch (err) {
+      console.error("[Sidebar] Falha ao carregar menu:", err);
+      const authUser = await getAuthenticatedUser().catch(() => null);
+      if (authUser) {
+        const items = getNavItemsForRole(authUser.perfil);
+        setNavItems(items);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      void load();
     };
 
-    void load();
-  }, []);
+    window.addEventListener(MODULE_VISIBILITY_CHANGED_EVENT, handleVisibilityChange);
+    return () => window.removeEventListener(MODULE_VISIBILITY_CHANGED_EVENT, handleVisibilityChange);
+  }, [load]);
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-sidebar-border bg-sidebar">

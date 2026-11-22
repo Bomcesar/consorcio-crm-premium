@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/client";
 import { withTimeout } from "@/lib/supabase-timeout";
 import type { AuthError, PostgrestError } from "@supabase/supabase-js";
 import { isDemoEnabled } from "@/lib/validations/auth";
+import { hasPermissionForPerfil } from "@/lib/permission-rules";
 
 export type AuthenticatedUser = {
   id: string;
@@ -100,144 +101,7 @@ export function hasPermission(
   user: AuthenticatedUser,
   permission: string
 ): boolean {
-  if (!user.perfil) return false;
-
-  // Administrador tem acesso total
-  if (user.perfil === "Administrador") return true;
-
-  // Gestor Pleno: permissões operacionais, mas não pode alterar configurações estruturais
-  if (user.perfil === "Gestor Pleno") {
-    const restrictedPermissions = [
-      "usuarios.excluir",
-      "usuarios.permissoes",
-      "configuracoes.editar",
-      "metas.excluir",
-      "usuarios.promover_admin",
-      "usuarios.alterar_gestor",
-      "seguranca.global",
-      "schema.alterar",
-      "rls.alterar",
-    ];
-    if (restrictedPermissions.includes(permission)) return false;
-    return true;
-  }
-
-  // Gestor: permissões de gestão limitada
-  if (user.perfil === "Gestor") {
-    const restrictedPermissions = [
-      "usuarios.excluir",
-      "usuarios.permissoes",
-      "configuracoes.editar",
-      "metas.excluir",
-      "usuarios.promover_admin",
-      "usuarios.alterar_gestor",
-      "seguranca.global",
-      "schema.alterar",
-      "rls.alterar",
-      "usuarios.criar", // Gestor não pode criar outros gestores
-    ];
-    if (restrictedPermissions.includes(permission)) return false;
-    return true;
-  }
-
-  // Consultor Pleno: autonomia operacional ampliada
-  if (user.perfil === "Consultor Pleno") {
-    const allowedPermissions = [
-      "dashboard.visualizar",
-      "leads.visualizar", "leads.criar", "leads.editar",
-      "agenda.visualizar", "agenda.criar", "agenda.editar",
-      "tarefas.visualizar", "tarefas.criar", "tarefas.editar",
-      "reunioes.visualizar", "reunioes.criar", "reunioes.editar",
-      "simulacoes.visualizar", "simulacoes.criar", "simulacoes.editar",
-      "mensagens.visualizar", "mensagens.criar", "mensagens.editar",
-      "playbooks.visualizar", "playbooks.criar", "playbooks.editar",
-      "credito_investimento.visualizar", "credito_investimento.criar", "credito_investimento.editar",
-      "pos_venda.visualizar", "pos_venda.criar", "pos_venda.editar",
-      "links_uteis.visualizar", "links_uteis.criar", "links_uteis.editar",
-      "materiais.visualizar", "materiais.criar", "materiais.editar",
-      "relatorios.visualizar",
-      "usuarios.criar", // Pode criar usuários nos cargos autorizados
-    ];
-    return allowedPermissions.includes(permission);
-  }
-
-  // Consultor: operação individual
-  if (user.perfil === "Consultor") {
-    const allowedPermissions = [
-      "dashboard.visualizar",
-      "leads.visualizar", "leads.criar", "leads.editar",
-      "agenda.visualizar", "agenda.criar", "agenda.editar",
-      "tarefas.visualizar", "tarefas.criar", "tarefas.editar",
-      "reunioes.visualizar", "reunioes.criar", "reunioes.editar",
-      "simulacoes.visualizar", "simulacoes.criar", "simulacoes.editar",
-      "mensagens.visualizar", "mensagens.criar", "mensagens.editar",
-      "playbooks.visualizar",
-      "credito_investimento.visualizar", "credito_investimento.criar", "credito_investimento.editar",
-      "pos_venda.visualizar", "pos_venda.criar", "pos_venda.editar",
-      "relatorios.visualizar",
-    ];
-    return allowedPermissions.includes(permission);
-  }
-
-  // Consultor em prévia: acesso limitado
-  if (user.perfil === "Consultor em prévia") {
-    const allowedPermissions = [
-      "dashboard.visualizar",
-      "playbooks.visualizar",
-      "mensagens.visualizar",
-    ];
-    return allowedPermissions.includes(permission);
-  }
-
-  // Líder em treinamento: acesso de desenvolvimento
-  if (user.perfil === "Líder em treinamento") {
-    const allowedPermissions = [
-      "dashboard.visualizar",
-      "playbooks.visualizar",
-      "mensagens.visualizar",
-      "materiais.visualizar",
-    ];
-    return allowedPermissions.includes(permission);
-  }
-
-  // Indicador: acesso inicial restrito
-  if (user.perfil === "Indicador") {
-    const allowedPermissions = [
-      "dashboard.visualizar",
-    ];
-    return allowedPermissions.includes(permission);
-  }
-
-  // Trainee: legado, equivalente a Consultor em prévia
-  if (user.perfil === "Trainee") {
-    const allowedPermissions = [
-      "dashboard.visualizar",
-      "playbooks.visualizar",
-      "mensagens.visualizar",
-    ];
-    return allowedPermissions.includes(permission);
-  }
-
-  // Secretaria: perfil independente
-  if (user.perfil === "Secretaria") {
-    const allowedPermissions = [
-      "dashboard.visualizar",
-      "leads.visualizar", "leads.criar", "leads.editar",
-      "agenda.visualizar", "agenda.criar", "agenda.editar",
-      "tarefas.visualizar", "tarefas.criar", "tarefas.editar",
-      "reunioes.visualizar", "reunioes.criar", "reunioes.editar",
-      "simulacoes.visualizar", "simulacoes.criar", "simulacoes.editar",
-      "mensagens.visualizar", "mensagens.criar", "mensagens.editar",
-      "playbooks.visualizar",
-      "credito_investimento.visualizar", "credito_investimento.criar", "credito_investimento.editar",
-      "pos_venda.visualizar", "pos_venda.criar", "pos_venda.editar",
-      "relatorios.visualizar",
-    ];
-    return allowedPermissions.includes(permission);
-  }
-
-  // Permissões específicas concedidas via user_permission_grants
-  return user.permissoes?.includes(permission) ?? false;
+  return hasPermissionForPerfil(user.perfil, permission, user.permissoes);
 }
 
 export function isAdminOrGestor(user: AuthenticatedUser): boolean {
