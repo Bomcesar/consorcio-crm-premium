@@ -12,27 +12,36 @@ import { readFileSync } from "fs";
 import path from "path";
 
 function loadEnvLocal(): Record<string, string> {
-  const envPath = path.resolve(__dirname, "../../.env.local");
-  let content = "";
-  try {
-    content = readFileSync(envPath, "utf-8");
-  } catch {
-    return {};
+  // A suíte fala com o Supabase LOCAL, então usa as credenciais locais de
+  // desenvolvimento. `process.env` tem prioridade; na falta, lê .env.local.dev.
+  const candidates = [
+    path.resolve(__dirname, "../../.env.local.dev"),
+    path.resolve(__dirname, "../../.env.local"),
+  ];
+  for (const envPath of candidates) {
+    let content = "";
+    try {
+      content = readFileSync(envPath, "utf-8");
+    } catch {
+      continue;
+    }
+    const env: Record<string, string> = {};
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) continue;
+      env[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
+    }
+    if (env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return env;
   }
-  const env: Record<string, string> = {};
-  for (const line of content.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq === -1) continue;
-    env[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
-  }
-  return env;
+  return {};
 }
 
 const env = loadEnvLocal();
-const LOCAL_URL = "http://127.0.0.1:54321";
-const LOCAL_ANON = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const LOCAL_URL = process.env.SUPABASE_LOCAL_URL ?? "http://127.0.0.1:54321";
+const LOCAL_ANON =
+  process.env.SUPABASE_LOCAL_ANON_KEY ?? env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 // Probe de disponibilidade: só roda a suíte quando o serviço responde.
 let SUPABASE_DISPONIVEL = false;
