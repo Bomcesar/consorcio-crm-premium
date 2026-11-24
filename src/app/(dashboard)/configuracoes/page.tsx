@@ -31,6 +31,11 @@ import { createUsuarioAction, resetSenhaUsuarioAction, deleteUsuarioAction } fro
 import { broadcastCadastroUsuario } from "@/lib/celebracao";
 import { ALL_NAV_ITEMS, PERFIS_VISIBILIDADE } from "@/config/navigation";
 import { notifyModuleVisibilityChanged } from "@/lib/module-visibility";
+import {
+  LEGACY_PERMISSION_CODES,
+  getGrantablePermissionsForPerfil,
+  getRemovableGrantIds,
+} from "@/lib/permission-rules";
 
 type TabValue = "perfil" | "usuarios" | "permissoes" | "visibilidade";
 
@@ -41,8 +46,6 @@ type UsuarioForm = {
   ativo: boolean;
   senha?: string;
 };
-
-const LEGACY_PERMISSION_CODES = new Set(["links_uteis.ver"]);
 
 export default function ConfiguracoesPage() {
   const { success, error } = useToast();
@@ -72,7 +75,10 @@ export default function ConfiguracoesPage() {
   const [permissoesUsuario, setPermissoesUsuario] = useState<string[]>([]);
   const [todasPermissoes, setTodasPermissoes] = useState<{ id: string; codigo: string; nome: string; categoria: string }[]>([]);
   const [isPermissoesLoading, setIsPermissoesLoading] = useState(false);
+  const [isPermissoesSaving, setIsPermissoesSaving] = useState(false);
   const [usuarioPermissoesId, setUsuarioPermissoesId] = useState<string | null>(null);
+  const [usuarioPermissoesPerfil, setUsuarioPermissoesPerfil] = useState<string | null>(null);
+  const usuarioPermissoesIdRef = useRef<string | null>(null);
   const [modulosVisibilidade, setModulosVisibilidade] = useState<{ id?: string; perfil: string; modulo: string; href: string; titulo: string; visivel: boolean }[]>([]);
   const [isVisibilidadeLoading, setIsVisibilidadeLoading] = useState(false);
   const errorRef = useRef(error);
@@ -418,27 +424,171 @@ export default function ConfiguracoesPage() {
     }
   };
 
+  const recarregarPermissoesUsuario = async (usuarioId: string): Promise<string[]> => {
+    const supabase = createClient();
+    const { data: grants, error: grantsError } = await supabase
+      .from("user_permission_grants")
+      .select("permissao_id")
+      .eq("usuario_id", usuarioId);
+
+    if (grantsError) throw grantsError;
+    return (grants ?? []).map((g: { permissao_id: string }) => g.permissao_id);
+  };
+
   const abrirPermissoes = async (usuario: Perfil) => {
-    if (userRole !== "Administrador") return;
+    if (userRole !== "Administrador" || isPermissoesSaving) return;
     setIsPermissoesLoading(true);
     try {
-      const supabase = createClient();
-      const { data: grants, error: grantsError } = await supabase
-        .from("user_permission_grants")
-        .select("permissao_id")
-        .eq("usuario_id", usuario.id);
-
-      if (grantsError) {
-        console.error("[abrirPermissoes] error:", grantsError);
-        error("Não foi possível carregar as permissões do usuário.");
-      } else {
-        setUsuarioPermissoesId(usuario.id);
-        setPermissoesUsuario(grants?.map((g) => g.permissao_id) ?? []);
-      }
-    } catch {
+      const grants = await recarregarPermissoesUsuario(usuario.id);
+      setUsuarioPermissoesId(usuario.id);
+      usuarioPermissoesIdRef.current = usuario.id;
+      setUsuarioPermissoesPerfil(usuario.perfil);
+      setPermissoesUsuario(grants);
+    } catch (err) {
+      console.error("[abrirPermissoes] error:", err);
       error("Não foi possível carregar as permissões do usuário.");
     } finally {
       setIsPermissoesLoading(false);
+    }
+  };
+
+  const selecionarTodasPermissoes = async () => {
+    if (!usuarioPermissoesId || userRole !== "Administrador" || isPermissoesSaving) {
+      return;
+    }
+
+    setIsPermissoesSaving(true);
+    const targetUserId = usuarioPermissoesId;
+
+    try {
+      const targetUser = usuarios.find((usuario) => usuario.id === targetUserId);
+      const perfilAtual = targetUser?.perfil ?? usuarioPermissoesPerfil;
+
+      if (!perfilAtual) {
+        error("Perfil do usuário não encontrado.");
+        return;
+      }
+
+      const supabase = createClient();
+      const grantable = getGrantablePermissionsForPerfil(perfilAtual, permissoesVisiveis);
+      const atuais = await recarregarPermissoesUsuario(targetUserId);
+      const existing = new Set(atuais);
+      const missing = grantable.filter((permissao) => !existing.has(permissao.id));
+
+      if (missing.length > 0) {
+        const { error: insertError } = await supabase
+          .from("user_permission_grants")
+          .upsert(
+            missing.map((permissao) => ({
+              usuario_id: targetUserId,
+              permissao_id: permissao.id,
+            })),
+            { onConflict: "usuario_id,permissao_id", ignoreDuplicates: true },
+          );
+
+        if (insertError) throw insertError;
+      }
+
+      let updated: string[] | null = null;
+      try {
+        updated = await recarregarPermissoesUsuario(targetUserId);
+      } catch (reloadError) {
+        console.error("[selecionarTodasPermissoes] reload error:", reloadError);
+      }
+
+      if (usuarioPermissoesIdRef.current === targetUserId) {
+        if (updated) {
+          setPermissoesUsuario(updated);
+        } else {
+          setPermissoesUsuario(Array.from(new Set([...atuais, ...missing.map((permissao) => permissao.id)])));
+          error("Permissões salvas, mas não foi possível recarregar a lista.");
+          return;
+        }
+      }
+
+      success(
+        missing.length > 0
+          ? `${missing.length} permissão(ões) selecionada(s) e salva(s).`
+          : "Nenhuma permissão nova para salvar.",
+      );
+    } catch (err) {
+      console.error("[selecionarTodasPermissoes] error:", err);
+      error("Não foi possível salvar as permissões.");
+    } finally {
+      setIsPermissoesSaving(false);
+    }
+  };
+
+  const limparTodasPermissoes = async () => {
+    if (!usuarioPermissoesId || userRole !== "Administrador" || isPermissoesSaving) {
+      return;
+    }
+
+    setIsPermissoesSaving(true);
+    const targetUserId = usuarioPermissoesId;
+    const catalogById = new Map(todasPermissoes.map((permissao) => [permissao.id, permissao.codigo]));
+
+    try {
+      if (todasPermissoes.length === 0) {
+        error("Catálogo de permissões não carregado. Não foi possível remover com segurança.");
+        return;
+      }
+
+      const supabase = createClient();
+      const atuais = await recarregarPermissoesUsuario(targetUserId);
+      const removableIds = getRemovableGrantIds(atuais, catalogById);
+
+      if (removableIds.length === 0) {
+        if (usuarioPermissoesIdRef.current === targetUserId) {
+          setPermissoesUsuario(atuais);
+        }
+        success("Nenhuma permissão individual pôde ser removida.");
+        return;
+      }
+
+      const confirmar = window.confirm(
+        `Remover ${removableIds.length} permissão(ões) individual(is) deste usuário? As permissões padrão do cargo serão mantidas.`,
+      );
+
+      if (!confirmar) return;
+
+      const { error: deleteError } = await supabase
+        .from("user_permission_grants")
+        .delete()
+        .eq("usuario_id", targetUserId)
+        .in("permissao_id", removableIds);
+
+      if (deleteError) throw deleteError;
+
+      let updated: string[] | null = null;
+      try {
+        updated = await recarregarPermissoesUsuario(targetUserId);
+      } catch (reloadError) {
+        console.error("[limparTodasPermissoes] reload error:", reloadError);
+      }
+
+      if (usuarioPermissoesIdRef.current === targetUserId) {
+        if (updated) {
+          setPermissoesUsuario(updated);
+        } else {
+          const removableSet = new Set(removableIds);
+          setPermissoesUsuario(atuais.filter((permissaoId) => !removableSet.has(permissaoId)));
+          error("Permissões removidas, mas não foi possível recarregar a lista.");
+          return;
+        }
+      }
+
+      const mantidas = atuais.length - removableIds.length;
+      success(
+        mantidas > 0
+          ? `${removableIds.length} permissão(ões) individual(is) removida(s). ${mantidas} permissão(ões) protegida(s) mantida(s).`
+          : `${removableIds.length} permissão(ões) individual(is) removida(s).`,
+      );
+    } catch (err) {
+      console.error("[limparTodasPermissoes] error:", err);
+      error("Não foi possível remover as permissões.");
+    } finally {
+      setIsPermissoesSaving(false);
     }
   };
 
@@ -486,7 +636,7 @@ export default function ConfiguracoesPage() {
   };
 
   const togglePermissao = async (permissaoId: string) => {
-    if (!usuarioPermissoesId || userRole !== "Administrador") return;
+    if (!usuarioPermissoesId || userRole !== "Administrador" || isPermissoesSaving) return;
 
     try {
       const supabase = createClient();
@@ -693,7 +843,7 @@ export default function ConfiguracoesPage() {
                                     size="icon"
                                     onClick={() => abrirPermissoes(usuario)}
                                     aria-label="Permissões"
-                                    disabled={userRole !== "Administrador"}
+                                    disabled={userRole !== "Administrador" || isPermissoesSaving}
                                   >
                                     <Shield className="h-4 w-4" />
                                     <span className="sr-only">Permissões</span>
@@ -736,7 +886,7 @@ export default function ConfiguracoesPage() {
                 <CardTitle>Permissões dos usuários</CardTitle>
                 <CardDescription>
                   {usuarioPermissoesId
-                    ? "Alterne as permissões para o usuário selecionado."
+                    ? "Alterne as concessões individuais do usuário selecionado. As permissões padrão do cargo não são alteradas."
                     : "Selecione um usuário na lista de Usuários para gerenciar suas permissões."}
                 </CardDescription>
               </CardHeader>
@@ -753,20 +903,29 @@ export default function ConfiguracoesPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setPermissoesUsuario(permissoesVisiveis.map((p) => p.id));
+                          void selecionarTodasPermissoes();
                         }}
+                        disabled={isPermissoesSaving || isPermissoesLoading || permissoesVisiveis.length === 0}
+                        title="Seleciona todas as permissões padrão permitidas para o cargo do usuário."
                       >
-                        Selecionar todas
+                        {isPermissoesSaving ? "Salvando..." : "Selecionar todas"}
                       </Button>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setPermissoesUsuario([])}
+                        onClick={() => {
+                          void limparTodasPermissoes();
+                        }}
+                        disabled={isPermissoesSaving || isPermissoesLoading || permissoesUsuario.length === 0}
+                        title="Remove as concessões individuais, mantendo as permissões padrão do cargo e as protegidas."
                       >
-                        Limpar todas
+                        {isPermissoesSaving ? "Salvando..." : "Limpar todas"}
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      Estas permissões são concessões individuais. As permissões padrão do cargo continuam valendo.
+                    </p>
                     {categoriasPermissoes.length === 0 ? (
                       <p className="text-sm text-muted-foreground">Nenhuma permissão disponível.</p>
                     ) : (
@@ -784,8 +943,11 @@ export default function ConfiguracoesPage() {
                                   <button
                                     key={permissao.id}
                                     type="button"
-                                    onClick={() => togglePermissao(permissao.id)}
-                                    className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                                    onClick={() => {
+                                      void togglePermissao(permissao.id);
+                                    }}
+                                    disabled={isPermissoesSaving}
+                                    className={`rounded-lg border px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${
                                       ativa ? "border-primary bg-primary/10" : "border-border hover:border-primary/40"
                                     }`}
                                   >

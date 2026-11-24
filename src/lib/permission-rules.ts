@@ -28,6 +28,13 @@ function normalizePermission(permission: string): string {
   return PERMISSION_ALIASES[permission] ?? permission;
 }
 
+export const LEGACY_PERMISSION_CODES = new Set(Object.keys(PERMISSION_ALIASES));
+
+export type PermissionDefinition = {
+  id: string;
+  codigo: string;
+};
+
 const ALLOWED_BY_PERFIL: Record<string, string[]> = {
   "Consultor Pleno": [
     "dashboard.visualizar",
@@ -129,4 +136,52 @@ export function hasPermissionForPerfil(
   }
 
   return normalizedGrants.includes(canonicalPermission);
+}
+
+export function isPermissionInCargoDefaults(
+  perfil: string | undefined,
+  permission: string,
+): boolean {
+  if (!perfil) return false;
+  const canonicalPermission = normalizePermission(permission);
+
+  if (perfil === "Administrador") return true;
+  if (perfil === "Gestor Pleno") {
+    return !GESTOR_PLENO_RESTRICTED_PERMISSIONS.includes(canonicalPermission);
+  }
+  if (perfil === "Gestor") {
+    return !GLOBAL_RESTRICTED_PERMISSIONS.includes(canonicalPermission);
+  }
+
+  return ALLOWED_BY_PERFIL[perfil]?.includes(canonicalPermission) ?? false;
+}
+
+export function getGrantablePermissionsForPerfil(
+  perfil: string | undefined,
+  permissions: PermissionDefinition[],
+): PermissionDefinition[] {
+  if (!perfil) return [];
+
+  return permissions.filter((permission) => {
+    if (LEGACY_PERMISSION_CODES.has(permission.codigo)) return false;
+
+    const canonicalPermission = normalizePermission(permission.codigo);
+    if (GLOBAL_RESTRICTED_PERMISSIONS.includes(canonicalPermission)) return false;
+
+    return isPermissionInCargoDefaults(perfil, permission.codigo);
+  });
+}
+
+export function canRemoveIndividualPermission(permission: string): boolean {
+  return !GLOBAL_RESTRICTED_PERMISSIONS.includes(normalizePermission(permission));
+}
+
+export function getRemovableGrantIds(
+  grantedIds: string[],
+  permissionCodeById: ReadonlyMap<string, string>,
+): string[] {
+  return grantedIds.filter((permissionId) => {
+    const codigo = permissionCodeById.get(permissionId);
+    return codigo ? canRemoveIndividualPermission(codigo) : false;
+  });
 }

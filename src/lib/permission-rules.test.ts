@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { hasPermissionForPerfil } from "./permission-rules";
+import {
+  canRemoveIndividualPermission,
+  getGrantablePermissionsForPerfil,
+  getRemovableGrantIds,
+  hasPermissionForPerfil,
+} from "./permission-rules";
 
 describe("hasPermissionForPerfil", () => {
   it("Administrador tem acesso total", () => {
@@ -125,5 +130,89 @@ describe("hasPermissionForPerfil", () => {
   it("Líder em treinamento mantém materiais mas não leads", () => {
     expect(hasPermissionForPerfil("Líder em treinamento", "materiais.ver")).toBe(true);
     expect(hasPermissionForPerfil("Líder em treinamento", "leads.ver")).toBe(false);
+  });
+});
+
+const catalogoPermissoes = [
+  { id: "p1", codigo: "dashboard.visualizar" },
+  { id: "p2", codigo: "leads.ver" },
+  { id: "p3", codigo: "cobranca.ver" },
+  { id: "p4", codigo: "usuarios.excluir" },
+  { id: "p5", codigo: "usuarios.criar" },
+  { id: "p6", codigo: "links_uteis.visualizar" },
+  { id: "p7", codigo: "links_uteis.ver" },
+];
+
+describe("getGrantablePermissionsForPerfil", () => {
+  it("selecionar todas não concede permissões acima do cargo", () => {
+    const codigos = getGrantablePermissionsForPerfil("Consultor", catalogoPermissoes).map((p) => p.codigo);
+
+    expect(codigos).toContain("dashboard.visualizar");
+    expect(codigos).toContain("leads.ver");
+    expect(codigos).not.toContain("cobranca.ver");
+    expect(codigos).not.toContain("usuarios.criar");
+    expect(codigos).not.toContain("usuarios.excluir");
+    expect(codigos).not.toContain("links_uteis.ver");
+  });
+
+  it("Indicador recebe apenas o padrão do cargo", () => {
+    const codigos = getGrantablePermissionsForPerfil("Indicador", catalogoPermissoes).map((p) => p.codigo);
+
+    expect(codigos).toEqual(["dashboard.visualizar"]);
+  });
+
+  it("Gestor recebe não restritas e nunca permissões administrativas", () => {
+    const codigos = getGrantablePermissionsForPerfil("Gestor", catalogoPermissoes).map((p) => p.codigo);
+
+    expect(codigos).toContain("cobranca.ver");
+    expect(codigos).toContain("links_uteis.visualizar");
+    expect(codigos).not.toContain("usuarios.criar");
+    expect(codigos).not.toContain("usuarios.excluir");
+    expect(codigos).not.toContain("links_uteis.ver");
+  });
+
+  it("Administrador recebe todas as não restritas sem duplicar legados", () => {
+    const codigos = getGrantablePermissionsForPerfil("Administrador", catalogoPermissoes).map((p) => p.codigo);
+
+    expect(codigos).toContain("cobranca.ver");
+    expect(codigos).toContain("links_uteis.visualizar");
+    expect(codigos).not.toContain("usuarios.excluir");
+    expect(codigos).not.toContain("usuarios.criar");
+    expect(codigos).not.toContain("links_uteis.ver");
+  });
+
+  it("não concede nada para perfil desconhecido", () => {
+    expect(getGrantablePermissionsForPerfil("Novo Perfil", catalogoPermissoes)).toEqual([]);
+  });
+});
+
+describe("canRemoveIndividualPermission", () => {
+  it("protege permissões administrativas estruturais", () => {
+    expect(canRemoveIndividualPermission("usuarios.promover_admin")).toBe(false);
+    expect(canRemoveIndividualPermission("usuarios.permissoes")).toBe(false);
+    expect(canRemoveIndividualPermission("configuracoes.editar")).toBe(false);
+    expect(canRemoveIndividualPermission("metas.excluir")).toBe(false);
+    expect(canRemoveIndividualPermission("usuarios.excluir")).toBe(false);
+    expect(canRemoveIndividualPermission("usuarios.criar")).toBe(false);
+  });
+
+  it("permite remover permissões operacionais e aliases legados", () => {
+    expect(canRemoveIndividualPermission("leads.ver")).toBe(true);
+    expect(canRemoveIndividualPermission("cobranca.ver")).toBe(true);
+    expect(canRemoveIndividualPermission("links_uteis.visualizar")).toBe(true);
+    expect(canRemoveIndividualPermission("links_uteis.ver")).toBe(true);
+  });
+});
+
+describe("getRemovableGrantIds", () => {
+  it("remove operacionais e mantém protegidas ou desconhecidas", () => {
+    const catalogo = new Map([
+      ["p2", "leads.ver"],
+      ["p4", "usuarios.excluir"],
+      ["p5", "usuarios.criar"],
+      ["p6", "links_uteis.ver"],
+    ]);
+
+    expect(getRemovableGrantIds(["p2", "p4", "p5", "p6", "p9"], catalogo)).toEqual(["p2", "p6"]);
   });
 });
