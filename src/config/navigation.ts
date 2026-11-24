@@ -24,6 +24,7 @@ import {
   Receipt,
   DollarSign,
 } from "lucide-react";
+import { ROUTE_PERMISSIONS } from "@/lib/route-permissions";
 
 export interface NavItem {
   title: string;
@@ -48,10 +49,10 @@ export const PERFIS_VISIBILIDADE = [
   "Secretaria",
 ] as const;
 
-export const ALL_NAV_ITEMS: NavItem[] = [
+const NAV_ITEMS_BASE: NavItem[] = [
   { title: "Dashboard", href: "/", icon: LayoutDashboard },
   { title: "Leads", href: "/leads", icon: UserPlus, badge: "12", allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Trainee"] },
-  { title: "Central de Indicadores", href: "/central-de-indicadores", icon: TrendingUp, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Indicador", "Trainee"] },
+  { title: "Central de Indicadores", href: "/central-de-indicadores", icon: TrendingUp, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Indicador"] },
   { title: "Usuários Online", href: "/uarios-online", icon: Wifi, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
   { title: "Clientes", href: "/clientes", icon: Users, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Trainee"] },
   { title: "Contatos", href: "/contatos", icon: Mail, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
@@ -66,7 +67,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { title: "Recrutamento", href: "/recrutamento", icon: UserSearch, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Trainee"] },
   { title: "Biblioteca", href: "/biblioteca", icon: BookOpen, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
   { title: "Treinamentos", href: "/treinamentos", icon: BookOpen, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Consultor em prévia", "Líder em treinamento", "Indicador", "Trainee"] },
-  { title: "Materiais para Consultores", href: "/materiais-consultores", icon: FileText, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
+  { title: "Materiais para Consultores", href: "/materiais-consultores", icon: FileText, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Líder em treinamento", "Secretaria", "Indicador", "Trainee"] },
   { title: "Links úteis", href: "/links-uteis", icon: Link2, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
   { title: "Relatórios", href: "/relatorios", icon: BarChart3, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
   { title: "Configurações", href: "/configuracoes", icon: Settings, allowedRoles: ["Administrador"] },
@@ -75,6 +76,25 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { title: "Live de Voz", href: "/live-voz", icon: Radio, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
   { title: "Credito Investimento", href: "/credito-investimento", icon: TrendingUp, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
 ];
+
+export const ALL_NAV_ITEMS: NavItem[] = NAV_ITEMS_BASE.map((item) => {
+  const permissions = ROUTE_PERMISSIONS[item.href];
+  if (!permissions) return item;
+
+  if (permissions.length === 1) {
+    return {
+      ...item,
+      requiredPermission: permissions[0],
+      requiredPermissions: undefined,
+    };
+  }
+
+  return {
+    ...item,
+    requiredPermission: undefined,
+    requiredPermissions: permissions,
+  };
+});
 
 export const mainNavItems = ALL_NAV_ITEMS.filter((item) => !item.allowedRoles || item.allowedRoles.length === 0);
 

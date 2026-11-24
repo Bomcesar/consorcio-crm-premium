@@ -92,7 +92,7 @@ async function criarUsuario(
 
   // 3. Validações funcionais antes de qualquer operação privilegiada
   if (!hasPermission(caller, "usuarios.criar")) {
-    throw new Error("Sem permissão para criar usuários. Apenas Administradores e Gestores podem criar usuários.");
+    throw new Error("Sem permissão para criar usuários. Apenas Administradores e Gestores Plenos podem criar usuários.");
   }
 
   if (!canAssignProfile(caller, perfil)) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ALL_NAV_ITEMS, PERFIS_VISIBILIDADE, getNavItemsForRole } from "./navigation";
+import { ROUTE_PERMISSIONS } from "@/lib/route-permissions";
 
 function hrefs(items: ReturnType<typeof getNavItemsForRole>): string[] {
   return items.map((item) => item.href);
@@ -71,6 +72,21 @@ describe("catálogo de visibilidade", () => {
   it("cataloga Agenda com a permissão canônica agenda.ver", () => {
     const agenda = ALL_NAV_ITEMS.find((item) => item.href === "/agenda");
     expect(agenda?.requiredPermission).toBe("agenda.ver");
+  });
+
+  it("mantém navegação e middleware com as mesmas permissões de rota", () => {
+    for (const [href, permissions] of Object.entries(ROUTE_PERMISSIONS)) {
+      const item = ALL_NAV_ITEMS.find((navItem) => navItem.href === href);
+      expect(item, href).toBeDefined();
+
+      if (permissions.length === 1) {
+        expect(item?.requiredPermission, href).toBe(permissions[0]);
+        expect(item?.requiredPermissions, href).toBeUndefined();
+      } else {
+        expect(item?.requiredPermissions, href).toEqual(permissions);
+        expect(item?.requiredPermission, href).toBeUndefined();
+      }
+    }
   });
 
   it("não cria módulos sem página implementada", () => {

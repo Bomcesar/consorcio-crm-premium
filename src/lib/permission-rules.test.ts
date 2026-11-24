@@ -42,6 +42,44 @@ describe("hasPermissionForPerfil", () => {
     expect(hasPermissionForPerfil("Indicador", "cobranca.ver")).toBe(false);
   });
 
+  it("Indicador recebe playbooks sem herdar módulos de consultor", () => {
+    expect(hasPermissionForPerfil("Indicador", "playbooks.visualizar")).toBe(true);
+    expect(hasPermissionForPerfil("Indicador", "leads.ver")).toBe(false);
+    expect(hasPermissionForPerfil("Indicador", "clientes.ver")).toBe(false);
+    expect(hasPermissionForPerfil("Indicador", "whatsapp.ver")).toBe(false);
+  });
+
+  it("aplica os limites esperados dos dez cargos", () => {
+    const casos: Array<[string, string, boolean]> = [
+      ["Administrador", "usuarios.promover_admin", true],
+      ["Administrador", "clientes.ver", true],
+      ["Gestor Pleno", "usuarios.criar", true],
+      ["Gestor Pleno", "usuarios.promover_admin", false],
+      ["Gestor", "usuarios.criar", false],
+      ["Gestor", "clientes.ver", true],
+      ["Consultor Pleno", "leads.ver", true],
+      ["Consultor Pleno", "usuarios.criar", false],
+      ["Consultor Pleno", "clientes.ver", false],
+      ["Consultor", "leads.ver", true],
+      ["Consultor", "clientes.ver", false],
+      ["Consultor em prévia", "playbooks.visualizar", true],
+      ["Consultor em prévia", "leads.ver", false],
+      ["Líder em treinamento", "materiais.ver", true],
+      ["Líder em treinamento", "leads.ver", false],
+      ["Indicador", "playbooks.visualizar", true],
+      ["Indicador", "clientes.ver", false],
+      ["Trainee", "playbooks.visualizar", true],
+      ["Trainee", "leads.ver", false],
+      ["Secretaria", "leads.ver", true],
+      ["Secretaria", "clientes.ver", false],
+      ["Secretaria", "usuarios.criar", false],
+    ];
+
+    for (const [perfil, permission, expected] of casos) {
+      expect(hasPermissionForPerfil(perfil, permission), `${perfil} -> ${permission}`).toBe(expected);
+    }
+  });
+
   it("Perfis não mapeados usam as permissões concedidas", () => {
     expect(hasPermissionForPerfil("Novo Perfil", "cobranca.ver", ["cobranca.ver"])).toBe(true);
     expect(hasPermissionForPerfil("Novo Perfil", "cobranca.ver")).toBe(false);

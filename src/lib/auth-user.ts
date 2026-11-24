@@ -175,11 +175,6 @@ export function canAssignProfile(currentUser: AuthenticatedUser, newProfile: str
     ].includes(newProfile);
   }
 
-  // Consultor Pleno pode atribuir: Consultor, Consultor em prévia, Indicador
-  if (currentUser.perfil === "Consultor Pleno") {
-    return ["Consultor", "Consultor em prévia", "Indicador"].includes(newProfile);
-  }
-
   return false;
 }
 
@@ -256,11 +251,6 @@ export function canCreateUser(currentUser: AuthenticatedUser, targetCargo: strin
       "Líder em treinamento",
       "Indicador",
     ].includes(targetCargo);
-  }
-
-  // Consultor Pleno pode criar: Consultor, Consultor em prévia, Indicador
-  if (currentUser.perfil === "Consultor Pleno") {
-    return ["Consultor", "Consultor em prévia", "Indicador"].includes(targetCargo);
   }
 
   // Demais cargos não podem criar usuários

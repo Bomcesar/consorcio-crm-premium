@@ -38,6 +38,7 @@ export type PermissionDefinition = {
 const ALLOWED_BY_PERFIL: Record<string, string[]> = {
   "Consultor Pleno": [
     "dashboard.visualizar",
+    "indicadores.ver",
     "leads.ver", "leads.criar", "leads.editar",
     "agenda.ver", "agenda.criar", "agenda.editar",
     "tarefas.visualizar", "tarefas.criar", "tarefas.editar",
@@ -50,10 +51,10 @@ const ALLOWED_BY_PERFIL: Record<string, string[]> = {
     "links_uteis.visualizar", "links_uteis.criar", "links_uteis.editar",
     "materiais.ver", "materiais.criar", "materiais.editar",
     "relatorios.ver",
-    "usuarios.criar",
   ],
   "Consultor": [
     "dashboard.visualizar",
+    "indicadores.ver",
     "leads.ver", "leads.criar", "leads.editar",
     "agenda.ver", "agenda.criar", "agenda.editar",
     "tarefas.visualizar", "tarefas.criar", "tarefas.editar",
@@ -78,6 +79,8 @@ const ALLOWED_BY_PERFIL: Record<string, string[]> = {
   ],
   "Indicador": [
     "dashboard.visualizar",
+    "indicadores.ver",
+    "playbooks.visualizar",
   ],
   "Trainee": [
     "dashboard.visualizar",

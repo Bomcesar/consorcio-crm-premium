@@ -68,12 +68,11 @@ describe("canCreateUser - matriz oficial de 10 cargos", () => {
     expect(canCreateUser(g, "Secretaria")).toBe(false);
   });
 
-  it("Consultor Pleno pode criar: Consultor, Consultor em prévia, Indicador", () => {
+  it("Consultor Pleno não pode criar usuários", () => {
     const cp = mkUser("Consultor Pleno");
-    expect(canCreateUser(cp, "Consultor")).toBe(true);
-    expect(canCreateUser(cp, "Consultor em prévia")).toBe(true);
-    expect(canCreateUser(cp, "Indicador")).toBe(true);
-    // Não pode criar Administrador, Gestor Pleno, Gestor, Líder em treinamento, Trainee, Secretaria
+    expect(canCreateUser(cp, "Consultor")).toBe(false);
+    expect(canCreateUser(cp, "Consultor em prévia")).toBe(false);
+    expect(canCreateUser(cp, "Indicador")).toBe(false);
     expect(canCreateUser(cp, "Administrador")).toBe(false);
     expect(canCreateUser(cp, "Gestor Pleno")).toBe(false);
     expect(canCreateUser(cp, "Gestor")).toBe(false);
@@ -156,11 +155,11 @@ describe("canAssignProfile - matriz oficial de atribuição", () => {
     expect(canAssignProfile(g, "Gestor")).toBe(false);
   });
 
-  it("Consultor Pleno pode atribuir: Consultor, Consultor em prévia, Indicador", () => {
+  it("Consultor Pleno não pode atribuir perfis", () => {
     const cp = mkUser("Consultor Pleno");
-    expect(canAssignProfile(cp, "Consultor")).toBe(true);
-    expect(canAssignProfile(cp, "Consultor em prévia")).toBe(true);
-    expect(canAssignProfile(cp, "Indicador")).toBe(true);
+    expect(canAssignProfile(cp, "Consultor")).toBe(false);
+    expect(canAssignProfile(cp, "Consultor em prévia")).toBe(false);
+    expect(canAssignProfile(cp, "Indicador")).toBe(false);
     expect(canAssignProfile(cp, "Líder em treinamento")).toBe(false);
     expect(canAssignProfile(cp, "Consultor Pleno")).toBe(false);
   });
@@ -205,9 +204,9 @@ describe("hasPermission - verificações de permissão", () => {
     expect(hasPermission(g, "usuarios.excluir")).toBe(false);
   });
 
-  it("Consultor Pleno tem usuarios.criar", () => {
+  it("Consultor Pleno não tem usuarios.criar", () => {
     const cp = mkUser("Consultor Pleno");
-    expect(hasPermission(cp, "usuarios.criar")).toBe(true);
+    expect(hasPermission(cp, "usuarios.criar")).toBe(false);
     expect(hasPermission(cp, "usuarios.excluir")).toBe(false);
     expect(hasPermission(cp, "configuracoes.editar")).toBe(false);
   });

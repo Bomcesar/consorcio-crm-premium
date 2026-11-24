@@ -1,12 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasPermissionForPerfil } from "@/lib/permission-rules";
-
-const ROUTE_PERMISSIONS: Record<string, string[]> = {
-  "/agenda": ["agenda.ver"],
-  "/cobranca": ["cobranca.ver"],
-  "/comissoes": ["comissoes.ver_proprias", "comissoes.ver_todas"],
-};
+import { ADMIN_ONLY_ROUTES, ROUTE_PERMISSIONS } from "@/lib/route-permissions";
 
 export function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -23,6 +18,14 @@ export function isDemoEnabled(): boolean {
   // Segurança: demo mode SOMENTE em desenvolvimento
   if (process.env.NODE_ENV !== "development") return false;
   return (process.env.NEXT_PUBLIC_DEMO_MODE ?? "false").toLowerCase() === "true";
+}
+
+function forbiddenResponse(supabaseResponse: NextResponse): NextResponse {
+  const denied = new NextResponse("Acesso não autorizado", { status: 403 });
+  supabaseResponse.cookies.getAll().forEach((cookie) => {
+    denied.cookies.set(cookie);
+  });
+  return denied;
 }
 
 export async function updateSession(request: NextRequest) {
@@ -97,39 +100,45 @@ export async function updateSession(request: NextRequest) {
   }
 
   const requiredPermissions = ROUTE_PERMISSIONS[request.nextUrl.pathname];
-  if (user && requiredPermissions) {
+  const isAdminOnlyRoute = ADMIN_ONLY_ROUTES.has(request.nextUrl.pathname);
+
+  if (user && (requiredPermissions || isAdminOnlyRoute)) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("perfil")
       .eq("id", user.id)
       .maybeSingle();
 
-    let permissoes: string[] = [];
-    const { data: grants } = await supabase
-      .from("user_permission_grants")
-      .select("permissao_id")
-      .eq("usuario_id", user.id);
-
-    const grantIds = (grants ?? []).map((grant: { permissao_id: string }) => grant.permissao_id);
-    if (grantIds.length > 0) {
-      const { data: permissaoRows } = await supabase
-        .from("user_permissions")
-        .select("codigo")
-        .in("id", grantIds);
-      permissoes = (permissaoRows ?? []).map((row: { codigo: string }) => row.codigo);
+    if (!profile?.perfil) {
+      return forbiddenResponse(supabaseResponse);
     }
 
-    if (profile?.perfil) {
+    if (isAdminOnlyRoute && profile.perfil !== "Administrador") {
+      return forbiddenResponse(supabaseResponse);
+    }
+
+    if (requiredPermissions) {
+      let permissoes: string[] = [];
+      const { data: grants } = await supabase
+        .from("user_permission_grants")
+        .select("permissao_id")
+        .eq("usuario_id", user.id);
+
+      const grantIds = (grants ?? []).map((grant: { permissao_id: string }) => grant.permissao_id);
+      if (grantIds.length > 0) {
+        const { data: permissaoRows } = await supabase
+          .from("user_permissions")
+          .select("codigo")
+          .in("id", grantIds);
+        permissoes = (permissaoRows ?? []).map((row: { codigo: string }) => row.codigo);
+      }
+
       const allowed = requiredPermissions.some((permission) =>
         hasPermissionForPerfil(profile.perfil, permission, permissoes),
       );
 
       if (!allowed) {
-        const denied = new NextResponse("Acesso não autorizado", { status: 403 });
-        supabaseResponse.cookies.getAll().forEach((cookie) => {
-          denied.cookies.set(cookie);
-        });
-        return denied;
+        return forbiddenResponse(supabaseResponse);
       }
     }
   }
