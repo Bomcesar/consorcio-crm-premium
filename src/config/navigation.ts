@@ -55,7 +55,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { title: "Usuários Online", href: "/uarios-online", icon: Wifi, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
   { title: "Clientes", href: "/clientes", icon: Users, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Trainee"] },
   { title: "Contatos", href: "/contatos", icon: Mail, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
-  { title: "Agenda", href: "/agenda", icon: Calendar, requiredPermission: "agenda.visualizar", allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Trainee"] },
+  { title: "Agenda", href: "/agenda", icon: Calendar, requiredPermission: "agenda.ver", allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Trainee"] },
   { title: "WhatsApp", href: "/whatsapp", icon: MessageCircle, badge: "3", allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
   { title: "Comunicação", href: "/comunicacao", icon: Phone, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
   { title: "Negociações", href: "/negociacoes", icon: Handshake, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Indicador", "Trainee"] },

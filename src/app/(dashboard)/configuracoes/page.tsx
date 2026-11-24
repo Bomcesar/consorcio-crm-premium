@@ -42,6 +42,8 @@ type UsuarioForm = {
   senha?: string;
 };
 
+const LEGACY_PERMISSION_CODES = new Set(["links_uteis.ver"]);
+
 export default function ConfiguracoesPage() {
   const { success, error } = useToast();
   const [activeTab, setActiveTab] = useState<TabValue>("perfil");
@@ -81,6 +83,13 @@ export default function ConfiguracoesPage() {
   const userRole = perfil?.perfil;
   const canManageUsers = userRole === "Administrador" || userRole === "Gestor";
   const canManagePermissions = userRole === "Administrador";
+
+  const permissoesVisiveis = todasPermissoes.filter(
+    (permissao) => !LEGACY_PERMISSION_CODES.has(permissao.codigo),
+  );
+  const categoriasPermissoes = Array.from(
+    new Set(permissoesVisiveis.map((permissao) => permissao.categoria)),
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -737,15 +746,14 @@ export default function ConfiguracoesPage() {
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : usuarioPermissoesId ? (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          const todas = todasPermissoes.map((p) => p.id);
-                          setPermissoesUsuario(todas);
+                          setPermissoesUsuario(permissoesVisiveis.map((p) => p.id));
                         }}
                       >
                         Selecionar todas
@@ -759,28 +767,41 @@ export default function ConfiguracoesPage() {
                         Limpar todas
                       </Button>
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {todasPermissoes.map((permissao) => {
-                        const ativa = permissoesUsuario.includes(permissao.id);
-                        return (
-                          <button
-                            key={permissao.id}
-                            type="button"
-                            onClick={() => togglePermissao(permissao.id)}
-                            className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
-                              ativa ? "border-primary bg-primary/10" : "border-border hover:border-primary/40"
-                            }`}
-                          >
-                            <p className="font-medium">{permissao.nome}</p>
-                            <p className="text-xs text-muted-foreground">{permissao.codigo}</p>
-                            <p className="text-xs text-muted-foreground">{permissao.categoria}</p>
-                            <span className={`mt-2 inline-flex items-center text-xs font-medium ${ativa ? "text-green-700" : "text-muted-foreground"}`}>
-                              {ativa ? "Selecionado" : "Não selecionado"}
-                            </span>
-                          </button>
+                    {categoriasPermissoes.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhuma permissão disponível.</p>
+                    ) : (
+                      categoriasPermissoes.map((categoria) => {
+                        const permissoesDaCategoria = permissoesVisiveis.filter(
+                          (permissao) => permissao.categoria === categoria,
                         );
-                      })}
-                    </div>
+                        return (
+                          <div key={categoria} className="space-y-2">
+                            <h4 className="text-sm font-semibold text-foreground">{categoria}</h4>
+                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                              {permissoesDaCategoria.map((permissao) => {
+                                const ativa = permissoesUsuario.includes(permissao.id);
+                                return (
+                                  <button
+                                    key={permissao.id}
+                                    type="button"
+                                    onClick={() => togglePermissao(permissao.id)}
+                                    className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                                      ativa ? "border-primary bg-primary/10" : "border-border hover:border-primary/40"
+                                    }`}
+                                  >
+                                    <p className="font-medium">{permissao.nome}</p>
+                                    <p className="text-xs text-muted-foreground">{permissao.codigo}</p>
+                                    <span className={`mt-2 inline-flex items-center text-xs font-medium ${ativa ? "text-green-700" : "text-muted-foreground"}`}>
+                                      {ativa ? "Selecionado" : "Não selecionado"}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">

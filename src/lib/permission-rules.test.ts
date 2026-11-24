@@ -90,4 +90,40 @@ describe("hasPermissionForPerfil", () => {
     expect(hasPermissionForPerfil("Administrador", "tarefas.criar")).toBe(true);
     expect(hasPermissionForPerfil("Administrador", "tarefas.editar")).toBe(true);
   });
+
+  it("usa os códigos canônicos .ver dos módulos legados", () => {
+    expect(hasPermissionForPerfil("Consultor", "leads.ver")).toBe(true);
+    expect(hasPermissionForPerfil("Consultor", "agenda.ver")).toBe(true);
+    expect(hasPermissionForPerfil("Consultor", "pos_venda.ver")).toBe(true);
+    expect(hasPermissionForPerfil("Consultor", "relatorios.ver")).toBe(true);
+    expect(hasPermissionForPerfil("Consultor Pleno", "materiais.ver")).toBe(true);
+  });
+
+  it("mantém compatibilidade com os códigos .visualizar legados", () => {
+    expect(hasPermissionForPerfil("Consultor", "leads.visualizar")).toBe(true);
+    expect(hasPermissionForPerfil("Consultor", "agenda.visualizar")).toBe(true);
+    expect(hasPermissionForPerfil("Consultor", "pos_venda.visualizar")).toBe(true);
+    expect(hasPermissionForPerfil("Consultor", "relatorios.visualizar")).toBe(true);
+    expect(hasPermissionForPerfil("Consultor Pleno", "materiais.visualizar")).toBe(true);
+  });
+
+  it("links úteis usa visualizar como canônico e aceita ver como legado", () => {
+    expect(hasPermissionForPerfil("Consultor Pleno", "links_uteis.visualizar")).toBe(true);
+    expect(hasPermissionForPerfil("Consultor Pleno", "links_uteis.ver")).toBe(true);
+    expect(hasPermissionForPerfil("Indicador", "links_uteis.visualizar")).toBe(false);
+    expect(hasPermissionForPerfil("Indicador", "links_uteis.visualizar", ["links_uteis.ver"])).toBe(true);
+    expect(hasPermissionForPerfil("Indicador", "links_uteis.ver", ["links_uteis.ver"])).toBe(true);
+  });
+
+  it("permissões individuais usam o código canônico", () => {
+    expect(hasPermissionForPerfil("Indicador", "agenda.ver", ["agenda.ver"])).toBe(true);
+    expect(hasPermissionForPerfil("Indicador", "agenda.visualizar", ["agenda.ver"])).toBe(true);
+    expect(hasPermissionForPerfil("Indicador", "agenda.ver", ["agenda.visualizar"])).toBe(true);
+    expect(hasPermissionForPerfil("Indicador", "agenda.ver")).toBe(false);
+  });
+
+  it("Líder em treinamento mantém materiais mas não leads", () => {
+    expect(hasPermissionForPerfil("Líder em treinamento", "materiais.ver")).toBe(true);
+    expect(hasPermissionForPerfil("Líder em treinamento", "leads.ver")).toBe(false);
+  });
 });

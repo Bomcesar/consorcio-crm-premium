@@ -39,7 +39,7 @@ export function useAgendaPermissions(): AgendaPermissions | null {
 
         setPermissions({
           agenda: {
-            visualizar: hasPermission(user, "agenda.visualizar"),
+            visualizar: hasPermission(user, "agenda.ver"),
             editar: hasPermission(user, "agenda.editar"),
           },
           reunioes: {

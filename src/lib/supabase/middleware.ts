@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { hasPermissionForPerfil } from "@/lib/permission-rules";
 
 const ROUTE_PERMISSIONS: Record<string, string[]> = {
-  "/agenda": ["agenda.visualizar"],
+  "/agenda": ["agenda.ver"],
   "/cobranca": ["cobranca.ver"],
   "/comissoes": ["comissoes.ver_proprias", "comissoes.ver_todas"],
 };

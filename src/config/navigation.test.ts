@@ -68,6 +68,11 @@ describe("catálogo de visibilidade", () => {
     ]);
   });
 
+  it("cataloga Agenda com a permissão canônica agenda.ver", () => {
+    const agenda = ALL_NAV_ITEMS.find((item) => item.href === "/agenda");
+    expect(agenda?.requiredPermission).toBe("agenda.ver");
+  });
+
   it("não cria módulos sem página implementada", () => {
     const rotas = ALL_NAV_ITEMS.map((item) => item.href);
 
