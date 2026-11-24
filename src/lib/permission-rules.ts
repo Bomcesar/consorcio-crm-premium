@@ -188,3 +188,32 @@ export function getRemovableGrantIds(
     return codigo ? canRemoveIndividualPermission(codigo) : false;
   });
 }
+
+export type PermissionState =
+  | "protegida"
+  | "concedida"
+  | "herdada"
+  | "nao_concedida";
+
+export function classifyPermission(
+  perfil: string | undefined,
+  permissionCodigo: string,
+  grantedCodes: string[] = [],
+): PermissionState {
+  const canonical = normalizePermission(permissionCodigo);
+
+  if (GLOBAL_RESTRICTED_PERMISSIONS.includes(canonical)) {
+    return "protegida";
+  }
+
+  const granted = grantedCodes.map(normalizePermission).includes(canonical);
+  if (granted) {
+    return "concedida";
+  }
+
+  if (isPermissionInCargoDefaults(perfil, permissionCodigo)) {
+    return "herdada";
+  }
+
+  return "nao_concedida";
+}

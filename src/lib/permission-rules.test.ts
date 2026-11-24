@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canRemoveIndividualPermission,
+  classifyPermission,
   getGrantablePermissionsForPerfil,
   getRemovableGrantIds,
   hasPermissionForPerfil,
@@ -252,5 +253,36 @@ describe("getRemovableGrantIds", () => {
     ]);
 
     expect(getRemovableGrantIds(["p2", "p4", "p5", "p6", "p9"], catalogo)).toEqual(["p2", "p6"]);
+  });
+});
+
+describe("classifyPermission", () => {
+  it("protegida prevalece sobre concessão individual e cargo", () => {
+    expect(classifyPermission("Administrador", "usuarios.promover_admin", ["usuarios.promover_admin"])).toBe("protegida");
+    expect(classifyPermission("Consultor", "usuarios.criar", ["usuarios.criar"])).toBe("protegida");
+    expect(classifyPermission("Gestor", "configuracoes.editar", [])).toBe("protegida");
+  });
+
+  it("concedida quando há grant individual mesmo fora do cargo", () => {
+    expect(classifyPermission("Consultor", "cobranca.ver", ["cobranca.ver"])).toBe("concedida");
+    expect(classifyPermission("Indicador", "agenda.ver", ["agenda.visualizar"])).toBe("concedida");
+  });
+
+  it("herdada quando decorre do cargo e não há grant", () => {
+    expect(classifyPermission("Consultor", "leads.ver", [])).toBe("herdada");
+    expect(classifyPermission("Consultor", "leads.ver", ["cobranca.ver"])).toBe("herdada");
+    expect(classifyPermission("Gestor", "clientes.ver", [])).toBe("herdada");
+    expect(classifyPermission("Trainee", "playbooks.visualizar", [])).toBe("herdada");
+  });
+
+  it("nao_concedida quando não é do cargo nem há grant", () => {
+    expect(classifyPermission("Consultor", "cobranca.ver", [])).toBe("nao_concedida");
+    expect(classifyPermission("Trainee", "leads.ver", [])).toBe("nao_concedida");
+    expect(classifyPermission("Consultor", "leads.ver", ["cobranca.ver"])).toBe("herdada");
+    expect(classifyPermission("Novo Perfil", "leads.ver", [])).toBe("nao_concedida");
+  });
+
+  it("concedida tem precedência sobre herdada", () => {
+    expect(classifyPermission("Consultor", "leads.ver", ["leads.ver"])).toBe("concedida");
   });
 });

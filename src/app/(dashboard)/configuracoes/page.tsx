@@ -33,6 +33,8 @@ import { ALL_NAV_ITEMS, PERFIS_VISIBILIDADE } from "@/config/navigation";
 import { notifyModuleVisibilityChanged } from "@/lib/module-visibility";
 import {
   LEGACY_PERMISSION_CODES,
+  canRemoveIndividualPermission,
+  classifyPermission,
   getGrantablePermissionsForPerfil,
   getRemovableGrantIds,
 } from "@/lib/permission-rules";
@@ -73,6 +75,7 @@ export default function ConfiguracoesPage() {
   });
 
   const [permissoesUsuario, setPermissoesUsuario] = useState<string[]>([]);
+  const [permissoesCodigosUsuario, setPermissoesCodigosUsuario] = useState<string[]>([]);
   const [todasPermissoes, setTodasPermissoes] = useState<{ id: string; codigo: string; nome: string; categoria: string }[]>([]);
   const [isPermissoesLoading, setIsPermissoesLoading] = useState(false);
   const [isPermissoesSaving, setIsPermissoesSaving] = useState(false);
@@ -424,7 +427,9 @@ export default function ConfiguracoesPage() {
     }
   };
 
-  const recarregarPermissoesUsuario = async (usuarioId: string): Promise<string[]> => {
+  const recarregarPermissoesUsuario = async (
+    usuarioId: string,
+  ): Promise<{ ids: string[]; codigos: string[] }> => {
     const supabase = createClient();
     const { data: grants, error: grantsError } = await supabase
       .from("user_permission_grants")
@@ -432,18 +437,36 @@ export default function ConfiguracoesPage() {
       .eq("usuario_id", usuarioId);
 
     if (grantsError) throw grantsError;
-    return (grants ?? []).map((g: { permissao_id: string }) => g.permissao_id);
+
+    const ids = (grants ?? []).map((g: { permissao_id: string }) => g.permissao_id);
+    if (ids.length === 0) return { ids: [], codigos: [] };
+
+    const { data: perms, error: permsError } = await supabase
+      .from("user_permissions")
+      .select("id, codigo")
+      .in("id", ids);
+
+    if (permsError) throw permsError;
+
+    return {
+      ids,
+      codigos: (perms ?? []).map((p: { codigo: string }) => p.codigo),
+    };
   };
 
   const abrirPermissoes = async (usuario: Perfil) => {
     if (userRole !== "Administrador" || isPermissoesSaving) return;
+    usuarioPermissoesIdRef.current = usuario.id;
     setIsPermissoesLoading(true);
+    setPermissoesUsuario([]);
+    setPermissoesCodigosUsuario([]);
+    setUsuarioPermissoesId(usuario.id);
+    setUsuarioPermissoesPerfil(usuario.perfil);
     try {
-      const grants = await recarregarPermissoesUsuario(usuario.id);
-      setUsuarioPermissoesId(usuario.id);
-      usuarioPermissoesIdRef.current = usuario.id;
-      setUsuarioPermissoesPerfil(usuario.perfil);
-      setPermissoesUsuario(grants);
+      const { ids, codigos } = await recarregarPermissoesUsuario(usuario.id);
+      if (usuarioPermissoesIdRef.current !== usuario.id) return;
+      setPermissoesUsuario(ids);
+      setPermissoesCodigosUsuario(codigos);
     } catch (err) {
       console.error("[abrirPermissoes] error:", err);
       error("Não foi possível carregar as permissões do usuário.");
@@ -472,7 +495,7 @@ export default function ConfiguracoesPage() {
       const supabase = createClient();
       const grantable = getGrantablePermissionsForPerfil(perfilAtual, permissoesVisiveis);
       const atuais = await recarregarPermissoesUsuario(targetUserId);
-      const existing = new Set(atuais);
+      const existing = new Set(atuais.ids);
       const missing = grantable.filter((permissao) => !existing.has(permissao.id));
 
       if (missing.length > 0) {
@@ -489,7 +512,7 @@ export default function ConfiguracoesPage() {
         if (insertError) throw insertError;
       }
 
-      let updated: string[] | null = null;
+      let updated: { ids: string[]; codigos: string[] } | null = null;
       try {
         updated = await recarregarPermissoesUsuario(targetUserId);
       } catch (reloadError) {
@@ -498,9 +521,20 @@ export default function ConfiguracoesPage() {
 
       if (usuarioPermissoesIdRef.current === targetUserId) {
         if (updated) {
-          setPermissoesUsuario(updated);
+          setPermissoesUsuario(updated.ids);
+          setPermissoesCodigosUsuario(updated.codigos);
         } else {
-          setPermissoesUsuario(Array.from(new Set([...atuais, ...missing.map((permissao) => permissao.id)])));
+          setPermissoesUsuario(
+            Array.from(new Set([...atuais.ids, ...missing.map((permissao) => permissao.id)])),
+          );
+          setPermissoesCodigosUsuario(
+            Array.from(
+              new Set([
+                ...atuais.codigos,
+                ...missing.map((permissao) => permissao.codigo),
+              ]),
+            ),
+          );
           error("Permissões salvas, mas não foi possível recarregar a lista.");
           return;
         }
@@ -536,11 +570,12 @@ export default function ConfiguracoesPage() {
 
       const supabase = createClient();
       const atuais = await recarregarPermissoesUsuario(targetUserId);
-      const removableIds = getRemovableGrantIds(atuais, catalogById);
+      const removableIds = getRemovableGrantIds(atuais.ids, catalogById);
 
       if (removableIds.length === 0) {
         if (usuarioPermissoesIdRef.current === targetUserId) {
-          setPermissoesUsuario(atuais);
+          setPermissoesUsuario(atuais.ids);
+          setPermissoesCodigosUsuario(atuais.codigos);
         }
         success("Nenhuma permissão individual pôde ser removida.");
         return;
@@ -560,7 +595,7 @@ export default function ConfiguracoesPage() {
 
       if (deleteError) throw deleteError;
 
-      let updated: string[] | null = null;
+      let updated: { ids: string[]; codigos: string[] } | null = null;
       try {
         updated = await recarregarPermissoesUsuario(targetUserId);
       } catch (reloadError) {
@@ -569,16 +604,23 @@ export default function ConfiguracoesPage() {
 
       if (usuarioPermissoesIdRef.current === targetUserId) {
         if (updated) {
-          setPermissoesUsuario(updated);
+          setPermissoesUsuario(updated.ids);
+          setPermissoesCodigosUsuario(updated.codigos);
         } else {
           const removableSet = new Set(removableIds);
-          setPermissoesUsuario(atuais.filter((permissaoId) => !removableSet.has(permissaoId)));
+          setPermissoesUsuario(atuais.ids.filter((permissaoId) => !removableSet.has(permissaoId)));
+          setPermissoesCodigosUsuario(
+            atuais.ids
+              .filter((permissaoId) => !removableSet.has(permissaoId))
+              .map((permissaoId) => catalogById.get(permissaoId))
+              .filter((codigo): codigo is string => Boolean(codigo)),
+          );
           error("Permissões removidas, mas não foi possível recarregar a lista.");
           return;
         }
       }
 
-      const mantidas = atuais.length - removableIds.length;
+      const mantidas = atuais.ids.length - removableIds.length;
       success(
         mantidas > 0
           ? `${removableIds.length} permissão(ões) individual(is) removida(s). ${mantidas} permissão(ões) protegida(s) mantida(s).`
@@ -638,11 +680,22 @@ export default function ConfiguracoesPage() {
   const togglePermissao = async (permissaoId: string) => {
     if (!usuarioPermissoesId || userRole !== "Administrador" || isPermissoesSaving) return;
 
+    const permissao = todasPermissoes.find((p) => p.id === permissaoId);
+    if (!permissao) return;
+
+    const codigo = permissao.codigo;
+    const jaTem = permissoesUsuario.includes(permissaoId);
+    const perfilAtual = usuarioPermissoesPerfil;
+
     try {
       const supabase = createClient();
-      const jaTem = permissoesUsuario.includes(permissaoId);
 
       if (jaTem) {
+        if (!canRemoveIndividualPermission(codigo)) {
+          error("Esta permissão é protegida e não pode ser removida individualmente.");
+          return;
+        }
+
         const { error: deleteError } = await supabase
           .from("user_permission_grants")
           .delete()
@@ -656,8 +709,15 @@ export default function ConfiguracoesPage() {
         }
 
         setPermissoesUsuario((prev) => prev.filter((id) => id !== permissaoId));
+        setPermissoesCodigosUsuario((prev) => prev.filter((c) => c !== codigo));
         success("Permissão removida.");
       } else {
+        const grantable = getGrantablePermissionsForPerfil(perfilAtual ?? undefined, [permissao]);
+        if (!grantable.some((p) => p.id === permissaoId)) {
+          error("Esta permissão não pode ser concedida para o cargo deste usuário.");
+          return;
+        }
+
         const { error: insertError } = await supabase
           .from("user_permission_grants")
           .insert({ usuario_id: usuarioPermissoesId, permissao_id: permissaoId });
@@ -669,6 +729,7 @@ export default function ConfiguracoesPage() {
         }
 
         setPermissoesUsuario((prev) => [...prev, permissaoId]);
+        setPermissoesCodigosUsuario((prev) => [...prev, codigo]);
         success("Permissão adicionada.");
       }
     } catch {
@@ -924,7 +985,9 @@ export default function ConfiguracoesPage() {
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Estas permissões são concessões individuais. As permissões padrão do cargo continuam valendo.
+                      <strong>Concedida</strong>: gravada individualmente para este usuário.{" "}
+                      <strong>Herdada</strong>: vem do cargo e continua valendo sem concessão.{" "}
+                      <strong>Protegida</strong>: administrativa, não pode ser concedida nem removida aqui.
                     </p>
                     {categoriasPermissoes.length === 0 ? (
                       <p className="text-sm text-muted-foreground">Nenhuma permissão disponível.</p>
@@ -938,7 +1001,15 @@ export default function ConfiguracoesPage() {
                             <h4 className="text-sm font-semibold text-foreground">{categoria}</h4>
                             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                               {permissoesDaCategoria.map((permissao) => {
-                                const ativa = permissoesUsuario.includes(permissao.id);
+                                const estado = classifyPermission(
+                                  usuarioPermissoesPerfil ?? undefined,
+                                  permissao.codigo,
+                                  permissoesCodigosUsuario,
+                                );
+                                const isConcedida = estado === "concedida";
+                                const isHerdada = estado === "herdada";
+                                const isProtegida = estado === "protegida";
+                                const isBloqueada = isProtegida;
                                 return (
                                   <button
                                     key={permissao.id}
@@ -946,15 +1017,37 @@ export default function ConfiguracoesPage() {
                                     onClick={() => {
                                       void togglePermissao(permissao.id);
                                     }}
-                                    disabled={isPermissoesSaving}
+                                    disabled={isPermissoesSaving || isBloqueada}
                                     className={`rounded-lg border px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                                      ativa ? "border-primary bg-primary/10" : "border-border hover:border-primary/40"
+                                      isConcedida
+                                        ? "border-green-500 bg-green-50"
+                                        : isHerdada
+                                          ? "border-blue-300 bg-blue-50"
+                                          : isProtegida
+                                            ? "border-amber-400 bg-amber-50"
+                                            : "border-border hover:border-primary/40"
                                     }`}
                                   >
                                     <p className="font-medium">{permissao.nome}</p>
                                     <p className="text-xs text-muted-foreground">{permissao.codigo}</p>
-                                    <span className={`mt-2 inline-flex items-center text-xs font-medium ${ativa ? "text-green-700" : "text-muted-foreground"}`}>
-                                      {ativa ? "Selecionado" : "Não selecionado"}
+                                    <span
+                                      className={`mt-2 inline-flex items-center text-xs font-medium ${
+                                        isConcedida
+                                          ? "text-green-700"
+                                          : isHerdada
+                                            ? "text-blue-700"
+                                            : isProtegida
+                                              ? "text-amber-700"
+                                              : "text-muted-foreground"
+                                      }`}
+                                    >
+                                      {isConcedida
+                                        ? "Concedida"
+                                        : isHerdada
+                                          ? "Herdada (cargo)"
+                                          : isProtegida
+                                            ? "Protegida"
+                                            : "Não concedida"}
                                     </span>
                                   </button>
                                 );
