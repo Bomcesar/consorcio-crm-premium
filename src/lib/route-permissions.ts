@@ -21,4 +21,4 @@ export const ROUTE_PERMISSIONS: Record<string, string[]> = {
   "/credito-investimento": ["credito_investimento.visualizar"],
 };
 
-export const ADMIN_ONLY_ROUTES = new Set(["/configuracoes"]);
+export const ADMIN_ONLY_ROUTES = new Set<string>();

@@ -12,8 +12,23 @@ describe("getNavItemsForRole", () => {
     expect(hrefs(items)).toContain("/configuracoes");
   });
 
-  it("não concede Configurações a Gestor", () => {
-    const items = getNavItemsForRole("Gestor", new Set(ALL_NAV_ITEMS.map((item) => item.href)));
+  it("não exibe Configurações a Gestor quando o módulo não está visível", () => {
+    const items = getNavItemsForRole("Gestor", new Set(["/leads"]));
+    expect(hrefs(items)).not.toContain("/configuracoes");
+  });
+
+  it("exibe Configurações a Gestor quando o módulo está visível (apenas Meu Perfil)", () => {
+    const items = getNavItemsForRole("Gestor", new Set(["/leads", "/configuracoes"]));
+    expect(hrefs(items)).toContain("/configuracoes");
+  });
+
+  it("exibe Configurações a Consultor quando o módulo está visível (apenas Meu Perfil)", () => {
+    const items = getNavItemsForRole("Consultor", new Set(["/leads", "/configuracoes"]));
+    expect(hrefs(items)).toContain("/configuracoes");
+  });
+
+  it("não exibe Configurações a Consultor quando o módulo não está visível", () => {
+    const items = getNavItemsForRole("Consultor", new Set(["/leads"]));
     expect(hrefs(items)).not.toContain("/configuracoes");
   });
 

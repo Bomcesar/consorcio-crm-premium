@@ -70,7 +70,7 @@ const NAV_ITEMS_BASE: NavItem[] = [
   { title: "Materiais para Consultores", href: "/materiais-consultores", icon: FileText, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Líder em treinamento", "Secretaria", "Indicador", "Trainee"] },
   { title: "Links úteis", href: "/links-uteis", icon: Link2, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
   { title: "Relatórios", href: "/relatorios", icon: BarChart3, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
-  { title: "Configurações", href: "/configuracoes", icon: Settings, allowedRoles: ["Administrador"] },
+  { title: "Configurações", href: "/configuracoes", icon: Settings, allowedRoles: [...PERFIS_VISIBILIDADE] },
   { title: "Metas", href: "/metas", icon: Target, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor"] },
   { title: "Mensagens Dinâmicas", href: "/mensagens-dinamicas", icon: Megaphone, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
   { title: "Live de Voz", href: "/live-voz", icon: Radio, allowedRoles: ["Administrador", "Gestor Pleno", "Gestor", "Consultor Pleno", "Consultor", "Secretaria", "Indicador", "Trainee"] },
